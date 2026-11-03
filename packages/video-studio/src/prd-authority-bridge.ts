@@ -266,7 +266,7 @@ function productionPlanningPrompt(scope: Scope): string {
   return `\n\n## 本次 G4 制作执行计划（由本次模型填写现有字段）\n`
     + `角色的 consistencyRequirements 除脸型、发型、服装外，还须写出 G5 前定妆照执行计划：逐角色绑定本次 characterId、档案 profilePath/profileSha256、registrySha256、已选服装与已知版本；`
     + `明确先从这些来源解析并复用该版本原始 ${selectedAngles} PNG，不把构图稿或新猜测人脸当原始参考。已列出的四角度来源 path/hash 和既有用途证据已核对，待本次 G5 复制与评审；缺少输入证据时才写“G5 前待解析和核验”，不得编造文件、摘要、授权或已批准状态。`
-    + (selection ? `本次冻结参考选择 ${JSON.stringify(selection)}。有该人物的 G3 场景按所列角度和顺序绑定，核对动作连续性；有问题在 G4 如实审查，不能擅换角度。\n` : "")
+    + (selection ? `本次冻结参考选择 ${JSON.stringify(selection)}。先在 consistencyRequirements 分开列明该版本的全部档案原图和本次实际逐镜选图：档案来源逐张核验；每个含该人物的 G3 场景只提交选定的 ${selection.angles.length} 张，按 ${selection.angles.join(" → ")} 顺序使用，不混入其他已核验角度。核对动作连续性；有问题在 G4 如实审查，不能擅换角度。\n` : "")
     + (scope.authority.portraitSources?.length ? "catalogProfile 是当前制作执行的人物档案；archiveProfile 仅作为既有肖像身份、授权和原始字节核对依据。它们是不同档案角色，保留各自路径与 SHA256，不要求改成相同摘要。\n" : "")
     + `写明 G5 前核验人物/版本/服装、原始 PNG 字节、来源与用途授权；不一致或缺件则保留未核实并停止依赖它的生成。其他必需角度按原有 G5 流程核验，只有本次实际图片和原有审核才能支持完成。`
     + `portraitPath 此时留空；不得新增 needsPortrait/portraitPlan 等 schema 未声明键，不得宣称 G5 或跨镜一致性已经通过。明确无人时不添加人物任务。\n`
@@ -322,14 +322,30 @@ function frozenVisualCreativeRule(prompt: string, hasStory: boolean, sceneCount:
     '  "emotionalArc": "setup→rising→climax→falling→resolution",',
     `  "emotionalArc": "按下面枚举选择与本次 ${sceneCount} 个已审节点对应的弧线",`,
   );
-  return prompt;
+  return prompt + `\n\n情绪弧线必须与本次 ${sceneCount} 个已审节点对应。如果实际节点依次是铺垫、高潮、收束，选择 setup→climax→resolution；段内升温写在对应节点的执行描述，不要增加独立 rising 节点。选择仍由本次创意模型根据实际动作完成。`;
 }
 
 /** Project execution inputs; keep the reviewed G3 object and its audience hypothesis as original evidence. */
-function frozenVisualDiscoveryView(scope: Scope, discovery: RequirementRecord, contract: RequirementContract): number | undefined {
+function frozenVisualDiscoveryView(scope: Scope, discovery: RequirementRecord, contract: RequirementContract) {
   const frozen = frozenVisualPrdSegments(scope.authority);
   if (!frozen) return undefined;
   if (contract.scenes.length !== frozen.count) prdFail("PRD_SCENE_UNVERIFIED", "已审场景与本次冻结分段不一致");
+  const upstream = requirementRecord(discovery.upstreamFields, "本次 G3 上游字段");
+  const selection = scope.authority.portraitReferenceSelection;
+  const portraitSource = scope.authority.portraitSources?.find(source => source.characterId === selection?.characterId
+    && source.portraitVersion === selection.portraitVersion);
+  // Agent4 treats the inherited G2 notes as literal constraints. Project the
+  // frozen inputs in the cloned G3 view, keeping the approved sources intact.
+  discovery.upstreamFields = {
+    ...upstream,
+    special_notes: [
+      `客户冻结分段：${frozen.count} 个连续生成片段，每段 ${frozen.secondsPerSegment} 秒，共 ${frozen.totalSeconds} 秒，相邻片段之间恰好 ${frozen.count - 1} 处硬切。`,
+      `动作、素材、原生声音和后期文字按完整客户 Brief、当前 G1 用途和 G3 已审节点执行；无对白，不增加双语轨或其他未声明文字。`,
+      ...(selection && portraitSource ? [
+        `人物档案 V${portraitSource.portraitVersion} 原图共 ${Object.keys(portraitSource.originals).length} 张待 G5 核验；每个含该人物的生成片段只按 ${selection.angles.join(" → ")} 顺序引用其中 ${selection.angles.length} 张，不能换角度或把全档案作为单镜输入。`,
+      ] : []),
+    ].join(" "),
+  };
   const audience = requirementRecord(discovery.audienceProfile ?? {}, "本次 G3 受众");
   discovery.audienceProfile = {
     ...audience,
@@ -343,7 +359,7 @@ function frozenVisualDiscoveryView(scope: Scope, discovery: RequirementRecord, c
     ...risk,
     businessConstraints: [...new Set([...boundUsage, ...source.constraints])].slice(0, 3),
   };
-  return frozen.count;
+  return frozen;
 }
 
 function prdCharacterShapeFeedback(error: unknown, schema: RequirementRecord): string | undefined {
@@ -512,16 +528,17 @@ export function installPrdAuthorityBridge(
       const metadata = { ...scope.authority.metadata, _workloomRequirementContract: scope.list._workloomRequirementContract };
       const contract = verifiedRequirementContract(scope.list, metadata, discovery);
       scope.contract = structuredClone(contract);
-      const visualSceneCount = frozenVisualDiscoveryView(scope, discovery, contract);
+      const visualSegments = frozenVisualDiscoveryView(scope, discovery, contract);
+      const tone = visualSegments ? requirementRecord(discovery.upstreamFields, "本次 G3 上游字段").tone : undefined;
       const references = marketingPrdReferenceView(discovery.referenceCases, scope.authority.metadata);
       if (references) discovery.referenceCases = references;
       const promptContext = prdAuthorityPrompt(scope.authority, contract)
         + (scope.truth ? `\n\n本次规则事实边界（仅作内部限制，不是创意任务；完整原件不变）：\n${JSON.stringify(scope.truth.constraints)}\n` : "")
-        + (visualSceneCount !== undefined ? `\n\n## 本次无对白制作采用边界\n`
+        + (visualSegments ? `\n\n## 本次无对白制作采用边界\n`
           + `完整 G3 原件中的 modelAudienceHypothesis 仅供审计；禁止采用其固定短句、额外动作或推测数值作为剧情、台词、字幕、时间节点或制作约束。`
-          + `实际创意动作顺序、时长与连续性来自本次 ${visualSceneCount} 个已审场景及客户冻结段；不把观众推测写成新场景或在关键事件前后加入无来源秒数。`
+          + `实际创意动作顺序、时长与连续性来自本次 ${visualSegments.count} 个已审场景及客户冻结段。每段是一个 ${visualSegments.secondsPerSegment} 秒的生成镜头，整片只有相邻两段之间共 ${visualSegments.count - 1} 处硬切；段内机位变化不计作剪辑或额外生成镜头。`
           + `情绪弧线选择与这些现有节点可逐项对应的枚举，段内情绪变化仍是原场景的一部分。出现产品名或型号时直接复制已接受 G1 对应身份，不改写字符。`
-          + `静默制作仅禁止可辨识人声；保留原生环境和动作声，后期仅使用客户已指定的文字及对应时间范围。\n` : "");
+          + `全片保留客户要求的原生环境和动作声，无可辨识人声。不增加双语轨。已声明的持续标识保留至末帧；如声明了独立片尾文字，只在声明的结尾区间本地后期叠加，禁止放在生成画面、前段或片头。P0 等导演内部要求也要分别说明两个适用区间，不得用“后期只叠加产品名”覆盖已声明的持续标识。\n` : "");
       const view = Object.create(this) as RequirementRecord;
       let constraintResult: RequirementRecord | undefined;
       let originalThresholds: QualityThresholds | undefined;
@@ -603,7 +620,9 @@ export function installPrdAuthorityBridge(
             + `本次实际模型响应必须符合以下完整 JSON Schema；它与宿主严格校验使用同一份有效结构，补充前述通用示例。`
             + (kind === "creative" ? `只输出创意核心的裸 JSON 对象，不要包裹 creativeCore。\n` : `只输出以下四个制作模块组成的 JSON 对象。\n`)
             + `\`\`\`json\n${JSON.stringify(effectiveSchema)}\n\`\`\`\n` + promptContext
-            + (number === 3 ? productionPlanningPrompt(scope) : "");
+            + (number === 3 ? productionPlanningPrompt(scope) : "")
+            + (number === 3 && visualSegments ? `\n场景的 scenePlan.scenes[].emotionalBeat 与当前创意弧线和实际 G3 节点逐项对应；用对应场景的动作安排表现节点内情绪变化。shotMapping.estimatedShots 每场写 1，摄影、剪辑和连续性计划遵守上述冻结切点。`
+              + (typeof tone === "string" && tone.trim() ? `在 visualSpecification.colorPalette.mood 明写本次 G2 已审调性：${tone}；同一调性下可用本次动作、色彩和声音写出不同强度，不以新的调性或描述替换已审名称。\n` : "") : "");
           let builtPrompt: { original: string; complete: string } | undefined;
           let nativeAttemptLimit = 0;
           let modelAttempts = 0;
@@ -703,7 +722,7 @@ export function installPrdAuthorityBridge(
               if (typeof native !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "原始 PRD prompt 不是文本");
               const hasStory = Boolean(discovery._originalStoryText || discovery.original_story_text);
               const original = kind === "production" ? bindPrdPortraitRule(native)
-                : visualSceneCount !== undefined ? frozenVisualCreativeRule(native, hasStory, visualSceneCount) : native;
+                : visualSegments ? frozenVisualCreativeRule(native, hasStory, visualSegments.count) : native;
               builtPrompt = { original, complete: original + responseContext };
               return builtPrompt.complete;
             });

@@ -54,6 +54,9 @@ export interface PrdProductionProfile {
   coverDelivery?: "standalone" | "none";
   sidecarPolicy?: "dialogue-only" | "dialogue-and-composite-ass";
   persistentSubtitleText?: string;
+  /** Exact local post overlay, separate from the persistent line and from an opening title card. */
+  postTailOverlayText?: string;
+  postTailOverlaySeconds?: number;
 }
 
 export interface PrdAuthority {
@@ -108,7 +111,8 @@ export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdP
   const explicit = Object.hasOwn(brief, "productionRequirements");
   const production = explicit ? requirementRecord(brief.productionRequirements, "Brief.productionRequirements") : undefined;
   const required = ["resolution", "frameRate", "subtitleMode", "nativeAudio", "openWithCover", "titleCard", "durationToleranceFrames"];
-  const keys = [...required, "coverDelivery", "sidecarPolicy", "persistentSubtitleText", "coverIntroSeconds", "speechPolicy"];
+  const keys = [...required, "coverDelivery", "sidecarPolicy", "persistentSubtitleText", "coverIntroSeconds", "speechPolicy",
+    "postTailOverlayText", "postTailOverlaySeconds"];
   if (production && (Object.keys(production).some(key => !keys.includes(key)) || required.some(key => !Object.hasOwn(production, key)))) {
     prdFail("PRD_PROFILE_INVALID", "productionRequirements 必须完整且不能包含未定义字段");
   }
@@ -173,6 +177,19 @@ export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdP
   if (normalized.sidecarPolicy !== undefined && !["both", "sidecar"].includes(normalized.subtitleMode!)) {
     prdFail("PRD_PROFILE_INVALID", "字幕旁挂口径仅适用于both或sidecar交付");
   }
+  if (Object.hasOwn(production, "postTailOverlayText") || Object.hasOwn(production, "postTailOverlaySeconds")) {
+    const text = production.postTailOverlayText, seconds = production.postTailOverlaySeconds;
+    const centisecondAligned = (value: number) => Math.abs(value * 100 - Math.round(value * 100)) <= 1e-9;
+    if (typeof text !== "string" || !text || text.trim() !== text || text === normalized.persistentSubtitleText
+      || Array.from(text).length > 120 || /[\u0000-\u001f\u007f-\u009f\u2028\u2029\uD800-\uDFFF]/u.test(text)
+      || typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 1.5 || seconds > 3
+      || !centisecondAligned(seconds) || duration === undefined || !centisecondAligned(duration)
+      || normalized.persistentSubtitleText === undefined || normalized.subtitleMode !== "both"
+      || normalized.sidecarPolicy !== "dialogue-and-composite-ass" || normalized.speechPolicy !== "none"
+      || normalized.openWithCover !== false || (normalized.coverIntroSeconds ?? 0) !== 0) {
+      prdFail("PRD_PROFILE_INVALID", "片尾后期层须同时明确原样单行文字和 1.5–3 秒百分秒精度时长，使用无片头、无对白的持续文字烧录与完整组合ASS口径");
+    }
+  }
   return normalized;
 }
 
@@ -234,9 +251,16 @@ export function prdContractExecutionView(authority: PrdAuthority, contract: Requ
   return { ...execution, originalModelAudienceHypothesisSha256: requirementHash(modelAudienceHypothesis ?? null) };
 }
 
+function postTailOverlayPlan(profile: PrdProductionProfile): string {
+  if (profile.postTailOverlayText === undefined || profile.postTailOverlaySeconds === undefined || profile.targetDuration === undefined) return "";
+  const end = profile.targetDuration, start = Math.round((end - profile.postTailOverlaySeconds) * 100) / 100;
+  return `片尾独立后期层 ${JSON.stringify(profile.postTailOverlayText)}（${start}–${end}秒，含起点不含终点）`;
+}
+
 /** Both existing real LLM agents receive the same execution authority; this grants no new approval. */
 export function prdAuthorityPrompt(authority: PrdAuthority, contract: RequirementContract): string {
   const execution = prdContractExecutionView(authority, contract);
+  const tail = postTailOverlayPlan(authority.profile);
   return `\n\n## 本次宿主 PRD 权威输入（补充前述通用模板，冲突时以本节为准）\n`
     + `完整客户 Brief：\n${JSON.stringify(authority.metadata.brief)}\n`
     + `当前已核验商品营销路线的交付类型是商业广告；本次获批类型细分可继续描述创作风格。${MARKETING_REFERENCE_BOUNDARY}\n`
@@ -245,6 +269,7 @@ export function prdAuthorityPrompt(authority: PrdAuthority, contract: Requiremen
     + (authority.profile.speechPolicy === "none"
       ? "本次明确禁止创作或生成台词、旁白、口播、独白及可辨词句；保留已要求的原生环境和动作声。无对白不表示静音，后期文字仍按本次交付合同执行。\n"
       : "")
+    + (tail ? `唯一两层后期文字：全片持续层 ${JSON.stringify(authority.profile.persistentSubtitleText)}（0秒至实际末帧）和${tail}。全片标识在片尾继续显示；片尾层只在指定区间本地独立叠加，不能提前到其他镜头、替换全片标识、放入生成画面或作为片头标题卡。不要新增对白轨、双语轨或其他文字。字幕及音频字段只描述这两层的执行与核验；两层组合需分别核对安全区、对比度及同屏不遮挡；正式交付项由原生交付规则登记，不是当前模型或已完成凭据。\n` : "")
     + `本次 G3 已审的完整场景、道具、动作和宿主选角合同${execution === contract ? "" : "（受众推测仍在原始审核材料，不是制作指令）"}：\n${JSON.stringify(execution)}\n`
     + `客户受众原文是权威口径；模型年龄/性别细分仅为推测。只使用合同内人物，characterId 必须等于所选 id，姓名一致。`
     + `人物档案是人物表达依据，不能当成商品事实；保留其人物档案/版本来源锚点。portraitPath 可以留空，G5 后续独立核验，不能提前声称出图或一致性已通过。\n`
@@ -289,7 +314,8 @@ export function authoritativeDelivery(value: unknown, profile: PrdProductionProf
 }
 
 function hasDeliveryPlan(profile: PrdProductionProfile): boolean {
-  return ["coverDelivery", "sidecarPolicy", "persistentSubtitleText", "coverIntroSeconds"].some(key => Object.hasOwn(profile, key));
+  return ["coverDelivery", "sidecarPolicy", "persistentSubtitleText", "coverIntroSeconds", "postTailOverlayText"]
+    .some(key => Object.hasOwn(profile, key));
 }
 
 /** These are rule-owned obligations, never a model plan or a completed media receipt. */
@@ -299,18 +325,25 @@ function declaredDeliveryItems(profile: PrdProductionProfile): RequirementRecord
   const persistent = profile.persistentSubtitleText === undefined ? ""
     : `全片持续文字${JSON.stringify(profile.persistentSubtitleText)}（实际视频流0秒至末帧，ASS百分秒终点向上取整且最多超出0.01秒）`;
   const persistentOnly = profile.speechPolicy === "none" && persistent !== "" && profile.sidecarPolicy === "dialogue-and-composite-ass";
+  const tail = postTailOverlayPlan(profile);
+  const layered = `${persistent}与${tail}`;
+  const parity = "最终烧录与完整组合ASS核对同一两层的文字、区间、字体、样式、位置和compositionSha256；测量平台安全区、对比度及两层同屏不遮挡";
   if (profile.subtitleMode && ["both", "burned"].includes(profile.subtitleMode)) items.push({ item: "subtitle_burned",
-    spec: persistentOnly ? `将${persistent}烧录进本次视频母版；不新增台词字幕。按完整组合ASS同一文字、区间、样式与compositionSha256核验；此为待执行交付要求`
+    spec: tail ? `先按原生流程将${persistent}烧录到原生母版，保留其来源和核验；再在本地后期独立叠加${tail}得到最终成片，原生母版和原声不改写。${parity}。无对白或双语字幕；此为待执行交付要求`
+      : persistentOnly ? `将${persistent}烧录进本次视频母版；不新增台词字幕。按完整组合ASS同一文字、区间、样式与compositionSha256核验；此为待执行交付要求`
       : !declared ? "字幕烧录进本次视频母版"
       : `将本次台词字幕${persistent ? `及${persistent}` : ""}烧录进本次视频母版；按当前台词、实际总时长、时间线与字体样式核验${profile.sidecarPolicy === "dialogue-and-composite-ass" ? "，并与完整组合ASS使用同一文字、区间、样式与compositionSha256" : ""}；此为待执行交付要求`,
     priority: "required" });
   if (profile.subtitleMode && ["both", "sidecar"].includes(profile.subtitleMode)) items.push({ item: "subtitle_sidecar",
-    spec: persistentOnly ? `交付含${persistent}的完整组合ASS（complete-composition）；零台词时对白SRT/VTT（dialogue-only）不适用，不创建空台词文件。按实际视频、区间与字体样式核验${profile.subtitleMode === "both" ? "，并核对烧录版与ASS的compositionSha256" : ""}；此为待执行交付要求`
+    spec: tail ? `保留原生母版的持续文字ASS和片尾层ASS来源；最终另交付包含${layered}的完整组合ASS（complete-composition）。${parity}。对白SRT/VTT不适用，不生成空对白或双语轨；此为待执行交付要求`
+      : persistentOnly ? `交付含${persistent}的完整组合ASS（complete-composition）；零台词时对白SRT/VTT（dialogue-only）不适用，不创建空台词文件。按实际视频、区间与字体样式核验${profile.subtitleMode === "both" ? "，并核对烧录版与ASS的compositionSha256" : ""}；此为待执行交付要求`
       : !declared ? "交付与视频时间线一致的独立字幕文件"
       : profile.sidecarPolicy === "dialogue-and-composite-ass"
         ? `交付仅含台词的SRT/VTT（dialogue-only）与完整组合ASS（complete-composition）；ASS包含本次台词${persistent ? `及${persistent}` : "及本次明确请求的文字层"}，按当前视频、台词、时间线与字体样式核验${profile.subtitleMode === "both" ? "并核对烧录版同一文字、区间、样式与compositionSha256" : ""}；SRT/VTT不能单独证明持续文字交付；此为待执行交付要求`
         : "交付与本次视频台词和时间线一致的SRT/VTT独立字幕文件（dialogue-only）；不将台词侧车当成完整文字组合ASS或持续文字完成凭据；此为待执行交付要求",
     priority: "required" });
+  if (tail) items.push({ item: "post_tail_overlay", priority: "required",
+    spec: `原生后期母版之后仅在本地叠加${tail}，与${persistent}同时保留，不授权生成画面画字，不另增片段或标题卡。${parity}，并核对成片长度与原声音轨不变；此为待执行交付要求` });
   if (profile.coverDelivery === "standalone") items.push({ item: "cover", priority: "required",
     spec: `PNG或JPEG独立封面图；按本次${profile.aspectRatio ?? "已审"}画幅与${profile.resolution ?? "已审交付"}分辨率交付，来源与当前影片绑定；是否用于片头另依openWithCover声明，本项不启用片头封面；此为待执行交付要求` });
   return items;
@@ -347,7 +380,7 @@ export function validatePrdDelivery(value: unknown, profile: PrdProductionProfil
   const items = list(standard.deliverables, "PRD 交付项目").map(value => requirementRecord(value, "PRD 交付项目"));
   const expected = declaredDeliveryItems(profile);
   if (items.filter(item => item.item === "video_master").length !== 1
-    || ["cover", "subtitle_burned", "subtitle_sidecar"].some(key => {
+    || ["cover", "subtitle_burned", "subtitle_sidecar", "post_tail_overlay"].some(key => {
       const actual = items.filter(item => item.item === key), declared = expected.filter(item => item.item === key);
       return actual.length !== declared.length || actual.some((item, index) => requirementHash(item) !== requirementHash(declared[index]));
     })) prdFail("PRD_DELIVERY_INVALID", "本次独立封面、字幕旁挂或烧录交付要求缺失、重复或被改写");
