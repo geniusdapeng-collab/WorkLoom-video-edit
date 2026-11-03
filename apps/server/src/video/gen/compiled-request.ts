@@ -1,6 +1,7 @@
 /** 最终供应商请求的唯一编译器：监制看到的 JSON 字节就是适配器 POST 的字节。 */
 import { createHash } from "node:crypto";
 import type { GenRequest } from "@workloom/base/model-router";
+import { providerRejectsCameraFixed } from "@hyperreality/video-studio";
 import type { MediaModel, VideoGenParams } from "./types.js";
 import type { Scope } from "./db.js";
 import type { RenderScriptLike } from "./submit.js";
@@ -18,8 +19,6 @@ export interface CompiledProviderRequest {
   payloadHash: string;
 }
 export interface ProviderEndpointOptions { baseUrl?: string; webhookUrl?: string }
-
-const SEEDANCE_25 = "doubao-seedance-2-5-260628";
 
 /** 数组保序、对象键排序；拒绝 JSON 不能忠实表达的输入。 */
 export function canonicalRenderJson(value: unknown): string {
@@ -50,7 +49,7 @@ function providerPayloadHash(
 
 /** Used only to find a previously dispatched job for reconciliation. */
 export function previousSeedanceCameraFixedPayloadHash(compiled: CompiledProviderRequest, params: VideoGenParams): string | null {
-  if (compiled.provider !== "seedance" || compiled.providerModel !== SEEDANCE_25) return null;
+  if (!providerRejectsCameraFixed(compiled.provider, compiled.providerModel)) return null;
   const original = Object.hasOwn(params.extra ?? {}, "camera_fixed") ? params.extra?.camera_fixed : params.cameraFixed;
   return original === false ? providerPayloadHash(compiled, { ...compiled.body, camera_fixed: false }) : null;
 }
@@ -71,7 +70,7 @@ export function compileProviderRequest(provider: string, req: GenRequest, option
   let endpoint: string;
   let body: Record<string, unknown>;
   if (provider === "seedance") {
-    const omitCameraFixed = model === SEEDANCE_25;
+    const omitCameraFixed = providerRejectsCameraFixed(provider, model);
     if (omitCameraFixed && [p.cameraFixed, p.extra?.camera_fixed].some((value) => value !== undefined && value !== false)) {
       throw new SubmissionError("SEEDANCE_CAMERA_FIXED_UNSUPPORTED", "Seedance 2.5 不支持 camera_fixed，当前请求不能保持固定机位意图");
     }

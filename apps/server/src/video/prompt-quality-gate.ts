@@ -90,11 +90,18 @@ interface FinalPromptLength {
   actualChars: number;
   maxFinalPromptChars: number;
 }
+interface FinalPromptFieldBudget extends FinalPromptLength {
+  fixedChars: number;
+  maxEditableValueChars: number;
+  targetEditableValueChars: number;
+  semanticFields: string[];
+}
 
 interface SemanticRepairContext extends SemanticReviewContext {
   findings: SemanticQualityCheck[];
   allowedFields: string[];
   finalPromptLength?: FinalPromptLength;
+  finalPromptFieldBudget?: FinalPromptFieldBudget;
 }
 
 export interface SemanticQualityReviewer {
@@ -184,6 +191,7 @@ export interface PromptQualityResult {
   }>;
   findings: PromptQualityFinding[];
   maxFinalPromptChars?: number;
+  approvedProductionPlanSha256?: string;
   repairPlan?: RepairPlan;
   repairAttempt?: PromptQualityRepairAttempt;
   decision: GateDecision;
@@ -474,14 +482,26 @@ function semanticPrompt(
     "pass=true 时必须省略 failureCode 和 repair；pass=false 时才增加这两个字段，例如 failureCode=CAMERA_COMPLEXITY_EXCEEDS_DURATION、repair=只修改 camera_movement。",
     "不得用分数代替二元结果；不得臆造证据；证据必须直接摘录或可定位到给定字段值。",
     "当前影片类型由 director_instruction、scene、action、character 与上游上下文共同决定；营销片看卖点/钩子/承诺/CTA，叙事片看冲突/情绪/揭示/转折/必要空间建立。",
+    ...(upstreamContext?.approvedProductionPlan ? [
+      "approvedProductionPlan 含当前 G4 批准并按镜号绑定的场景与核验计划。依据镜号核对本镜，不替其他镜头认领动作。客户冻结 Brief、现有镜号、顺序和时长仍有效。",
+      "SQ1 必须核对本镜每个必做动作在画面中可见。只写动作已经完成、跳过关键前后状态、用结果代替过程或把动作移到另一镜，都判失败。缺动作指向 action；身份或姿态不符指向 character。",
+      "SQ2 必须检查时间轴是否逐项呈现本镜的动作和道具交接，按要求顺序发生。与 action 缺项或冲突时指向 timeline。SQ3 运镜各时间窗和镜位须对齐同一实际动作与时间轴。",
+      "SQ4 核对构图是否实际能看到 G4 明确要求的部位、护具、动作或可见细节；不能用无关特写、遮挡或通用形容词代替。SQ5 关键目的与相邻镜头交接必须有本镜的字段证据。",
+      "用本镜真实字段片段作证据；缺项时摘录跳过该动作、只呈现完成状态或明确遮挡的原文，不得用 G4 文字冒充本镜证据。",
+    ] : []),
     JSON.stringify({ shotId: contract.shotId, fieldSchema: contract.fieldSchema, fields, upstreamContext: upstreamContext ?? null,
       questions: SEMANTIC_QUALITY_QUESTION }, null, 2),
   ].join("\n");
 }
 
 function repairSchema(context: SemanticRepairContext): Record<string, unknown> {
-  if (context.finalPromptLength) {
-    return { changes: [{ field: context.allowedFields[0], value: "保留原意的简洁表述", reason: "缩短完整提示词" }] };
+  if (context.finalPromptFieldBudget) {
+    const semantic = context.finalPromptFieldBudget.semanticFields;
+    const descriptive = context.finalPromptLength ? context.allowedFields.find(field => !semantic.includes(field)) : undefined;
+    return { changes: [
+      ...semantic.map(field => ({ field, value: "按本镜审核证据修复并保留原有义务", reason: "修复此字段的已诊断语义问题" })),
+      ...(descriptive ? [{ field: descriptive, value: "保留原意的简洁表述", reason: "缩短完整提示词" }] : []),
+    ] };
   }
   return {
     changes: [{ field: "camera_movement", value: "只包含在目标时长内可完成的一个主动作", reason: "修复 SQ3" }],
@@ -495,6 +515,7 @@ function repairPrompt(
   allowedFields: string[],
   upstreamContext?: Record<string, unknown>,
   finalPromptLength?: FinalPromptLength,
+  finalPromptFieldBudget?: FinalPromptFieldBudget,
 ): string {
   const fields = contract.bindings.map(({ field }) => ({ field, value: fieldValueFromSource(source, field) }));
   const writable = new Set(allowedFields);
@@ -504,13 +525,20 @@ function repairPrompt(
     "不得修改事实、授权、时长、画幅、模型能力、gate threshold 或任何其它字段。",
     ...(finalPromptLength ? [
       `本镜完整编译提示词实测 ${finalPromptLength.actualChars} 字符，最终上限 ${finalPromptLength.maxFinalPromptChars} 字符（UTF-16 计数）；字段合计至少需缩短 ${finalPromptLength.actualChars - finalPromptLength.maxFinalPromptChars} 字符。`,
-      "只用更精炼的措辞缩短允许的美术描述，去除同义重复，保持已有光向、色彩、构图、景深和情绪的具体含义。保持原有镜头内容、动作、时间轴、角色、服装、定妆、声音和全部约束。不得截断、清空或把字段内容移到其他字段。",
+      "没有语义缺陷的可写美术字段只精简同义重复，保留原有光向、色彩、构图、景深和情绪。不得截断、清空或把内容移到其他字段。",
+    ] : []),
+    ...(finalPromptFieldBudget ? [
+      `实际编译中固定部分已占 ${finalPromptFieldBudget.fixedChars} 字；所有可写字段修复后的值总长（含未改可写字段）最多 ${finalPromptFieldBudget.maxEditableValueChars} 字，建议不超过 ${finalPromptFieldBudget.targetEditableValueChars} 字。请在本次响应内核算全部可写字段的总长，留出安全余量。`,
+      `必须同时解决正式评审指出的语义缺陷。仅以下字段可按对应 findings 补齐或调整制作语义：${JSON.stringify(finalPromptFieldBudget.semanticFields)}；其余可写字段只能缩写。保持演员身份、资产、服装、声场、技术规格和每镜总时长；不得省略已审动作或增加段落。`,
+      ...(finalPromptFieldBudget.semanticFields.includes("timeline")
+        ? ["时间轴也在诊断范围时，按本镜已审动作和现有时长重排镜内时点，运镜、动作、道具交接与时间轴必须互相对应，不得改变镜头切点。"] : []),
     ] : []),
     "只输出 JSON：changes[]，每项必须有 field、value、reason；至少产生一个变化。",
     `镜头：${JSON.stringify({ shotId: contract.shotId, durationSec: contract.request.parameters.duration_sec,
       allowedFields: fields.filter(({ field }) => writable.has(field)),
       readOnlyFields: fields.filter(({ field }) => !writable.has(field)),
-      findings, ...(finalPromptLength ? { finalPromptLength } : {}), upstreamContext: upstreamContext ?? null }, null, 2)}`,
+      findings, ...(finalPromptLength ? { finalPromptLength } : {}), ...(finalPromptFieldBudget ? { finalPromptFieldBudget } : {}),
+      upstreamContext: upstreamContext ?? null }, null, 2)}`,
   ].join("\n");
 }
 
@@ -529,7 +557,8 @@ export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): Semant
     },
     async repair(context) {
       const result = await llm.reasonStructured(
-        repairPrompt(context.contract, context.shot, context.findings, context.allowedFields, context.upstreamContext, context.finalPromptLength),
+        repairPrompt(context.contract, context.shot, context.findings, context.allowedFields, context.upstreamContext,
+          context.finalPromptLength, context.finalPromptFieldBudget),
         repairSchema(context),
         { scene: "preproduction", maxTokens: 1200, temperature: 0 },
       );
@@ -569,6 +598,35 @@ function hardFinding(error: { code: string; field: string | null; detail: string
 
 const FINAL_PROMPT_LENGTH_CODE = "HARD_FINAL_PROMPT_TOO_LONG";
 const FINAL_LENGTH_EDITABLE_FIELDS = new Set(["lighting", "composition", "color_palette", "depth_of_field", "mood"]);
+const FINAL_COMBINED_SEMANTIC_FIELDS = new Set([
+  ...FINAL_LENGTH_EDITABLE_FIELDS, "director_instruction", "scene", "character", "action", "props", "timeline", "camera_movement",
+]);
+
+function promptFieldBudget(contract: PromptContract, source: Record<string, unknown>, fields: string[],
+  semanticFields: string[], limit: number | undefined): FinalPromptFieldBudget | undefined {
+  if (limit === undefined) return undefined;
+  const emittedValueLengths = fields.map(field => {
+    const span = contract.bindings.find(binding => binding.field === field)?.promptSpan;
+    const value = fieldValueFromSource(source, field);
+    if (!span || typeof value !== "string" || !contract.prompt.slice(span.start, span.end).endsWith(value.trim())) return undefined;
+    return value.trim().length;
+  });
+  if (emittedValueLengths.some(length => length === undefined)) return undefined;
+  const fixedChars = contract.prompt.length - emittedValueLengths.reduce<number>((total, length) => total + (length ?? 0), 0);
+  const maxEditableValueChars = limit - fixedChars;
+  // The smaller target is advice; the exact compiled native cap remains the only hard limit.
+  const headroom = Math.min(96, Math.floor(Math.max(0, maxEditableValueChars - fields.length) * 0.12));
+  return { actualChars: contract.prompt.length, maxFinalPromptChars: limit, fixedChars, maxEditableValueChars,
+    targetEditableValueChars: maxEditableValueChars - headroom, semanticFields };
+}
+
+function repairRequestHash(contract: PromptContract, allowReviewedTimeline: boolean): string {
+  if (!allowReviewedTimeline) return contract.requestSha256;
+  // A diagnosed timeline edit may change the timeline string in the native technical map.
+  // Duration, provider and all other request channels still have to match exactly.
+  const { timeline: _approvedTimelineEdit, ...technical } = contract.request.technical;
+  return sha256Json({ ...contract.request, technical });
+}
 
 function checkedFinalPromptLimit(value: number | undefined): number | undefined {
   if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) {
@@ -621,6 +679,7 @@ function makeDecision(input: {
   reviewer: SemanticQualityReviewer | null;
   status: PromptQualityStatus;
   maxFinalPromptChars?: number;
+  approvedProductionPlanSha256?: string;
 }): GateDecision {
   const blocking = input.findings.filter((finding) => finding.blocking);
   const status = blocking.length > 0 ? "rejected" : input.status === "passed" ? "passed" : "unverified";
@@ -634,6 +693,7 @@ function makeDecision(input: {
       policy: SEMANTIC_QUALITY_POLICY_VERSION,
       schema: [...new Set(input.contracts.map((contract) => contract.fieldSchema))].sort(),
       ...(input.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: input.maxFinalPromptChars } : {}),
+      ...(input.approvedProductionPlanSha256 ? { approvedProductionPlanSha256: input.approvedProductionPlanSha256 } : {}),
     }),
     checkSetVersion: SEMANTIC_QUALITY_POLICY_VERSION,
     rubricVersion: SEMANTIC_QUALITY_POLICY_VERSION,
@@ -816,7 +876,7 @@ function reviewDependencies(input: EvaluatePromptQualityInput, contract: PromptC
 async function evaluateCompiledShots(
   input: EvaluatePromptQualityInput,
   reviewer: SemanticQualityReviewer | null,
-  sources: Array<{ source: Record<string, unknown>; compile: PromptCompileOptions; expectedRequestSha256?: string }>,
+  sources: Array<{ source: Record<string, unknown>; compile: PromptCompileOptions; expectedRequestSha256?: string; allowReviewedTimeline?: boolean }>,
   proofPass?: { phase: "capture" | "reuse"; byShot: Map<string, PassedSemanticReviewProof> },
   allowLengthRepair = false,
 ): Promise<{
@@ -824,7 +884,7 @@ async function evaluateCompiledShots(
   reports: PromptQualityResult["semanticReports"];
   findings: PromptQualityFinding[];
 }> {
-  const compiled = sources.map(({ source, compile, expectedRequestSha256 }) => {
+  const compiled = sources.map(({ source, compile, expectedRequestSha256, allowReviewedTimeline }) => {
     const shot = source as unknown as PromptCompileShot;
     const result = compilePromptShot(shot, compile);
     const normalizedFields = source.fields && typeof source.fields === "object" && !Array.isArray(source.fields)
@@ -835,13 +895,15 @@ async function evaluateCompiledShots(
       source: { ...source, fields: normalizedFields },
       compiled: result,
       expectedRequestSha256,
+      allowReviewedTimeline,
     };
   });
   const reports: PromptQualityResult["semanticReports"] = [];
   const findings: PromptQualityFinding[] = [];
   for (const item of compiled) {
     for (const error of item.compiled.hardErrors) findings.push(hardFinding(error, item.shotId));
-    if (item.expectedRequestSha256 !== undefined && item.compiled.contract.requestSha256 !== item.expectedRequestSha256) {
+    if (item.expectedRequestSha256 !== undefined
+      && repairRequestHash(item.compiled.contract, item.allowReviewedTimeline === true) !== item.expectedRequestSha256) {
       findings.push(hardFinding({ code: "FINAL_PROMPT_REPAIR_REQUEST_DRIFT", field: null, detail: "缩短提示词时请求参数发生变化" }, item.shotId));
     }
   }
@@ -913,6 +975,8 @@ async function evaluateCompiledShots(
 
 export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): Promise<PromptQualityResult> {
   const input = { ...value, maxFinalPromptChars: checkedFinalPromptLimit(value.maxFinalPromptChars) };
+  const approvedProductionPlanSha256 = input.upstreamContext?.approvedProductionPlan !== undefined
+    ? sha256Json(input.upstreamContext.approvedProductionPlan) : undefined;
   const reviewer = input.reviewer ?? null;
   const proofs = input.mode === "enforce" && input.shots.length > 1 && reviewer && proofReviewer(reviewer)
     ? new Map<string, PassedSemanticReviewProof>() : undefined;
@@ -937,17 +1001,24 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
     const repairs = [...new Set(semanticFindings.map(finding => finding.shotId))].map(shotId => {
       const firstShot = first.compiled.find(item => item.shotId === shotId)!;
       const finalPromptLength = finalPromptOverflow(firstShot.compiled.contract, input.maxFinalPromptChars);
-      const fields = finalPromptLength ? finalLengthEditableFields(firstShot.compiled.contract, firstShot.source, finalPromptLength)
-        : [...new Set(semanticFindings.filter(finding => finding.shotId === shotId).flatMap(finding => finding.field ? [finding.field] : []))];
-      return { firstShot, fields, finalPromptLength };
+      const diagnosed = [...new Set(semanticFindings.filter(finding => finding.shotId === shotId)
+        .flatMap(finding => finding.field ? [finding.field] : []))];
+      const semanticFields = finalPromptLength ? diagnosed.filter(field => FINAL_COMBINED_SEMANTIC_FIELDS.has(field)) : diagnosed;
+      const fields = finalPromptLength ? [...new Set([
+        ...finalLengthEditableFields(firstShot.compiled.contract, firstShot.source, finalPromptLength), ...semanticFields,
+      ])] : diagnosed;
+      const fieldBudget = promptFieldBudget(firstShot.compiled.contract, firstShot.source, fields, semanticFields, input.maxFinalPromptChars);
+      return { firstShot, fields, semanticFields, finalPromptLength, fieldBudget, allDiagnosesWritable: semanticFields.length === diagnosed.length };
     });
     const allowedFields = [...new Set(repairs.flatMap(repair => repair.fields))];
-    if (!reviewer?.repair || repairs.some(repair => repair.fields.length === 0)) {
+    if (!reviewer?.repair || repairs.some(repair => repair.fields.length === 0 || !repair.allDiagnosesWritable
+      || (repair.finalPromptLength && (!repair.fieldBudget || repair.fieldBudget.maxEditableValueChars < repair.fields.length)))) {
       finalStatus = "stalled";
     } else {
       const decision = makeDecision({
         projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
         contracts: firstContracts, findings: semanticFindings, reviewer, status: "rejected", maxFinalPromptChars: input.maxFinalPromptChars,
+        approvedProductionPlanSha256,
       });
       const playbook = promptSemanticRepairPlaybook(allowedFields);
       const findingSignature = sha256Json(semanticFindings.map((finding) => ({
@@ -962,7 +1033,8 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
         playbookId: playbook.id,
         playbookVersion: playbook.version,
         planHash: sha256Json({ findingSignature, allowedFields, playbook,
-          ...(input.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: input.maxFinalPromptChars } : {}) }),
+          ...(input.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: input.maxFinalPromptChars } : {}),
+          ...(approvedProductionPlanSha256 ? { approvedProductionPlanSha256 } : {}) }),
         findings: semanticFindings.map(asGateFinding),
         allowedChanges: playbook.allowedChanges,
         forbiddenChanges: playbook.forbiddenChanges,
@@ -981,7 +1053,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           input.shots.map(item => [String(item.source.shotId), item]));
         const compileById = new Map(input.shots.map((item) => [String((item.source as Record<string, unknown>).shotId), item.compile]));
         const changes: Array<{ shotId: string; field: string; value: unknown; reason: string }> = [];
-        for (const { firstShot, fields: shotAllowedFields, finalPromptLength } of repairs) {
+        for (const { firstShot, fields: shotAllowedFields, finalPromptLength, fieldBudget, semanticFields } of repairs) {
           const shotId = firstShot.shotId;
           const changesRaw = await reviewer.repair({
             projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
@@ -992,20 +1064,28 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
             findings: finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [],
             allowedFields: [...shotAllowedFields],
             ...(finalPromptLength ? { finalPromptLength: { ...finalPromptLength } } : {}),
+            ...(fieldBudget ? { finalPromptFieldBudget: structuredClone(fieldBudget) } : {}),
           });
           const shotChanges = validateRepairChanges(changesRaw, shotAllowedFields);
           if (new Set(shotChanges.map((change) => change.field)).size !== shotChanges.length) throw new Error("REPAIR_CHANGE_DUPLICATE");
           if (finalPromptLength) {
             for (const change of shotChanges) {
               const prior = fieldValueFromSource(firstShot.source, change.field);
-              if (typeof prior !== "string" || typeof change.value !== "string" || !change.value.trim()
-                || change.value.trim().length >= prior.trim().length) throw new Error("FINAL_PROMPT_REPAIR_NOT_SHORTER");
+              if (typeof prior !== "string" || typeof change.value !== "string" || !change.value.trim()) {
+                throw new Error("FINAL_PROMPT_REPAIR_NOT_SHORTER");
+              }
+              if (!semanticFields.includes(change.field) && change.value.trim().length >= prior.trim().length) {
+                throw new Error("FINAL_PROMPT_REPAIR_NOT_SHORTER");
+              }
+              if (/【[^】]+】/u.test(change.value)) throw new Error("FINAL_PROMPT_REPAIR_FIELD_MARKER");
             }
             proofs?.delete(shotId);
           }
           const patched = patchSource(firstShot.source, shotChanges);
+          const allowReviewedTimeline = semanticFields.includes("timeline") && shotChanges.some(change => change.field === "timeline");
           patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,
-            ...(finalPromptLength ? { expectedRequestSha256: firstShot.compiled.contract.requestSha256 } : {}) });
+            ...(finalPromptLength ? { expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
+              allowReviewedTimeline } : {}) });
           changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
         }
         if (changes.length === 0) throw new Error("REPAIR_CHANGES_MISSING");
@@ -1074,6 +1154,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
     reviewer,
     status: finalStatus,
     maxFinalPromptChars: input.maxFinalPromptChars,
+    approvedProductionPlanSha256,
   });
   return {
     schemaVersion: SEMANTIC_QUALITY_POLICY_VERSION,
@@ -1092,6 +1173,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
     semanticReports: finalReports,
     findings: finalFindings,
     ...(input.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: input.maxFinalPromptChars } : {}),
+    ...(approvedProductionPlanSha256 ? { approvedProductionPlanSha256 } : {}),
     ...(repairPlan ? { repairPlan } : {}),
     ...(repairAttempt ? { repairAttempt } : {}),
     decision,
@@ -1125,6 +1207,7 @@ export function writePromptQualityEvidence(directory: string, result: PromptQual
     reports: result.semanticReports,
     findings: result.findings,
     ...(result.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: result.maxFinalPromptChars } : {}),
+    ...(result.approvedProductionPlanSha256 ? { approvedProductionPlanSha256: result.approvedProductionPlanSha256 } : {}),
     repairAttempt: result.repairAttempt ?? null,
   });
   const decision = write("prompt-quality-decision.json", result.decision);

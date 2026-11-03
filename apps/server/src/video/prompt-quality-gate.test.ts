@@ -498,6 +498,59 @@ describe("prompt semantic quality gate", () => {
     expect(review).toHaveBeenCalledTimes(4);
   });
 
+  it("repairs approved actions, timeline and camera in the same capped pass without changing the other request channels", async () => {
+    const shot = shotAtFinalLength(3143);
+    const action = "林夏先走到栏杆前，再从手边拿起木片并放回。",
+      timeline = "T00:00–T00:02走到栏杆；T00:02–T00:05拿起木片并放回。",
+      camera = "固定机位，中景完整看清两步动作。";
+    const approvedProductionPlan = { scenes: [{ shotId: "S01", sceneId: "opening",
+      verificationPlan: { visualRequirements: ["先走到栏杆，再完整表现拿起和放回木片"] } }] };
+    const review = vi.fn<SemanticQualityReviewer["review"]>().mockImplementationOnce(async () => {
+      const result = failCameraReview();
+      result.checks[0] = { id: "SQ1_SUBJECT_ACTION", pass: false, field: "action", evidence: String(fields.action),
+        failureCode: "APPROVED_ACTION_MISSING", repair: "实际呈现拿起和放回" };
+      result.checks[1] = { id: "SQ2_SCENE_PROPS", pass: false, field: "timeline", evidence: String(fields.timeline),
+        failureCode: "APPROVED_PROP_HANDOFF_MISSING", repair: "把道具交接写在既有时间轴" };
+      return result;
+    }).mockImplementationOnce(async () => {
+      const result = passReview();
+      result.checks[2] = { ...result.checks[2]!, evidence: camera };
+      return result;
+    });
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>().mockImplementation(async context => {
+      expect(context.allowedFields).toEqual(expect.arrayContaining(["color_palette", "action", "timeline", "camera_movement"]));
+      expect(context.allowedFields).not.toContain("audio");
+      expect(context.finalPromptFieldBudget).toMatchObject({ actualChars: 3143, maxFinalPromptChars: 3000,
+        semanticFields: ["action", "timeline", "camera_movement"] });
+      expect(context.finalPromptFieldBudget!.fixedChars + context.finalPromptFieldBudget!.maxEditableValueChars).toBe(3000);
+      expect(context.finalPromptFieldBudget!.targetEditableValueChars).toBeLessThan(context.finalPromptFieldBudget!.maxEditableValueChars);
+      expect(context.upstreamContext?.approvedProductionPlan).toEqual(approvedProductionPlan);
+      return { changes: Object.entries({ color_palette: "冷灰水面、浅木色回廊。", action, timeline, camera_movement: camera })
+        .map(([field, value]) => ({ field, value, reason: "在已审动作和总长度内修复" })) };
+    });
+    const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [shot], maxFinalPromptChars: 3000,
+      upstreamContext: { approvedProductionPlan } });
+    expect(result.g6Eligible).toBe(true);
+    expect(repair).toHaveBeenCalledTimes(1);
+    expect(review).toHaveBeenCalledTimes(2);
+    const before = compilePromptPackage({ shots: [shot] })[0]!.contract, after = result.shotContracts[0]!.contract;
+    expect(after.prompt.length).toBeLessThanOrEqual(3000);
+    expect(after.prompt).toContain(action);
+    expect(after.request).toEqual({ ...before.request, technical: { ...before.request.technical, timeline } });
+  });
+
+  it("sends the approved plan and verifies missing actions as visible events in the native reviewer prompt", async () => {
+    const approvedProductionPlan = { scenes: [{ shotId: "S01", sceneId: "actual-scene-1", verificationPlan: { action: "两步原始动作" } }] };
+    const reasonStructured = vi.fn(async (prompt: string) => {
+      expect(prompt).toContain("actual-scene-1");
+      expect(prompt).toContain("只写动作已经完成、跳过关键前后状态、用结果代替过程");
+      return { success: true, data: passReview() };
+    });
+    const reviewer = createLlmSemanticQualityReviewer({ model: "test-model", reasonStructured } as never);
+    expect((await evaluatePromptPackage({ ...input(reviewer), upstreamContext: { approvedProductionPlan } })).g6Eligible).toBe(true);
+    expect(reasonStructured).toHaveBeenCalledTimes(1);
+  });
+
   it("blocks a malformed cap or compiler hard error before review and length repair", async () => {
     const review = vi.fn(async () => passReview());
     const repair = vi.fn();
