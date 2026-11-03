@@ -11,10 +11,14 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { Tokenizer } from "tokenizers";
+import {
+  DEEPSEEK_FLASH_MODEL_ID,
+  DEEPSEEK_FLASH_CONTEXT_TOKENS,
+  DEEPSEEK_FLASH_MAX_OUTPUT_TOKENS,
+  maxDeepSeekOutputForInput,
+} from "./deepseek-limits.js";
 
-export const DEEPSEEK_FLASH_MODEL_ID = "deepseek-flash" as const;
-export const DEEPSEEK_FLASH_CONTEXT_TOKENS = 1_048_576 as const;
-export const DEEPSEEK_FLASH_MAX_OUTPUT_TOKENS = 393_216 as const;
+export { DEEPSEEK_FLASH_MODEL_ID, DEEPSEEK_FLASH_CONTEXT_TOKENS, DEEPSEEK_FLASH_MAX_OUTPUT_TOKENS };
 export const DEEPSEEK_IMAGE_TOKEN_LIMIT = 1_024 as const;
 export const DEEPSEEK_MAX_IMAGES = 600 as const;
 export const DEEPSEEK_REQUEST_BODY_LIMIT_BYTES = 48 * 1024 * 1024;
@@ -198,10 +202,7 @@ export async function planDeepSeekWindow(input: {
   const framingTokens = 32 + Math.max(1, input.messages.length) * 8;
   const imageTokens = sanitized.imageCount * DEEPSEEK_IMAGE_TOKEN_LIMIT;
   const inputTokens = textTokens + framingTokens + imageTokens;
-  const legalRemaining = contextTokens - inputTokens;
-  if (legalRemaining < 1) throw new Error("DEEPSEEK_CONTEXT_EXCEEDED");
-
-  const mathematical = Math.min(maxOutputTokens, legalRemaining);
+  const mathematical = maxDeepSeekOutputForInput(inputTokens, contextTokens, maxOutputTokens);
   const requested = input.productOutputCap ?? mathematical;
   if (!Number.isSafeInteger(requested) || requested < 1) throw new Error("DEEPSEEK_OUTPUT_BUDGET_INVALID");
   return {

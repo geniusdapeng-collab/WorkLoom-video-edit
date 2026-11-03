@@ -141,6 +141,8 @@ jobs:
           apps/server/src/video/production-router.test.ts
           apps/server/src/video/gate-policy.test.ts
           apps/server/src/video/gate-ledger-bridge.test.ts
+          scripts/tools/edit-canonical-budget.test.ts
+          scripts/tools/provider-budget-gateway.test.ts
 
       - name: 视频数据完整性与恢复回归（真实 PostgreSQL，离线供应商）
         env:
