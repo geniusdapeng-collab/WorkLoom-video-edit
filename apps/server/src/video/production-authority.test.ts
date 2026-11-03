@@ -8,7 +8,9 @@ import type pg from "pg";
 import { applyScenePolicy, auditScenePolicy, loadScenePolicies, compilePromptShot, promptFieldPolicy, type ScenePolicyShot } from "@hyperreality/video-studio";
 import { promptContractSummary } from "./prompt-quality-gate.js";
 import { getModel } from "./gen/catalog.js";
-import { authorizeRenderSubmission, loadQualifiedRenderInput, listProductionShots, qualifyProductionShot } from "./production-authority.js";
+import { g8ApprovalBinding, g8ApprovalBindingHash, requireOrConsumeG8Approval } from "./g8-approval.js";
+import { gatewayAppendOnClient } from "@workloom/base/workdata";
+import { authorizeRenderSubmission, loadQualifiedRenderInput, listProductionShots, qualifyProductionShot, productionG8Status, recoverG8Qualification } from "./production-authority.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 import { submitGenJob } from "./gen/submit.js";
 import { acceptPortraitArchiveReuse, portraitReuseEvidence } from "./portrait-reuse-acceptance.js";
@@ -22,6 +24,7 @@ const gates = ["G2_THEME", "G3_INSIGHT", "G4_PRD", "G5_PORTRAIT", "G6_PROMPT", "
 type Row = Record<string, any>;
 class MemoryPool {
   source: Row = {}; selection: Row | null = null; qualifications: Row[] = []; scripts: Row[] = []; submissionState = "";
+  approvalRows: Row[] = [];
   locked = false; busy = false; unlockFails = false; releases: boolean[] = [];
   asPool() { return this as unknown as pg.Pool; }
   async connect() { return { query: this.query.bind(this), release: (discard = false) => { this.releases.push(discard); } }; }
@@ -39,6 +42,35 @@ class MemoryPool {
         rows = this.qualifications.filter(row => values[5].includes(row.payload_hash) && row.source_stage_run_id === values[4])
           .slice(-1).map(row => ({ ...row, submission_state: this.submissionState }));
       }
+    }
+    else if (sql.includes("JOIN approvals a")) {
+      const approvals = this.approvalRows.filter(row => row.tenant_id === values[0] && row.workspace_id === values[1]);
+      const qualifications = this.qualifications.filter(row => row.tenant_id === values[0] && row.workspace_id === values[1]).reverse();
+      for (const qualification of qualifications) {
+        if (values.length === 4 && (qualification.project_id !== values[2] || qualification.shot_id !== values[3])) continue;
+        const approval = approvals.find(row => row.snapshot.gate === "G8" && row.snapshot.action === "render.submit"
+          && row.snapshot.object_type === "render_script" && row.snapshot.params.qualificationId === qualification.id
+          && (values.length === 4 || row.approval_id === values[2]));
+        if (!approval) continue;
+        const newest = qualifications.find(row => row.project_id === qualification.project_id && row.shot_id === qualification.shot_id)!;
+        rows = [{ ...qualification, duration_sec: String(qualification.params.durationSec), approval_id: approval.approval_id,
+          approval_status: approval.status, approval_snapshot: approval.snapshot, consumed_at: approval.consumed_at,
+          latest_qualification_id: newest.id, submission_state: this.submissionState || null,
+          job_id: this.submissionState ? "RJ-original" : null }];
+        break;
+      }
+    } else if (sql.includes("INSERT INTO approvals")) {
+      this.approvalRows.push({ approval_id: values[0], tenant_id: values[1], workspace_id: values[2], status: "pending",
+        snapshot: JSON.parse(values[4]), consumed_at: null });
+    } else if (sql.includes("FROM approvals") && sql.includes("status='pending'")) {
+      rows = this.approvalRows.filter(row => row.tenant_id === values[0] && row.workspace_id === values[1]
+        && row.status === "pending" && row.snapshot.binding_sha256 === values[2]);
+    } else if (sql.includes("FROM approvals") && sql.includes("FOR UPDATE")) {
+      rows = this.approvalRows.filter(row => row.approval_id === values[0] && row.tenant_id === values[1] && row.workspace_id === values[2]);
+    } else if (sql.includes("UPDATE approvals SET consumed_at")) {
+      rows = this.approvalRows.filter(row => row.approval_id === values[0] && row.tenant_id === values[1] && row.workspace_id === values[2]
+        && row.status === "approved" && !row.consumed_at);
+      for (const row of rows) row.consumed_at = new Date().toISOString();
     }
     else if (sql.includes("INSERT INTO render_scripts")) this.scripts.push({ id: values[0], workspace_id: values[1], project_id: values[2], shot_id: values[3], script_key: values[4], version: 1, status: "draft", md: values[5], fields: JSON.parse(values[6]), created_by: values[7] });
     else if (sql.includes("INSERT INTO production_qualifications")) {
@@ -612,5 +644,80 @@ describe("oversized signed G6 request and compact production receipt", () => {
     expect(calls).toHaveLength(0);
     expect(pool.qualifications).toHaveLength(0);
     expect(pool.locked).toBe(false);
+  });
+});
+
+describe("G8 continuation uses only the same native paid authorization", () => {
+  async function openTicket() {
+    const { enforced } = await installPromptContract();
+    const input = { app: pool.asPool(), scope, workDir: dir, env: enforced };
+    const address = { ...input, projectId: "P1", shotId: "S1" };
+    expect(await productionG8Status(address)).toEqual({
+      contract: { modelId: "doubao-seedance-2-5", aspectRatio: "9:16", resolution: "1080p", generateAudio: true },
+      ticket: null,
+    });
+    const qualification = await issue({ params: {}, env: enforced });
+    const loaded = await loadQualifiedRenderInput(input.app, scope, qualification.qualificationToken, enforced);
+    vi.mocked(gatewayAppendOnClient).mockResolvedValue({ eventId: "EV-G8-FIXTURE" } as never);
+    const native = { ...input, ...loaded, actor: "MEM-ORIGINAL", estimatedCny: 12.3, allowOverage: false };
+    const { approvalId } = await requireOrConsumeG8Approval(native);
+    const recover = { ...input, approvalId };
+    return { qualification, address, native, recover, approval: pool.approvalRows[0]! };
+  }
+
+  it("reload reads the original pending ticket; only explicit approved recovery yields the exact original token", async () => {
+    const { qualification, address, native, recover, approval } = await openTicket();
+    const pending = await productionG8Status(address);
+    expect(pending.ticket).toMatchObject({ approvalId: recover.approvalId, status: "pending", shotId: "S1", durationSec: 5,
+      modelId: "doubao-seedance-2-5", estimatedCny: 12.3, requestHash: qualification.requestHash, allowOverage: false, jobId: null });
+    expect(JSON.stringify(pending)).not.toContain(qualification.qualificationToken);
+    expect(pending.ticket).not.toHaveProperty("qualificationId");
+    expect(pending.ticket).not.toHaveProperty("payloadHash");
+    await expect(recoverG8Qualification(recover)).rejects.toThrow("G8_APPROVAL_NOT_RESUMABLE");
+    await expect(recoverG8Qualification({ ...recover, scope: { tenantId: scope.tenantId, workspaceId: "other" } }))
+      .rejects.toThrow("G8_APPROVAL_NOT_FOUND");
+    await expect(recoverG8Qualification({ ...recover, scope: { tenantId: "other", workspaceId: scope.workspaceId } }))
+      .rejects.toThrow("G8_APPROVAL_NOT_FOUND");
+    approval.status = "approved";
+    expect((await productionG8Status(address)).ticket?.status).toBe("approved");
+    await expect(recoverG8Qualification(recover)).resolves.toBe(qualification.qualificationToken);
+    expect(approval.consumed_at).toBeNull();
+    await requireOrConsumeG8Approval({ ...native, approvalId: recover.approvalId });
+    await expect(recoverG8Qualification(recover)).rejects.toThrow("G8_APPROVAL_NOT_RESUMABLE");
+    expect((await productionG8Status(address)).ticket?.status).toBe("consumed");
+    pool.submissionState = "unknown";
+    expect((await productionG8Status(address)).ticket?.status).toBe("outcome_unknown");
+    pool.submissionState = "finalized";
+    expect((await productionG8Status(address)).ticket).toMatchObject({ status: "submitted", jobId: "RJ-original" });
+    expect(calls).toHaveLength(1);
+    expect(pool.qualifications).toHaveLength(1);
+  });
+
+  it("rejects expired, changed, nonnative and superseded authorization records without another review", async () => {
+    const { qualification, address, recover, approval } = await openTicket();
+    const nativeExpiry = approval.snapshot.expires_at;
+    approval.status = "approved";
+    approval.snapshot.expires_at = new Date(0).toISOString();
+    expect((await productionG8Status(address)).ticket?.status).toBe("expired");
+    await expect(recoverG8Qualification(recover)).rejects.toThrow("G8_APPROVAL_NOT_RESUMABLE");
+    approval.snapshot.expires_at = nativeExpiry;
+    const params = approval.snapshot.params;
+    const changed = g8ApprovalBinding({ ...params, requestHash: "0".repeat(64) });
+    approval.snapshot.params = changed;
+    approval.snapshot.binding_sha256 = g8ApprovalBindingHash(changed);
+    await expect(recoverG8Qualification(recover)).rejects.toThrow("G8_APPROVAL_PAYLOAD_MISMATCH");
+    approval.snapshot.params = params;
+    approval.snapshot.binding_sha256 = g8ApprovalBindingHash(params);
+    approval.snapshot.action = "cms.approveScript";
+    expect((await productionG8Status(address)).ticket).toBeNull();
+    await expect(recoverG8Qualification(recover)).rejects.toThrow("G8_APPROVAL_NOT_FOUND");
+    approval.snapshot.action = "render.submit";
+    pool.qualifications.push({ ...pool.qualifications[0], id: "superseding-qualification", seq: "2" });
+    expect((await productionG8Status(address)).ticket?.status).toBe("stale");
+    await expect(recoverG8Qualification(recover)).rejects.toThrow("G8_APPROVAL_NOT_RESUMABLE");
+    await expect(recoverG8Qualification({ ...recover, env })).rejects.toThrow("G8_APPROVAL_UNAVAILABLE");
+    expect(pool.qualifications[0]!.id).toBe(qualification.qualificationId);
+    expect(approval.consumed_at).toBeNull();
+    expect(calls).toHaveLength(1);
   });
 });

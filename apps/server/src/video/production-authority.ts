@@ -24,6 +24,7 @@ import type { AppPool, Scope } from "./gen/db.js";
 import type { RenderScriptLike } from "./gen/submit.js";
 import type { VideoGenParams } from "./gen/types.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
+import { G8_APPROVAL_SCHEMA, g8ApprovalBinding, g8ApprovalBindingHash } from "./g8-approval.js";
 import { canonicalRenderJson, compileRenderRequest, previousSeedanceCameraFixedPayloadHash, renderSha256, supportsCompiledRequest, type CompiledProviderRequest } from "./gen/compiled-request.js";
 import { verifyPortraitArchiveReuseAcceptance } from "./portrait-reuse-acceptance.js";
 import { assertSystemAutoApprovalReceipt, loadPipelineFeatureFlags } from "@workloom/pipeline-control";
@@ -483,13 +484,123 @@ function decode(token: string, env: NodeJS.ProcessEnv): { payload: TokenPayload;
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) fail("QUALIFICATION_INVALID", "生成资格签名无效");
   return { payload, signature: mac! };
 }
-function payloadFor(row: QualificationRow): TokenPayload {
+type QualificationIdentity = Pick<QualificationRow, "id" | "tenant_id" | "workspace_id" | "project_id" | "shot_id"
+  | "source_stage_run_id" | "source_attempt" | "source_output_sha256" | "prompts_sha256" | "script_id"
+  | "script_version" | "model_id" | "provider" | "provider_model" | "request_hash" | "payload_hash"
+  | "mode" | "key_id" | "issued_at" | "expires_at">;
+
+function payloadFor(row: QualificationIdentity): TokenPayload {
   return { schemaVersion: SCHEMA, purpose: PURPOSE, issuer: ISSUER, qualificationId: row.id, keyId: row.key_id,
     tenantId: row.tenant_id, workspaceId: row.workspace_id, projectId: row.project_id, shotId: row.shot_id,
     stageRunId: row.source_stage_run_id, attempt: row.source_attempt, sourceOutputSha256: row.source_output_sha256,
     promptsSha256: row.prompts_sha256, scriptId: row.script_id!, scriptVersion: row.script_version!, modelId: row.model_id,
     provider: row.provider, providerModel: row.provider_model, requestHash: row.request_hash, payloadHash: row.payload_hash,
     issuedAt: new Date(row.issued_at).toISOString(), expiresAt: new Date(row.expires_at).toISOString() };
+}
+
+type G8Lookup = { approvalId: string } | { projectId: string; shotId: string };
+type G8ContinuationRow = QualificationIdentity & {
+  status: QualificationRow["status"]; signature: QualificationRow["signature"];
+  approval_id: string; approval_status: string; approval_snapshot: JsonRecord | null; consumed_at: string | null;
+  latest_qualification_id: string; duration_sec: string | null; submission_state: string | null; job_id: string | null;
+};
+
+async function readG8Continuation(app: AppPool, scope: Scope, lookup: G8Lookup): Promise<G8ContinuationRow | undefined> {
+  const byApproval = "approvalId" in lookup;
+  return scopedTx(app, scope, async client => {
+    const result = await client.query<G8ContinuationRow>(`SELECT q.id,q.tenant_id,q.workspace_id,q.project_id,q.shot_id,
+      q.source_stage_run_id,q.source_attempt,q.source_output_sha256,q.prompts_sha256,q.script_id,q.script_version,
+      q.model_id,q.provider,q.provider_model,q.request_hash,q.payload_hash,q.mode,q.status,q.key_id,
+      q.signature,q.issued_at,q.expires_at,q.params->>'durationSec' AS duration_sec,
+      a.approval_id,a.status AS approval_status,a.snapshot AS approval_snapshot,a.consumed_at,
+      s.state AS submission_state,s.job_id,
+      (SELECT newest.id FROM production_qualifications newest
+        WHERE newest.tenant_id=q.tenant_id AND newest.workspace_id=q.workspace_id AND newest.project_id=q.project_id
+          AND newest.shot_id=q.shot_id ORDER BY newest.seq DESC LIMIT 1) AS latest_qualification_id
+      FROM production_qualifications q JOIN approvals a
+        ON a.tenant_id=q.tenant_id AND a.workspace_id=q.workspace_id
+        AND a.snapshot->>'object_id'=q.script_id AND a.snapshot->'params'->>'qualificationId'=q.id
+      LEFT JOIN generation_submissions s
+        ON s.tenant_id=q.tenant_id AND s.workspace_id=q.workspace_id AND s.project_id=q.project_id
+        AND s.script_id=q.script_id AND s.script_version=q.script_version
+        AND s.request_hash=q.request_hash AND s.idempotency_key='render:' || q.request_hash
+      WHERE q.tenant_id=$1 AND q.workspace_id=$2 AND a.snapshot->>'gate'='G8'
+        AND a.tier='l4_chairman' AND a.snapshot->>'object_type'='render_script' AND a.snapshot->>'action'='render.submit'
+        AND ${byApproval ? "a.approval_id=$3" : "q.project_id=$3 AND q.shot_id=$4"}
+      ORDER BY q.seq DESC,a.created_at DESC LIMIT 1`, [
+      scope.tenantId, scope.workspaceId, ...(byApproval ? [lookup.approvalId] : [lookup.projectId, lookup.shotId]),
+    ]);
+    return result.rows[0];
+  });
+}
+
+function checkedG8Binding(row: G8ContinuationRow) {
+  const snapshot = row.approval_snapshot;
+  const stored = snapshot?.params as JsonRecord | undefined;
+  const estimatedCny = stored?.estimatedCny;
+  const allowOverage = stored?.allowOverage;
+  const durationSec = Number(row.duration_sec);
+  const expiresAt = Math.min(Date.parse(String(snapshot?.expires_at ?? "")), new Date(row.expires_at).getTime());
+  if (stored?.schemaVersion !== G8_APPROVAL_SCHEMA || typeof estimatedCny !== "number"
+    || !Number.isFinite(estimatedCny) || estimatedCny < 0 || typeof allowOverage !== "boolean"
+    || !Number.isInteger(durationSec) || durationSec <= 0 || !Number.isFinite(expiresAt)) {
+    fail("G8_APPROVAL_PAYLOAD_MISMATCH", "人工授权的时长、费用或有效期不可核实");
+  }
+  const binding = g8ApprovalBinding({ qualificationId: row.id, requestHash: row.request_hash, payloadHash: row.payload_hash,
+    modelId: row.model_id, shotId: row.shot_id, durationSec, estimatedCny, allowOverage });
+  if (canonicalRenderJson(stored) !== canonicalRenderJson(binding) || snapshot?.binding_sha256 !== g8ApprovalBindingHash(binding)) {
+    fail("G8_APPROVAL_PAYLOAD_MISMATCH", "人工授权与签发的渲染请求不一致");
+  }
+  return { binding, expiresAt };
+}
+
+type G8ContinuationStatus = "pending" | "approved" | "submitted" | "outcome_unknown" | "consumed" | "expired" | "stale" | "rejected";
+
+function g8ContinuationStatus(row: G8ContinuationRow, source: Source, expiresAt: number): G8ContinuationStatus {
+  if (row.submission_state === "submitting" || row.submission_state === "unknown") return "outcome_unknown";
+  if (row.status !== "passed" || row.id !== row.latest_qualification_id || row.source_stage_run_id !== source.row.id
+    || row.source_attempt !== source.row.attempt || row.source_output_sha256 !== source.row.output_sha256
+    || row.prompts_sha256 !== source.promptsHash) return "stale";
+  if (row.submission_state === "accepted" || row.submission_state === "finalized") return "submitted";
+  if (row.consumed_at || row.submission_state) return "consumed";
+  if (row.approval_status === "expired" || expiresAt <= Date.now()) return "expired";
+  if (row.approval_status === "pending" || row.approval_status === "approved") return row.approval_status;
+  if (["rejected", "edited", "superseded"].includes(row.approval_status)) return "rejected";
+  return "outcome_unknown";
+}
+
+/** Recover the current native approval view without exposing the qualification token or media. */
+export async function productionG8Status(input: { app: AppPool; scope: Scope; projectId: string; shotId: string;
+  env?: NodeJS.ProcessEnv; workDir?: string }) {
+  const env = input.env ?? process.env;
+  if (loadPipelineFeatureFlags(env).promptContract !== "enforce") return { contract: null, ticket: null };
+  const source = await sourceForShot(input.app, input.scope, input.projectId, input.shotId, input.workDir ?? archiveWorkDir(env), env);
+  const request = source.promptContract!.request;
+  const contract = { modelId: request.modelId, aspectRatio: String(request.parameters.aspect_ratio),
+    resolution: String(request.parameters.resolution), generateAudio: request.parameters.generate_audio === true };
+  const row = await readG8Continuation(input.app, input.scope, input);
+  if (!row) return { contract, ticket: null };
+  const { binding, expiresAt } = checkedG8Binding(row);
+  return { contract, ticket: { approvalId: row.approval_id, status: g8ContinuationStatus(row, source, expiresAt),
+    shotId: binding.shotId, modelId: binding.modelId, durationSec: binding.durationSec, estimatedCny: binding.estimatedCny,
+    allowOverage: binding.allowOverage, requestHash: binding.requestHash, expiresAt: new Date(expiresAt).toISOString(),
+    jobId: row.job_id } };
+}
+
+/** Reconstruct only the already-issued receipt for a current, unused native approval. */
+export async function recoverG8Qualification(input: { app: AppPool; scope: Scope; approvalId: string;
+  env?: NodeJS.ProcessEnv; workDir?: string }): Promise<string> {
+  const env = input.env ?? process.env;
+  if (loadPipelineFeatureFlags(env).promptContract !== "enforce") fail("G8_APPROVAL_UNAVAILABLE", "当前服务未启用人工付费授权续接");
+  const row = await readG8Continuation(input.app, input.scope, input);
+  if (!row) fail("G8_APPROVAL_NOT_FOUND", "审批单不存在或不属于当前租户和工作区");
+  const { expiresAt } = checkedG8Binding(row);
+  const source = await sourceForShot(input.app, input.scope, row.project_id, row.shot_id, input.workDir ?? archiveWorkDir(env), env);
+  const status = g8ContinuationStatus(row, source, expiresAt);
+  if (status !== "approved" || !row.signature) fail("G8_APPROVAL_NOT_RESUMABLE", `当前人工授权不可提交（${status}）`);
+  const token = `${Buffer.from(canonicalRenderJson(payloadFor(row))).toString("base64url")}.${row.signature}`;
+  decode(token, env);
+  return token;
 }
 
 interface QualificationInput {

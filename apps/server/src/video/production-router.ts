@@ -3,7 +3,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getAppPool } from "@workloom/db";
 import { protectedProcedure, router, scopeOf, writeProcedure } from "../trpc/context.js";
-import { listProductionShots, qualifyProductionShot } from "./production-authority.js";
+import { listProductionShots, productionG8Status, qualifyProductionShot } from "./production-authority.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
 
 const params = z.object({
@@ -34,6 +34,8 @@ async function qualify<T>(request: () => Promise<T>): Promise<T> {
 }
 
 export const productionRouter = router({
+  g8Status: protectedProcedure.input(z.object({ projectId: z.string().min(1).max(200), shotId: z.string().min(1).max(200) }).strict())
+    .query(({ ctx, input }) => qualify(() => productionG8Status({ app: getAppPool(), scope: scopeOf(ctx.identity), ...input }))),
   shots: protectedProcedure.input(z.object({ projectId: z.string().min(1).max(200) }).strict()).query(async ({ ctx, input }) => {
     try { return await listProductionShots({ app: getAppPool(), scope: scopeOf(ctx.identity), projectId: input.projectId }); }
     catch (error) {

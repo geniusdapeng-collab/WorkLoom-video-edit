@@ -11,10 +11,11 @@
  * 状态源：video.gen.catalog / video.gen.estimate / video.render.submit / video.render.poll /
  *        video.gen.jobs / video.publish.createTask / video.publish.run
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ensureDemoLogin, trpc } from "../../../lib/trpc";
 import { Bridge } from "../../../shell/Bridge";
+import { useNavigationAccess } from "../../../shell/NavigationAccess";
 import { BannerAlert, EmptyState, Skeleton } from "../../../components/hud";
 
 interface ModelEntry {
@@ -70,10 +71,27 @@ const PLATFORMS = [
   { id: "youtube", label: "YouTube" },
 ] as const;
 
+type G8Status = Awaited<ReturnType<typeof trpc.video.production.g8Status.query>>;
+type G8Readback = { key: string; status: G8Status; error?: never } | { key: string; status?: never; error: string };
+
+const G8_LABELS = {
+  pending: "待人工授权",
+  approved: "已授权 · 等待提交",
+  submitted: "生成任务已受理",
+  outcome_unknown: "提交结果待核对",
+  consumed: "授权已使用",
+  expired: "授权已过期",
+  stale: "镜头或生成请求已更新",
+  rejected: "授权已终止",
+} satisfies Record<NonNullable<G8Status["ticket"]>["status"], string>;
+
 export default function Studio() {
   const nav = useNavigate();
   const [params] = useSearchParams();
   const projectId = params.get("project") ?? "vp-demo-001";
+  const shotHint = params.get("shot");
+  const modeHint = params.get("mode");
+  const { identityKey, scope, status: accessStatus, canAction } = useNavigationAccess();
   /** 商品档案页「用此商品开拍」带过来的商品名（媒资库 → 生产页的上下文传递） */
   const productHint = params.get("product");
 
@@ -84,6 +102,7 @@ export default function Studio() {
   const [scripts, setScripts] = useState<ScriptRow[]>([]);
   const [shots, setShots] = useState<Array<{ shotId: string; durationSec: number; prompt: string; promptSha256: string }>>([]);
   const [shotId, setShotId] = useState("");
+  const [verifiedSourceKey, setVerifiedSourceKey] = useState<string | null>(null);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobRow[]>([]);
 
@@ -93,7 +112,9 @@ export default function Studio() {
   const [resolution, setResolution] = useState("720p");
   const [generateAudio, setGenerateAudio] = useState(true);
   const [firstFrameUrl, setFirstFrameUrl] = useState("");
-  const [mode, setMode] = useState<"manual" | "batch" | "auto">("manual");
+  const mode = modeHint === "batch" || modeHint === "auto" ? modeHint : "manual";
+  const [g8Readback, setG8Readback] = useState<G8Readback | null>(null);
+  const [g8Refresh, setG8Refresh] = useState(0);
   const [estimate, setEstimate] = useState<{
     usd: number | null; cny: number | null; unit: string; units: number;
     allowed: boolean; reason: string | null; spentMonthCny: number; caps: { dailyCapCny: number | null; monthlyCapCny: number | null };
@@ -104,7 +125,36 @@ export default function Studio() {
   const [publishCaption, setPublishCaption] = useState("");
   const [publishJobId, setPublishJobId] = useState<string | null>(null);
 
-  const model = useMemo(() => models.find((m) => m.id === modelId) ?? null, [models, modelId]);
+  const sourceKey = JSON.stringify([accessStatus, scope?.tenantId, identityKey, projectId, shotHint]);
+  const currentSourceKey = useRef(sourceKey);
+  currentSourceKey.current = sourceKey;
+  const visibleShots = verifiedSourceKey === sourceKey ? shots : [];
+  const selectedShot = visibleShots.find(shot => shot.shotId === shotId) ?? null;
+  const g8Key = JSON.stringify([sourceKey, selectedShot?.shotId]);
+  const canRender = accessStatus === "ready" && canAction("workspace.write");
+  const canApprove = accessStatus === "ready" && canAction("approval.decide");
+  const currentG8Key = useRef(g8Key);
+  currentG8Key.current = g8Key;
+  const g8 = g8Readback?.key === g8Key ? g8Readback : null;
+  const contract = g8?.status?.contract;
+  const ticket = g8?.status?.ticket;
+  const locked = !g8?.status || !!contract;
+  const effectiveModelId = contract?.modelId ?? modelId;
+  const model = useMemo(() => models.find(m => m.id === effectiveModelId) ?? null, [models, effectiveModelId]);
+  const canRequest = !!g8?.status && (!ticket || ["expired", "stale", "rejected"].includes(ticket.status));
+  const refreshG8 = useCallback(() => {
+    setG8Readback(null);
+    setG8Refresh(value => value + 1);
+  }, []);
+  useEffect(() => {
+    if (!selectedShot) return;
+    let active = true;
+    void trpc.video.production.g8Status.query({ projectId, shotId: selectedShot.shotId }).then(
+      status => { if (active) setG8Readback({ key: g8Key, status }); },
+      error => { if (active) setG8Readback({ key: g8Key, error: error instanceof Error ? error.message : String(error) }); },
+    );
+    return () => { active = false; };
+  }, [g8Key, g8Refresh, projectId, selectedShot]);
 
   const loadCatalog = useCallback(async () => {
     const r = await trpc.video.gen.catalog.query({ kind: "video" }) as unknown as { models: ModelEntry[] };
@@ -116,12 +166,21 @@ export default function Studio() {
     const [drafts, production] = await Promise.allSettled([
       trpc.video.cms.listScripts.query({ projectId }), trpc.video.production.shots.query({ projectId }),
     ]);
-    if (drafts.status === "fulfilled") setScripts(drafts.value as unknown as ScriptRow[]);
+    if (currentSourceKey.current !== sourceKey) return;
+    setScripts(drafts.status === "fulfilled" ? drafts.value as unknown as ScriptRow[] : []);
     if (production.status === "fulfilled") {
-      setShots(production.value.shots); setShotId(cur => production.value.shots.some(shot => shot.shotId === cur) ? cur : production.value.shots[0]?.shotId ?? "");
-      setSourceError(null);
-    } else { setShots([]); setShotId(""); setSourceError(production.reason instanceof Error ? production.reason.message : String(production.reason)); }
-  }, [projectId]);
+      const current = production.value.shots;
+      const requested = current.find(shot => shot.shotId === shotHint);
+      setShots(current);
+      setShotId(cur => shotHint ? requested?.shotId ?? "" : current.find(shot => shot.shotId === cur)?.shotId ?? current[0]?.shotId ?? "");
+      setSourceError(shotHint && !requested ? `链接中的镜头 ${shotHint} 已不在当前预生产结果中，请重新选择。` : null);
+    } else {
+      setShots([]);
+      setShotId("");
+      setSourceError(production.reason instanceof Error ? production.reason.message : String(production.reason));
+    }
+    setVerifiedSourceKey(sourceKey);
+  }, [projectId, shotHint, sourceKey]);
 
   const loadJobs = useCallback(async (silent = false) => {
     if (!silent) setReady(false);
@@ -138,6 +197,7 @@ export default function Studio() {
   }, [projectId]);
 
   useEffect(() => {
+    if (accessStatus !== "ready") return;
     void (async () => {
       try {
         await ensureDemoLogin();
@@ -149,15 +209,16 @@ export default function Studio() {
     void loadJobs();
     const t = setInterval(() => void loadJobs(true), 10_000);
     return () => clearInterval(t);
-  }, [loadCatalog, loadScripts, loadJobs]);
+  }, [accessStatus, loadCatalog, loadScripts, loadJobs]);
 
   /** 报价：模型/时长变化即刷新（含上限闸预览） */
   useEffect(() => {
-    if (!modelId) return;
+    if (!effectiveModelId) return;
+    setEstimate(null);
     let alive = true;
     void (async () => {
       try {
-        const r = await trpc.video.gen.estimate.query({ modelId, seconds: durationSec }) as unknown as {
+        const r = await trpc.video.gen.estimate.query({ modelId: effectiveModelId, seconds: durationSec }) as unknown as {
           estimate: { usd: number | null; cny: number | null; unit: string; units: number };
           spend: { monthCny: number; caps: { dailyCapCny: number | null; monthlyCapCny: number | null } };
           allowed: boolean; reason: string | null;
@@ -172,41 +233,70 @@ export default function Studio() {
       }
     })();
     return () => { alive = false; };
-  }, [modelId, durationSec]);
+  }, [effectiveModelId, durationSec]);
 
-  const selectedShot = shots.find(shot => shot.shotId === shotId) ?? null;
   useEffect(() => { if (selectedShot) setDurationSec(selectedShot.durationSec); }, [selectedShot]);
 
-  const submit = useCallback(async () => {
-    if (busy) return;
-    if (!selectedShot || !modelId) {
-      setBanner({ level: "warn", text: "还没有可生成的服务镜头，请先完成当前项目的预生产。" });
-      return;
-    }
-    setBusy("qualify");
+  const submit = useCallback(async (resume: boolean) => {
+    if (busy || !canRender || !selectedShot || !effectiveModelId || !g8?.status) return;
+    if (resume ? ticket?.status !== "approved" : !canRequest) return;
+    setBanner(null);
+    setBusy(resume ? "submit" : "qualify");
     try {
-      if (firstFrameUrl.trim() && !/^(https?:\/\/|asset:\/\/)/.test(firstFrameUrl.trim())) throw new Error("首帧地址须使用 https、http 或已授权的 asset:// 素材地址。");
-      const qualification = await trpc.video.production.qualifyShotReceipt.mutate({ projectId, shotId: selectedShot.shotId, modelId, mode,
-        params: { durationSec: selectedShot.durationSec, aspectRatio, resolution, generateAudio,
-          ...(firstFrameUrl.trim() ? { firstFrameUrl: firstFrameUrl.trim() } : {}) } });
-      setBusy("submit");
-      const r = await trpc.video.render.submit.mutate({ qualificationToken: qualification.qualificationToken }) as unknown as {
-        jobId: string; taskId: string; mock: boolean; provider: string; providerModel: string;
-        estUsd: number | null; estCny: number | null; deduped: boolean; durationSec: number; clamped: boolean;
-      };
+      let request: Parameters<typeof trpc.video.render.submit.mutate>[0];
+      if (resume && ticket) {
+        request = { g8ApprovalId: ticket.approvalId, allowOverage: ticket.allowOverage };
+      } else {
+        const firstFrame = firstFrameUrl.trim();
+        if (!contract && firstFrame && !/^(https?:\/\/|asset:\/\/)/.test(firstFrame)) {
+          throw new Error("首帧地址须使用 https、http 或已授权的 asset:// 素材地址。");
+        }
+        const qualification = await trpc.video.production.qualifyShotReceipt.mutate({
+          projectId, shotId: selectedShot.shotId, modelId: effectiveModelId, mode,
+          params: contract ? {} : { durationSec: selectedShot.durationSec, aspectRatio, resolution, generateAudio,
+            ...(firstFrame ? { firstFrameUrl: firstFrame } : {}) },
+        });
+        if (currentG8Key.current !== g8Key) return;
+        request = { qualificationToken: qualification.qualificationToken };
+        setBusy("submit");
+      }
+      const result = await trpc.video.render.submit.mutate(request);
+      if (currentG8Key.current !== g8Key) return;
       setBanner({
         level: "info",
-        text: r.deduped
-          ? `该请求与已有任务重复（幂等命中）：${r.jobId}，未重复扣费。`
-          : `${r.mock ? "演示提交（未消耗额度）" : "真实渲染已提交"}：${r.provider} · ${r.durationSec}s${r.clamped ? "（已按模型上限夹紧）" : ""} · 预估 ${r.estUsd === null ? "未核价" : `$${r.estUsd} / ¥${r.estCny}`}`,
+        text: result.deduped
+          ? `该请求与已有任务重复（幂等命中）：${result.jobId}，未重复扣费。`
+          : `${result.mock ? "演示提交（未消耗额度）" : "真实渲染已提交"}：${result.provider} · ${result.durationSec}s${result.clamped ? "（已按模型上限夹紧）" : ""} · 预估 ${result.estUsd === null ? "未核价" : `$${result.estUsd} / ¥${result.estCny}`}`,
       });
       await loadJobs(true);
-    } catch (e) {
-      setBanner({ level: "alert", text: `提交被拦下：${e instanceof Error ? e.message : String(e)}` });
+    } catch (error) {
+      if (currentG8Key.current !== g8Key) return;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!contract || resume || !message.startsWith("G8_HUMAN_APPROVAL_REQUIRED")) {
+        setBanner({ level: "alert", text: `提交未完成：${message}` });
+      }
     } finally {
+      if (currentG8Key.current === g8Key && contract) refreshG8();
       setBusy(null);
     }
-  }, [busy, selectedShot, projectId, modelId, mode, aspectRatio, resolution, generateAudio, firstFrameUrl, loadJobs]);
+  }, [busy, canRender, selectedShot, effectiveModelId, g8, ticket, canRequest, contract, firstFrameUrl, projectId, mode,
+    aspectRatio, resolution, generateAudio, g8Key, loadJobs, refreshG8]);
+
+  const approveG8 = useCallback(async () => {
+    if (busy || ticket?.status !== "pending" || !canApprove) return;
+    setBusy("approve");
+    setBanner(null);
+    try {
+      await trpc.approvals.decide.mutate({ approvalId: ticket.approvalId, gesture: "approve" });
+    } catch (error) {
+      if (currentG8Key.current === g8Key) {
+        setBanner({ level: "alert", text: `授权操作未完成：${error instanceof Error ? error.message : String(error)}` });
+      }
+    } finally {
+      if (currentG8Key.current === g8Key) refreshG8();
+      setBusy(null);
+    }
+  }, [busy, ticket, canApprove, g8Key, refreshG8]);
 
   const pollNow = useCallback(async () => {
     setBusy("poll");
@@ -253,19 +343,66 @@ export default function Studio() {
     }
   }, [jobs, publishJobId, publishPlatform, publishAccount, publishCaption]);
 
+  const g8Actions = (
+    <div className="mb-3 max-w-lg">
+      {selectedShot && !g8 && <p role="status" className="mb-2 text-caption text-ink3">正在读取付费授权状态…</p>}
+      {g8?.error && <p role="alert" className="mb-2 break-words text-caption text-alert">付费授权状态读取失败：{g8.error}</p>}
+      {ticket && (
+        <section aria-label="G8 付费渲染授权" className="mb-2 space-y-1 rounded-lg border border-gline bg-card p-3 text-caption text-ink2">
+          <div role="status" className="font-bold text-gold">{G8_LABELS[ticket.status]}</div>
+          <div className="break-all font-mono text-micro">{ticket.approvalId}</div>
+          <div>{ticket.shotId} · {ticket.modelId} · {ticket.durationSec}s · 预估 ¥{ticket.estimatedCny}</div>
+          <div className="text-micro text-ink3">授权有效至 {new Date(ticket.expiresAt).toLocaleString()}</div>
+          <div className="break-all text-micro text-ink3">请求 {ticket.requestHash.slice(0, 12)} · {ticket.allowOverage ? "申请超额" : "遵守额度上限"}</div>
+          {ticket.jobId && <div className="break-all font-mono text-micro">任务 {ticket.jobId}</div>}
+          {ticket.status === "pending" && (canApprove ? (
+            <button type="button" disabled={busy !== null} onClick={() => void approveG8()}
+              className="min-h-11 w-full rounded-md border border-gold/50 px-3 py-1.5 font-bold text-gold disabled:opacity-40">
+              {busy === "approve" ? "正在记录授权…" : "批准本次付费渲染"}
+            </button>
+          ) : <div className="text-ink3">请具备审批权限的成员在同一工作区打开此镜头。</div>)}
+          {ticket.status === "approved" && canRender && (
+            <button type="button" disabled={busy !== null} onClick={() => void submit(true)}
+              className="min-h-11 w-full rounded-md gold-grad px-3 py-2 font-bold text-ongold disabled:opacity-40">
+              {busy === "submit" ? "正在提交生成…" : "提交已授权的付费渲染"}
+            </button>
+          )}
+          {ticket.status === "outcome_unknown" && <div className="text-ink3">请刷新任务状态并核对现有回执。</div>}
+        </section>
+      )}
+      {selectedShot && (contract || g8?.error) && (
+        <button type="button" disabled={busy !== null || !g8} onClick={refreshG8}
+          className="mb-1.5 min-h-11 w-full rounded-md border border-line px-3 py-1.5 text-caption text-ink3 hover:text-ink2 disabled:opacity-40">
+          刷新付费授权状态
+        </button>
+      )}
+      {contract && canRequest && (
+        <button
+          type="button"
+          disabled={busy !== null || !canRender || !effectiveModelId || !selectedShot || estimate?.allowed === false}
+          onClick={() => void submit(false)}
+          className="min-h-11 w-full cursor-pointer rounded-md gold-grad px-3 py-2 text-caption font-bold text-ongold disabled:opacity-40"
+        >
+          {busy === "qualify" ? "正在审核完整生成请求…" : busy === "submit" ? "正在处理生成请求…" : "审核并申请付费授权"}
+        </button>
+      )}
+    </div>
+  );
+
   /* ---------- 左栏：模型 + 参数 + 报价 + 提交 ---------- */
   const left = (
     <>
       <div className="mb-2 px-1 text-[11px] tracking-[.2em] text-ink3">生成工作室</div>
-      {model ? (
+      {(model || contract) ? (
         <div className="mb-2 rounded-lg border border-line bg-card p-3">
           <div className="text-micro text-ink3">模型</div>
           <select
-            value={modelId}
-            disabled={busy !== null}
+            value={effectiveModelId}
+            disabled={busy !== null || locked}
             onChange={(e) => setModelId(e.target.value)}
             className="mt-1 w-full cursor-pointer rounded-md border border-line bg-bg900 px-2 py-1.5 text-caption text-ink2"
           >
+            {contract && !model && <option value={contract.modelId}>{contract.modelId}</option>}
             {models.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name} · {m.tier} · {m.provider}
@@ -273,9 +410,9 @@ export default function Studio() {
             ))}
           </select>
           <div className="mt-1.5 text-micro text-ink3">
-            {model.provider} / {model.effectiveProviderModel}
+            {model ? `${model.provider} / ${model.effectiveProviderModel}` : contract?.modelId}
           </div>
-          {model.notes && <div className="mt-1 text-micro text-ink3">注：{model.notes}</div>}
+          {model?.notes && <div className="mt-1 text-micro text-ink3">注：{model.notes}</div>}
         </div>
       ) : (
         <Skeleton />
@@ -283,9 +420,9 @@ export default function Studio() {
 
       <div className="mb-2 rounded-lg border border-line bg-card p-3">
         <label className="mb-2 block text-micro text-ink3">预生产镜头
-          <select aria-label="预生产镜头" value={shotId} disabled={busy !== null || shots.length === 0} onChange={event => setShotId(event.target.value)} className="mt-1 w-full rounded-md border border-line bg-bg900 px-2 py-1.5 text-caption text-ink2 disabled:opacity-40">
-            {shots.length === 0 && <option value="">暂无已验证镜头</option>}
-            {shots.map(shot => <option key={shot.shotId} value={shot.shotId}>{shot.shotId} · {shot.durationSec} 秒</option>)}
+          <select aria-label="预生产镜头" value={shotId} disabled={busy !== null || visibleShots.length === 0} onChange={event => setShotId(event.target.value)} className="mt-1 w-full rounded-md border border-line bg-bg900 px-2 py-1.5 text-caption text-ink2 disabled:opacity-40">
+            {!selectedShot && <option value="">{visibleShots.length ? "请选择当前镜头" : "暂无已验证镜头"}</option>}
+            {visibleShots.map(shot => <option key={shot.shotId} value={shot.shotId}>{shot.shotId} · {shot.durationSec} 秒</option>)}
           </select>
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -304,42 +441,42 @@ export default function Studio() {
           <label className="text-micro text-ink3">
             画幅
             <select
-              value={aspectRatio}
-              disabled={busy !== null}
+              value={contract?.aspectRatio ?? aspectRatio}
+              disabled={busy !== null || locked}
               onChange={(e) => setAspectRatio(e.target.value)}
               className="mt-1 w-full cursor-pointer rounded-md border border-line bg-bg900 px-2 py-1 text-caption text-ink2"
             >
-              {(model?.limits?.aspectRatios ?? ["16:9", "9:16", "1:1"]).map((r) => <option key={r} value={r}>{r}</option>)}
+              {(contract ? [contract.aspectRatio] : model?.limits?.aspectRatios ?? ["16:9", "9:16", "1:1"]).map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </label>
           <label className="text-micro text-ink3">
             清晰度
             <select
-              value={resolution}
-              disabled={busy !== null}
+              value={contract?.resolution ?? resolution}
+              disabled={busy !== null || locked}
               onChange={(e) => setResolution(e.target.value)}
               className="mt-1 w-full cursor-pointer rounded-md border border-line bg-bg900 px-2 py-1 text-caption text-ink2"
             >
-              {(model?.limits?.resolutions ?? ["480p", "720p", "1080p"]).map((r) => <option key={r} value={r}>{r}</option>)}
+              {(contract ? [contract.resolution] : model?.limits?.resolutions ?? ["480p", "720p", "1080p"]).map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </label>
           <label className="mt-4 flex items-center gap-2 text-micro text-ink3">
-            <input type="checkbox" disabled={busy !== null} checked={generateAudio} onChange={(e) => setGenerateAudio(e.target.checked)} />
+            <input type="checkbox" disabled={busy !== null || locked} checked={contract?.generateAudio ?? generateAudio} onChange={(e) => setGenerateAudio(e.target.checked)} />
             生成音轨
           </label>
         </div>
-        <label className="mt-2 block text-micro text-ink3">
+        {!contract && <label className="mt-2 block text-micro text-ink3">
           首帧图 URL（可选）
           <input
             value={firstFrameUrl}
-            disabled={busy !== null}
+            disabled={busy !== null || locked}
             onChange={(e) => setFirstFrameUrl(e.target.value)}
             placeholder="https://…/frame.jpg"
             className="mt-1 w-full rounded-md border border-line bg-bg900 px-2 py-1 text-caption text-ink2"
           />
-        </label>
+        </label>}
         <div className="mt-2 text-micro text-ink3">
-          {selectedShot ? "时长与正文来自当前服务预生产镜头，修改内容后须重新预生产。" : "完成预生产后刷新本页，服务镜头会出现在这里。"}
+          {selectedShot ? "镜头时长和正文取自预生产。正式生成的模型、画幅、清晰度、音轨和素材由服务请求锁定。" : "完成预生产后刷新本页，服务镜头会出现在这里。"}
         </div>
       </div>
 
@@ -362,14 +499,16 @@ export default function Studio() {
         )}
       </div>
 
-      <button
-        type="button"
-        disabled={busy !== null || !modelId || !selectedShot || estimate?.allowed === false}
-        onClick={() => void submit()}
-        className="w-full cursor-pointer rounded-md gold-grad px-3 py-2 text-caption font-bold text-ongold disabled:opacity-40"
-      >
-        {busy === "qualify" ? "正在审核完整生成请求…" : busy === "submit" ? "正在提交生成…" : "▶ 审核并生成当前镜头"}
-      </button>
+      {g8?.status && !contract && canRequest && (
+        <button
+          type="button"
+          disabled={busy !== null || !canRender || !effectiveModelId || !selectedShot || estimate?.allowed === false}
+          onClick={() => void submit(false)}
+          className="w-full cursor-pointer rounded-md gold-grad px-3 py-2 text-caption font-bold text-ongold disabled:opacity-40"
+        >
+          {busy === "qualify" ? "正在审核完整生成请求…" : busy === "submit" ? "正在处理生成请求…" : "▶ 审核并生成当前镜头"}
+        </button>
+      )}
       <button
         type="button"
         disabled={busy !== null}
@@ -380,7 +519,7 @@ export default function Studio() {
       </button>
       <button
         type="button"
-        onClick={() => nav("/ai-video/assets")}
+        onClick={() => nav("/ai-video/assets?project=" + encodeURIComponent(projectId))}
         className="mt-1.5 w-full cursor-pointer rounded-lg border border-line px-3 py-2 text-caption text-ink3 hover:border-holo/40 hover:text-ink2"
       >
         ← 返回片库 / 脚本 CMS
@@ -393,7 +532,7 @@ export default function Studio() {
     <>
       <div className="mb-2 px-1 text-[11px] tracking-[.2em] text-ink3">任务队列</div>
       {ready && jobs.length === 0 && (
-        <EmptyState icon="🎬" title="暂无生成任务" hint="左侧选模型 → 看报价 → 提交；任务会出现在这里，并在生成完成后自动入库。" />
+        <EmptyState icon="🎬" title="暂无生成任务" hint="在生成工作室审核镜头、确认费用并提交。生成完成后，任务可在这里刷新入库。" />
       )}
       {jobs.map((j) => {
         const meta = STATUS_META[j.status] ?? { label: j.status, cls: "border-line text-ink3" };
@@ -486,7 +625,7 @@ export default function Studio() {
 
   return (
     <Bridge left={left} right={right}>
-      <div className="px-1">
+      <div className="px-1 max-[820px]:pl-6">
         {productHint ? (
           <div className="mb-3 rounded-lg border border-line bg-card px-3 py-2 text-caption text-ink2">
             本次开拍商品：<span className="font-bold text-ink">{productHint}</span>
@@ -497,7 +636,7 @@ export default function Studio() {
           <div>
             <div className="break-words text-title text-ink">生成工作室 · {projectId}</div>
             <div className="mt-0.5 text-caption text-ink3">
-              选择服务镜头 → 看报价 → 审核完整请求 → 生成 → 入库
+              选择服务镜头 → 审核请求 → 确认付费授权 → 提交生成 → 入库
             </div>
           </div>
           <span className="rounded border border-line px-2 py-1 text-micro text-ink3">
@@ -505,12 +644,14 @@ export default function Studio() {
           </span>
         </div>
 
-        {sourceError && <div className="mb-3"><BannerAlert level="warn">当前项目尚无可验证的服务镜头：{sourceError}</BannerAlert></div>}
+        {verifiedSourceKey === sourceKey && sourceError && <div className="mb-3"><BannerAlert level="warn">当前项目尚无可验证的服务镜头：{sourceError}</BannerAlert></div>}
         {banner && (
           <BannerAlert level={banner.level} actionLabel="知道了" onAction={() => setBanner(null)}>
             {banner.text}
           </BannerAlert>
         )}
+
+        {selectedShot && (!g8 || g8.error || contract) && g8Actions}
 
         {!ready ? (
           <div className="space-y-2"><Skeleton count={4} height={56} /></div>
@@ -518,10 +659,10 @@ export default function Studio() {
           <div className="rounded-lg border border-line bg-bg900/40 p-3">
             {selectedShot && <details className="mb-3"><summary className="cursor-pointer text-caption text-ink2">查看当前镜头完整内容 · {selectedShot.shotId}</summary><pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-caption leading-relaxed text-ink3">{selectedShot.prompt}</pre></details>}
             <div className="text-caption text-ink2">
-              当前项目已有 {shots.length} 个服务镜头、{scripts.length} 个工作稿版本、{jobs.length} 个生成任务。
+              当前项目已有 {visibleShots.length} 个服务镜头、{scripts.length} 个工作稿版本、{jobs.length} 个生成任务。
             </div>
             <div className="mt-2 text-micro leading-relaxed text-ink3">
-              · 服务先审核当前镜头的完整生成请求；通过后再过 G8（素材制作默认自动放行；超预算走人审）与成本上限闸（USD/CNY 双轨）；
+              · 服务审核完整生成请求。正式付费渲染须经人工授权，再单独提交，费用上限仍生效。
               · 生成完成后点「立即刷新任务状态」触发轮询回填 + 成片入库（供应商只保留 7 天，入库后才算真交付）；
               · 真实渲染会消耗供应商额度，界面上的"演示/促销价/未核价"标识以数据为准，不粉饰。
             </div>

@@ -2,24 +2,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "../trpc/context.js";
 const d = vi.hoisted(() => ({ query: vi.fn(), qualify: vi.fn(), shots: vi.fn(), load: vi.fn(), submit: vi.fn(),
-  judge: vi.fn(), budget: vi.fn(), cap: vi.fn(), writable: true }));
+  status: vi.fn(), recover: vi.fn(), judge: vi.fn(), budget: vi.fn(), cap: vi.fn(), writable: true }));
 vi.mock("@workloom/db", () => ({ getAppPool: () => ({ connect: async () => ({ query: d.query, release: vi.fn() }) }), getGatewayPool: () => ({}) }));
 vi.mock("../service/access-authority.js", async original => ({ ...await original<Record<string, unknown>>(),
   currentMemberAuthority: async (identity: unknown) => ({ identity, permissions: {} }),
   memberAccessGrants: () => ({ actionPermissions: d.writable ? ["workspace.write"] : [] }),
 }));
-vi.mock("./production-authority.js", () => ({ qualifyProductionShot: d.qualify, listProductionShots: d.shots, loadQualifiedRenderInput: d.load }));
+vi.mock("./production-authority.js", () => ({ qualifyProductionShot: d.qualify, listProductionShots: d.shots, loadQualifiedRenderInput: d.load, productionG8Status: d.status, recoverG8Qualification: d.recover }));
 vi.mock("./gen/submit.js", () => ({ submitGenJob: d.submit }));
 vi.mock("./archive-host.js", async original => ({ ...await original<Record<string, unknown>>(), makeStageArchive: () => null }));
 vi.mock("@workloom/base/fence-engine", async original => ({ ...await original<Record<string, unknown>>(), judge: d.judge }));
 vi.mock("@workloom/base/model-router", async original => ({ ...await original<Record<string, unknown>>(), checkRenderBudget: d.budget }));
-vi.mock("./gen/cost.js", async original => ({ ...await original<Record<string, unknown>>(), checkCostCaps: d.cap, renderSpendCny: async () => ({ day: 0, month: 0 }) }));
+vi.mock("./gen/cost.js", async original => {
+  const actual = await original<typeof import("./gen/cost.js")>();
+  return { ...actual, estimateCost: vi.fn(actual.estimateCost), checkCostCaps: d.cap, renderSpendCny: async () => ({ day: 0, month: 0 }) };
+});
 vi.mock("@workloom/base/workdata", async original => ({
   ...await original<Record<string, unknown>>(),
   gatewayAppend: vi.fn(async () => ({ eventId: "EV-auto-approval" })),
+  gatewayAppendOnClient: vi.fn(async () => ({ eventId: "EV-inert-native-g8" })),
 }));
 import { videoRouter } from "./router.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
+import { estimateCost } from "./gen/cost.js";
+import { getModel } from "./gen/catalog.js";
 const identity = { tenantId: "tenant-router", workspaceId: "ws-router", memberNo: "MEM-T", plan: "pro", role: "owner" } as NonNullable<TrpcContext["identity"]>;
 const context: TrpcContext = { identity, session: identity, partnerIdentity: null, headers: new Headers() };
 const caller = () => videoRouter.createCaller(context);
@@ -36,7 +42,7 @@ beforeEach(() => {
   d.budget.mockReturnValue({ allowed: true, overageSeconds: 0 }); d.cap.mockReturnValue({ allowed: true });
   d.submit.mockResolvedValue({ jobId: "RJ-1", taskId: "remote-1", mock: false, provider: "seedance", providerModel: "m", estUsd: 1, estCny: 7, deduped: false });
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); vi.mocked(estimateCost).mockReset(); });
 
 describe("生产入口正常可达且不能覆盖已审核请求", () => {
   it("真实根路由挂载shots/qualify，scope只来自登录身份；随后只给token完成提交", async () => {
@@ -117,4 +123,75 @@ describe("生产入口正常可达且不能覆盖已审核请求", () => {
     await expect(caller().render.submit({ qualificationToken: "test-token" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(d.submit).not.toHaveBeenCalled();
   });
+});
+
+it("native G8 continuation uses the recovered original qualification and consumes approval only once", async () => {
+  vi.stubEnv("PROMPT_CONTRACT_V2", "enforce");
+  const quote = estimateCost(getModel("doubao-seedance-2-5")!, { seconds: 5 });
+  vi.mocked(estimateCost).mockReturnValue({ ...quote, usd: 1, cny: 7.2 });
+  type Row = { approval_id: string; status: string; snapshot: Record<string, unknown>; consumed_at: string | null };
+  const rows = new Map<string, Row>();
+  d.status.mockResolvedValue({ contract: null, ticket: null });
+  d.recover.mockImplementation(async ({ approvalId }) => {
+    const row = rows.get(approvalId);
+    if (!row || row.status !== "approved" || row.consumed_at) throw new SubmissionError("G8_APPROVAL_NOT_RESUMABLE", "fixture");
+    return "inert-q1";
+  });
+  expect(await caller().production.g8Status({ projectId: "P1", shotId: "S1" })).toEqual({ contract: null, ticket: null });
+  expect(d.status).toHaveBeenCalledWith(expect.objectContaining({ scope: { tenantId: identity.tenantId, workspaceId: identity.workspaceId },
+    projectId: "P1", shotId: "S1" }));
+  await expect(videoRouter.createCaller({ ...context, identity: null, session: null }).production.g8Status({ projectId: "P1", shotId: "S1" }))
+    .rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  d.query.mockImplementation(async (sql: string, params: unknown[] = []) => {
+    if (sql.includes("INSERT INTO approvals")) {
+      const id = String(params[0]);
+      rows.set(id, { approval_id: id, status: "pending", snapshot: JSON.parse(String(params[4])), consumed_at: null });
+      return { rows: [], rowCount: 1 };
+    }
+    if (sql.includes("FROM approvals") && sql.includes("status='pending'")) {
+      const row = [...rows.values()].find(row => row.status === "pending" && row.snapshot.binding_sha256 === params[2]);
+      return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+    }
+    if (sql.includes("FROM approvals") && sql.includes("FOR UPDATE")) {
+      const row = rows.get(String(params[0]));
+      return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+    }
+    if (sql.includes("UPDATE approvals SET consumed_at")) {
+      const row = rows.get(String(params[0]))!;
+      if (row.consumed_at || row.status !== "approved") return { rows: [], rowCount: 0 };
+      row.consumed_at = "fixture-one-use";
+      return { rows: [], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
+  });
+  const q1 = { ...canonical(), compiled: { payloadHash: "b".repeat(64) } };
+  const q2 = { ...q1, qualificationId: "PQ-2", requestHash: "c".repeat(64), script: { ...q1.script, id: "RS-2" } };
+  d.load.mockImplementation(async (_app, _scope, token) => token === "inert-q1" ? q1 : q2);
+  await expect(caller().render.submit({ qualificationToken: "inert-q1" }))
+    .rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: expect.stringMatching(/^G8_HUMAN_APPROVAL_REQUIRED:apr-[a-f0-9]{20}$/) });
+  const firstId = [...rows.keys()][0]!;
+  expect(rows.get(firstId)?.snapshot.params).toMatchObject({ qualificationId: "PQ-1", shotId: "S1", estimatedCny: 7.2 });
+  await expect(caller().render.submit({ qualificationToken: "inert-q1" }))
+    .rejects.toThrow("G8_HUMAN_APPROVAL_REQUIRED:" + firstId);
+  expect(rows.size).toBe(1);
+  await expect(caller().render.submit({ qualificationToken: "inert-q2" }))
+    .rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: expect.stringMatching(/^G8_HUMAN_APPROVAL_REQUIRED:apr-[a-f0-9]{20}$/) });
+  expect(rows.size).toBe(2);
+  await expect(caller().render.submit({ g8ApprovalId: firstId })).rejects.toThrow("G8_APPROVAL_NOT_RESUMABLE");
+  expect(d.submit).not.toHaveBeenCalled();
+  // Local fixture projection only. No approvals.decide or real DB/service is called.
+  rows.get(firstId)!.status = "approved";
+  await expect(caller().render.submit({ qualificationToken: "inert-q2", g8ApprovalId: firstId }))
+    .rejects.toMatchObject({ code: "FORBIDDEN", message: expect.stringContaining("G8_APPROVAL_PAYLOAD_MISMATCH") });
+  d.writable = false;
+  await expect(caller().render.submit({ g8ApprovalId: firstId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  d.writable = true;
+  await expect(caller().render.submit({ g8ApprovalId: firstId })).resolves.toMatchObject({ jobId: "RJ-1" });
+  expect(d.recover).toHaveBeenCalledWith(expect.objectContaining({ approvalId: firstId,
+    scope: { tenantId: identity.tenantId, workspaceId: identity.workspaceId } }));
+  expect(d.submit).toHaveBeenCalledWith(expect.objectContaining({ qualificationToken: "inert-q1", script: q1.script }));
+  expect(d.submit).toHaveBeenCalledTimes(1);
+  await expect(caller().render.submit({ qualificationToken: "inert-q1", g8ApprovalId: firstId }))
+    .rejects.toMatchObject({ code: "FORBIDDEN", message: expect.stringContaining("G8_APPROVAL_CONSUMED") });
+  expect(d.submit).toHaveBeenCalledTimes(1);
 });
