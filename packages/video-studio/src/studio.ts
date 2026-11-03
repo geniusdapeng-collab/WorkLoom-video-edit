@@ -343,7 +343,7 @@ export class VideoStudio {
         assertFrozenProductionTiming(req.structured, frozenSegments, gate, false);
       }
       if (prdAuthority?.profile.speechPolicy === "none" && (gate === "G6_PROMPT" || gate === "G7_FINAL")) {
-        assertNoSpokenPromptPackage(req.structured, gate);
+        assertNoSpokenPromptPackage(req.structured, gate, req.content);
       }
       const normalizedPrompt = input.isMarketing && gate === "G6_PROMPT"
         ? normalizeMarketingPromptText(req.content, promptOptions)
