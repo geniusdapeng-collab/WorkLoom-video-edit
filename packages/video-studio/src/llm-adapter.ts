@@ -72,6 +72,14 @@ export interface LLMReasonResult {
   usage?: { promptTokens?: number; completionTokens?: number };
 }
 
+// The pinned discovery vendor can return the adapter envelope as if it were
+// structured data. Track native failure identity outside the model payload.
+const reasonFailures = new WeakMap<object, "json-syntax" | "unavailable">();
+
+export function nativeReasonFailure(value: unknown): "json-syntax" | "unavailable" | undefined {
+  return value !== null && typeof value === "object" ? reasonFailures.get(value) : undefined;
+}
+
 export interface WorkloomLLMEngineConfig {
   /** OpenAI 兼容端点，如 https://api.moonshot.cn/v1 */
   baseUrl: string;
@@ -439,12 +447,14 @@ export class WorkloomLLMEngine {
         result.data = WorkloomLLMEngine.extractJson(result.content);
       } catch (err) {
         this.stats.totalFailures++;
-        return {
+        const failure: LLMReasonResult = {
           ...result,
           success: false,
           error: `JSON 解析失败: ${err instanceof Error ? err.message : String(err)}`,
           retryable: false
         };
+        reasonFailures.set(failure, "json-syntax");
+        return failure;
       }
     }
     return result;
@@ -476,13 +486,17 @@ export class WorkloomLLMEngine {
     try {
       structuredPrompt = structuredPromptFor(prompt, schema);
     } catch (error) {
-      return {
+      const failure: LLMReasonResult = {
         success: false,
         error: `结构化输出结构不可序列化: ${error instanceof Error ? error.message : String(error)}`,
         retryable: false,
       };
+      reasonFailures.set(failure, "unavailable");
+      return failure;
     }
-    return this.reason(structuredPrompt, { ...options, forceJson: true });
+    const result = await this.reason(structuredPrompt, { ...options, forceJson: true });
+    if (!result.success && !reasonFailures.has(result)) reasonFailures.set(result, "unavailable");
+    return result;
   }
 
   private static readonly nativeProofMethods = {

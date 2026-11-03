@@ -2,6 +2,8 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getModel } from "../../apps/server/src/video/gen/catalog.js";
+import { compileRenderRequest } from "../../apps/server/src/video/gen/compiled-request.js";
 import { ArkImageProvider, ArkVideoProvider } from "../../apps/server/src/video/gen/providers.js";
 import { OpenAiCompatibleProvider } from "../../packages/base/model-router/providers.js";
 import { startProviderBudgetGateway } from "./lib/provider-budget-gateway.js";
@@ -114,6 +116,30 @@ describe("task-local provider budget gateway", () => {
     expect(calls.map(({ method, path }) => `${method} ${path}`)).toEqual([
       `POST ${DEEPSEEK_CHAT_PATH}`, `POST ${ARK_IMAGE_PATH}`, `POST ${ARK_VIDEO_PATH}`, `GET ${ARK_VIDEO_PATH}/native-video-wire`,
     ]);
+  });
+
+  it("forwards the exact compiled G8 Seedance 2.5 MP4 request and rejects other explicit video formats", async () => {
+    const upstream = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => Response.json({ id: "g8-video-wire" }));
+    const { server } = await gate(upstream, { scope: { ...videoScope, inlineImageSha256: [digest(IMAGE_BYTES)] } });
+    const arkBase = `${server.baseUrl}/api/v3`;
+    const params = { durationSec: 10, aspectRatio: "9:16", resolution: "1080p", generateAudio: true,
+      cameraFixed: false, outputFormat: "mp4", referenceImageUrls: [IMAGE_DATA] };
+    const model = getModel("doubao-seedance-2-5")!;
+    const script = { id: "fixture-script", project_id: "fixture-project", shot_id: "fixture-shot", script_key: "qualified:fixture",
+      version: 1, status: "draft", md: "Reviewed reference shot.", fields: { durationSec: 10 } };
+    const { compiled } = compileRenderRequest({ script, model, params, scope: { tenantId: "fixture-tenant", workspaceId: "fixture-workspace" },
+      mode: "manual", env: { SEEDANCE_ENDPOINT: arkBase } });
+    const provider = new ArkVideoProvider({ apiKey: CLIENT, baseUrl: arkBase });
+    await expect(provider.submit({ prompt: script.md, estimatedUnits: 10,
+      params: { ...params, providerModel: compiled.providerModel } })).resolves.toEqual({ taskId: "g8-video-wire" });
+    expect(compiled.body).toMatchObject({ model: SEEDANCE_MODEL, output_format: "mp4" });
+    expect(compiled.body).not.toHaveProperty("camera_fixed");
+    expect(Buffer.from(upstream.mock.calls[0]![1]!.body as Uint8Array).toString()).toBe(compiled.bodyJson);
+    for (const output_format of ["mov", "MP4", null, true]) {
+      expect(code(await call(server, ARK_VIDEO_PATH, { ...compiled.body, output_format }))).toBe("BUDGET_UNSUPPORTED_REQUEST");
+    }
+    expect(code(await call(server, ARK_VIDEO_PATH, { ...compiled.body, camera_fixed: false }))).toBe("BUDGET_UNSUPPORTED_REQUEST");
+    expect(upstream).toHaveBeenCalledTimes(1);
   });
 
   it("authenticates and denies off-contract routes, methods, models, media and noncanonical JSON before any upstream call", async () => {

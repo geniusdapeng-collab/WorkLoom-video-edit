@@ -209,10 +209,12 @@ function imageClaim(body: JsonObject, scope: BudgetScope, known: FindImage): Cla
 }
 
 function videoClaim(body: JsonObject, scope: BudgetScope, known: FindImage): Claim {
-  fields(body, ["model", "content", "duration", "ratio", "resolution", "generate_audio", "watermark", "return_last_frame", "omni_reference_task_type"]);
+  fields(body, ["model", "content", "duration", "ratio", "resolution", "generate_audio", "watermark", "return_last_frame",
+    "omni_reference_task_type", "output_format"]);
   check(body.model === SEEDANCE_MODEL && safeInteger(body.duration, TASK_CAPS.minVideoSeconds)
     && body.duration <= TASK_CAPS.maxVideoSeconds && (body.resolution === "720p" || body.resolution === "1080p"));
   check(["generate_audio", "watermark", "return_last_frame"].every((key) => body[key] === undefined || typeof body[key] === "boolean"));
+  check(body.output_format === undefined || body.output_format === "mp4");
   check(Array.isArray(body.content) && body.content.length >= 1 && body.content.length <= 5);
   const [prompt, ...images] = body.content as unknown[];
   fields(prompt, ["type", "text"]);
