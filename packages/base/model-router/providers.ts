@@ -265,6 +265,7 @@ interface OpenAiTransport {
 }
 
 const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiTransport & { provider: OpenAiCompatibleProvider }>();
+export const DEEPSEEK_CHAT_PATH = "/chat/completions";
 
 /**
  * Canonical DeepSeek transport. The complete serialized request is tokenized
@@ -306,7 +307,7 @@ export class OpenAiCompatibleProvider implements ModelProvider {
       || typeof baseUrl !== "string"
       || (apiKey?.value !== undefined && typeof apiKey.value !== "string")) return false;
     return dispatched.fetchImpl === (fetchImpl?.value ?? fetch)
-      && dispatched.endpoint === `${baseUrl}/chat/completions`
+      && dispatched.endpoint === `${baseUrl}${DEEPSEEK_CHAT_PATH}`
       && dispatched.authorization === (apiKey?.value ? `Bearer ${apiKey.value}` : undefined);
   }
 
@@ -394,7 +395,7 @@ export class OpenAiCompatibleProvider implements ModelProvider {
       let transport: OpenAiTransport;
       try {
         const fetchImpl = this.cfg.fetchImpl ?? fetch;
-        const endpoint = `${this.baseUrl}/chat/completions`;
+        const endpoint = `${this.baseUrl}${DEEPSEEK_CHAT_PATH}`;
         const headers = this.authHeaders();
         transport = { fetchImpl, endpoint, authorization: headers.authorization };
         response = await fetchImpl(endpoint, {
