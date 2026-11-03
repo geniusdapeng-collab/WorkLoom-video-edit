@@ -71,7 +71,7 @@ import { upsertProductProfileFromDossier } from "./media/products.js";
 import { appendScenePolicyGuidance, resolveScenePolicyForIntent } from "./scene-policy-routing.js";
 import { appendPlatformGuidance, resolvePlatformForIntent } from "./platform-routing.js";
 import { loadVideoPipelinePlan, type CompiledVideoPipelinePlan } from "@hyperreality/video-pipeline";
-import { loadPipelineFeatureFlags } from "@workloom/pipeline-control";
+import { loadPipelineFeatureFlags, sha256Json } from "@workloom/pipeline-control";
 import { findModelByProviderModel, getModel, loadCatalog, resolveProviderModel } from "./gen/catalog.js";
 import { PipelineShadowObserver, pipelineControlMode } from "./pipeline/shadow.js";
 import {
@@ -294,8 +294,11 @@ export function terminalFailureMessageOf(result: unknown, entryError?: string | 
   return (candidates[0] ?? "vendor 返回 success:false").slice(0, 500);
 }
 
-/** Only the final native result carries complete cards; stage shots are a lossy summary. */
-function completePreproductionShots(result: Awaited<ReturnType<VideoStudio["runPreproduction"]>>): Array<Record<string, unknown>> {
+/** Native cards carry metadata; enforced prompt fields come from the separately guarded native array. */
+function completePreproductionShots(
+  result: Awaited<ReturnType<VideoStudio["runPreproduction"]>>,
+  authority?: { quality: PromptQualityResult | null; gates: ReadonlyMap<string, Record<string, unknown>> },
+): Array<Record<string, unknown>> {
   const fail = (detail: string): never => { throw new Error(`PREPRODUCTION_HANDOFF_INVALID: ${detail}`); };
   if (result.degraded === true) fail("本次原生制作已降级，不能签出正式 CLI 草稿");
   if (!Array.isArray(result.shots) || !result.shots.length) fail("缺少本次完整 result.shots；阶段摘要不能替代原始镜头");
@@ -314,8 +317,51 @@ function completePreproductionShots(result: Awaited<ReturnType<VideoStudio["runP
     return { ...structuredClone(shot), shotId: id };
   });
   if (!Number.isFinite(shots.reduce((sum, shot) => sum + Number(shot.duration), 0))) fail("完整原始镜头总时长不是有效数值");
-  canonicalRenderJson(shots); // Reject values that JSON cannot faithfully preserve before writing.
-  return shots;
+  canonicalRenderJson(shots); // Reject raw cards that JSON cannot faithfully preserve.
+  if (!authority) return shots;
+  const { quality, gates } = authority;
+  const g6 = gates.get("G6_PROMPT");
+  const g7 = gates.get("G7_FINAL");
+  const eligibility = g7?.renderEligibility as { eligible?: unknown } | undefined;
+  if (!quality || quality.mode !== "enforce" || !quality.g6Eligible
+    || g6?.approved !== true || g6.decisionId !== quality.decision.id || g7?.approved !== true || eligibility?.eligible !== true) {
+    return fail("缺少本次 G6/G7 已批准的最终提示词合同");
+  }
+  const expected = promptContractSummary(quality.shotContracts.map(item => item.contract));
+  if (canonicalRenderJson(g6.promptContract) !== canonicalRenderJson(expected)
+    || canonicalRenderJson(g7.promptContract) !== canonicalRenderJson(expected)) {
+    return fail("本次 G6/G7 最终提示词合同摘要不一致");
+  }
+  const nativePrompts = result.prompts;
+  if (!Array.isArray(nativePrompts) || nativePrompts.length !== shots.length || expected.length !== shots.length) {
+    return fail("原生最终提示词、镜头卡与已批准合同不能逐镜对应");
+  }
+  const boundShots = shots.map((shot, index) => {
+    const raw: unknown = nativePrompts[index];
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return fail(`第 ${index + 1} 镜缺少原生最终提示词对象`);
+    const native = raw as Record<string, unknown>;
+    const { contract, source } = quality.shotContracts[index]!;
+    if (shot.shotId !== contract.shotId || (native.shotId ?? native.shot_id) !== shot.shotId
+      || (native.shotId !== undefined && native.shot_id !== undefined && native.shotId !== native.shot_id)
+      || native.duration !== shot.duration || native.duration !== contract.request.parameters.duration_sec) {
+      return fail(`镜头 ${String(shot.shotId)} 的原生最终提示词镜号、顺序或时长不一致`);
+    }
+    if (native.degraded === true || native.status === "degraded" || native.prompt !== contract.prompt) {
+      return fail(`镜头 ${String(shot.shotId)} 的原生最终提示词降级或与 G6 字节不一致`);
+    }
+    if (!native.fields || typeof native.fields !== "object" || Array.isArray(native.fields)
+      || canonicalRenderJson(native.fields) !== canonicalRenderJson(source.fields)) {
+      return fail(`镜头 ${String(shot.shotId)} 的原生最终字段与 G6 不一致`);
+    }
+    const fields = native.fields as Record<string, unknown>;
+    if (contract.bindings.some(binding => !Object.hasOwn(fields, binding.field)
+      || fields[binding.field] === undefined || sha256Json(fields[binding.field]) !== binding.valueSha256)) {
+      return fail(`镜头 ${String(shot.shotId)} 的原生最终字段摘要与 G6 不一致`);
+    }
+    return { ...shot, fields: structuredClone(fields), prompt: contract.prompt, promptCharCount: contract.prompt.length };
+  });
+  canonicalRenderJson(boundShots);
+  return boundShots;
 }
 
 /* ================= run 注册表 ================= */
@@ -1634,8 +1680,9 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
              * 否则新会话拿到档案也接不上下一步（提交渲染/交付）。
              */
             // A rejected vendor result has no formal handoff. Preserve its real gate/error outcome.
-            const shots = r.success === true ? completePreproductionShots(r) : [];
             const activePromptQuality = currentPromptQuality();
+            const shots = r.success === true ? completePreproductionShots(r,
+              promptContractMode === "enforce" ? { quality: activePromptQuality, gates: gateProofs } : undefined) : [];
             const promptPack = shots.length
               ? {
                   stageId: "preproduction",
@@ -1681,7 +1728,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
                   })),
                 }
               : null;
-            // The immutable original cards are shared by policy and ordinary CLI handoff.
+            // Policy and CLI share the same native cards with the verified final prompt bytes.
             // draft:true never grants render approval; existing G1-G7 and CLI guards still apply.
             const source = { kind: "system-preproduction", issuer: "workloom.studio-worker", resultPath: "result.shots",
               tenantId: scope.tenantId, workspaceId: scope.workspaceId, projectId: input.projectId, runId: entry.runId, attempt: ctx.attempt };

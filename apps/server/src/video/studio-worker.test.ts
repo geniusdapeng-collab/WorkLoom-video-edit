@@ -13,6 +13,7 @@ import { verifyScenePolicyProductionSource } from "./scene-policy-render-gate.js
 import { portraitReuseFixture } from "./portrait-reuse.test-support.js";
 import { builtinCatalogFixture } from "./builtin-character-selection.test-support.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
+import { sha256Json } from "@workloom/pipeline-control";
 
 const doubles = vi.hoisted(() => ({
   workDir: "",
@@ -291,7 +292,12 @@ describe("预生产原始结果与诚实终态", () => {
     { drift: false, frozen: true },
     { drift: true, frozen: true },
     { drift: true, frozen: false, assignedOnly: true },
-  ])("真实 worker G6 定点修复后，G7 仍核对当前镜头合同（$drift, $frozen, $assignedOnly）", async ({ drift, frozen, assignedOnly }) => {
+    { drift: false, frozen: false, late: "prompt" },
+    { drift: false, frozen: false, late: "fields" },
+    { drift: false, frozen: false, late: "duration" },
+    { drift: false, frozen: false, late: "order" },
+    { drift: false, frozen: false, late: "missing" },
+  ])("真实 worker G6 修复后检查 G7 与脱离引用的归档交接（$drift, $frozen, $assignedOnly, $late）", async ({ drift, frozen, assignedOnly, late }) => {
     doubles.realModelRouting = true;
     doubles.emitGates = false;
     vi.stubEnv("PROMPT_CONTRACT_V2", "enforce");
@@ -312,6 +318,11 @@ describe("预生产原始结果与诚实终态", () => {
       sceneType: frozen && shotId === "S01" ? "opening" : "content", noPeople: true,
       prompt: "原生分镜提示词", fields: { ...fields, ...(frozen ? { constraint: staleTemplate } : {}),
         camera_movement: shotId === "S01" ? originalCamera : fixedCamera } }));
+    // The real vendor deep-detaches result.shots from result.prompts before G6.
+    const cards = structuredClone(shots).map((shot, index) => ({
+      ...shot, sceneId: `scene-${index}`, timing: { start: index * 5, duration: 5, end: (index + 1) * 5 },
+    }));
+    const originalCards = structuredClone(cards);
     const calls: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       expect(String(url)).toBe("http://g6-worker.invalid/v1/chat/completions");
@@ -346,7 +357,11 @@ describe("预生产原始结果与诚实终态", () => {
         verdicts[gate] = await approve({ gate, vendorType: "test-gate", runId: "vendor-run", title: "完整确认单",
           contentMd: "具体场景、角色、动作与镜头交付标准。".repeat(20), structuredArtifact: shots });
       }
-      return { ...success(), shots, success: verdicts.G7_FINAL!.approved,
+      if (late === "prompt") shots[1]!.prompt += "导出后未经审核的字节";
+      if (late === "fields") shots[1]!.fields.camera_movement = "导出后替换字段";
+      if (late === "duration") shots[1]!.duration = 6;
+      return { ...success(), shots: cards, prompts: late === "missing" ? undefined : late === "order" ? [...shots].reverse() : shots,
+        success: verdicts.G7_FINAL!.approved,
         errors: verdicts.G7_FINAL!.approved ? [] : [{ message: verdicts.G7_FINAL!.reason }] };
     });
     const { entry, projectId } = await runToTerminal(frozen, { hasPerson: false, characters: [], noCharacters: true,
@@ -368,9 +383,37 @@ describe("预生产原始结果与诚实终态", () => {
     const eligibility = JSON.parse(await readFile(path.join(gateDir, "render-eligibility.json"), "utf8"));
     expect(eligibility).toMatchObject({ current: !drift, eligible: !drift });
     expect(verdicts.G7_FINAL).toMatchObject({ approved: !drift });
-    expect(entry).toMatchObject({ status: drift ? "failed" : "finished" });
+    expect(entry).toMatchObject({ status: drift || late ? "failed" : "finished" });
     if (drift) expect(eligibility.reasons).toContain(assignedOnly ? "FINAL_ASSIGNED_PROMPT_DRIFT:S02"
       : frozen ? "S02:HARD_CONSTRAINT_FPS_CONFLICT:stage" : "PROMPT_CONTRACT_DRIFT:S02");
+    const artifactBase = "stages/preproduction/attempt-1";
+    expect(cards).toEqual(originalCards);
+    if (drift || late) {
+      if (late) expect(entry.error).toContain("PREPRODUCTION_HANDOFF_INVALID");
+      for (const suffix of ["prompts", "shotlist"]) {
+        await expect(archiveJson(projectId, `${artifactBase}.${suffix}.json`)).rejects.toMatchObject({ code: "ENOENT" });
+      }
+    } else {
+      const promptPack = await archiveJson(projectId, `${artifactBase}.prompts.json`);
+      const cli = await archiveJson(projectId, `${artifactBase}.shotlist.json`);
+      const output = (await archiveJson(projectId, `${artifactBase}.output.json`)).value;
+      expect(output).toMatchObject({ success: true, promptsSha256: renderSha256(promptPack.bytes), cliShotlistSha256: renderSha256(cli.bytes) });
+      const g6 = output.productionEvidence.gates.find((gate: { gate: string }) => gate.gate === "G6_PROMPT");
+      const g7 = output.productionEvidence.gates.find((gate: { gate: string }) => gate.gate === "G7_FINAL");
+      expect(g7).toMatchObject({ approved: true, renderEligibility: { eligible: true }, promptContract: g6.promptContract });
+      for (const [index, final] of shots.entries()) {
+        expect(promptPack.value.shots[index]).toMatchObject({ shotId: final.shotId, prompt: final.prompt, fields: final.fields });
+        expect(cli.value.shots[index]).toMatchObject({ ...originalCards[index], prompt: final.prompt, fields: final.fields });
+        const proof = g6.evidence.find((item: { path: string }) => path.basename(item.path).startsWith(`prompt-contract-${final.shotId}`));
+        const contractBytes = await readFile(proof.path);
+        expect(renderSha256(contractBytes)).toBe(proof.sha256);
+        const contract = JSON.parse(contractBytes.toString("utf8"));
+        expect(promptPack.value.shots[index].prompt).toBe(contract.prompt);
+        for (const binding of contract.bindings) {
+          expect(sha256Json(promptPack.value.shots[index].fields[binding.field])).toBe(binding.valueSha256);
+        }
+      }
+    }
   });
 
   it.each(["SEEDANCE_MODEL", "ARK_VIDEO_MODEL"])("G6合同绑定部署实际模型覆盖%s，而非静态目录别名", async (key) => {
