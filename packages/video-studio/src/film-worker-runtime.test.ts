@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { FullChainFilmWorker, normalizeFilmJobRequest, assertFilmStageCoverage } from "./film-worker-runtime.js";
 import { postRenderFilmStageVerdict } from "./film-contracts.js";
 import { resolveEraProfile } from "./era-profile.js";
+import { buildVideoSubmissionRequest } from "./video-submission-request.js";
 import type { FilmWorkerJobContext, FilmChannelRequestFrame, FilmChannelTransport } from "./film-worker-channel.js";
 const dirs: string[] = [];
 const hash = (data: Buffer | string): string => createHash("sha256").update(data).digest("hex");
@@ -100,6 +101,43 @@ describe("frozen full-chain worker adapter", () => {
     writeFileSync(plate, "changed");
     await expect(worker.download(url, plate)).rejects.toThrow("字节");
     await expect(worker.download("https://unissued.invalid", plate)).rejects.toThrow("未签发");
+    worker.channel.dispose();
+  });
+  it.each(["material-gen", "videos"])("rejects an unrepresentable reviewed reference plan before dispatching %s", async (stage) => {
+    const { context, worker, frames } = fixture();
+    if (!context.stages.includes(stage)) context.stages.push(stage);
+    const prompt = "A synthetic product against a studio background.";
+    const image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==";
+    const plan = buildVideoSubmissionRequest({ model: "doubao-seedance-2-5", prompt, seconds: 5, generateAudio: false,
+      aspect: "16:9", resolution: "1080p", refs: [{ url: image, purpose: "product-reference" }] });
+    const input = { stage, shotId: "S1", target: join(context.workDir, "work", "clip.mp4"),
+      prompt, refs: [], seconds: 5, generateAudio: false, submissionPlan: plan };
+    await expect(worker.video(input)).rejects.toMatchObject({ code: "VIDEO_REFERENCE_PLAN_UNSUPPORTED" });
+    expect(frames).toEqual([]);
+    worker.channel.dispose();
+  });
+  it("keeps the supported text and issued first-frame modes on the parent channel", async () => {
+    const { context, worker, frames } = fixture();
+    const prompt = "A fixed camera frames an empty studio.";
+    const planInput = { model: "doubao-seedance-2-5", prompt, seconds: 5, generateAudio: false,
+      aspect: "16:9", resolution: "1080p", refs: [] };
+    const input = { stage: "videos", shotId: "S1", target: join(context.workDir, "work", "clip.mp4"),
+      prompt, refs: [], seconds: 5, generateAudio: false };
+    const text = { ...input, submissionPlan: buildVideoSubmissionRequest(planInput) };
+    await expect(worker.video(text)).resolves.toMatchObject({ taskId: "video-task-test" });
+    const plate = join(context.workDir, "work", "plate.png");
+    const issued = await worker.image(prompt, [], "1280x720", "S1", plate);
+    const firstFrame = { ...input, firstFrame: issued, submissionPlan: buildVideoSubmissionRequest({
+      ...planInput, firstFrame: { url: issued, purpose: "first-frame" },
+    }) };
+    await expect(worker.video(firstFrame)).resolves.toMatchObject({ taskId: "video-task-test" });
+    const videoFrames = frames.filter(frame => frame.method === "video.generate");
+    expect(videoFrames.map(frame => frame.params)).toEqual([
+      expect.objectContaining({ refs: [] }),
+      expect.objectContaining({ refs: [], firstFrame: { hostedUrl: issued } }),
+    ]);
+    expect(videoFrames[0]?.params).not.toHaveProperty("submissionPlan");
+    expect(videoFrames[1]?.params).not.toHaveProperty("submissionPlan");
     worker.channel.dispose();
   });
   it("parent rejection, ungranted methods and references outside the archive fail before another call", async () => {

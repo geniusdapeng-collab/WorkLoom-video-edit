@@ -554,6 +554,7 @@ export async function handleFilmChannelRequest(ctx: RunContext, frame: FilmChann
   const actualHash = filmRequestHash({ method: frame.method, stepKey: frame.stepKey, shotId: frame.shotId, params: frame.params });
   if (actualHash !== frame.requestHash) fail("FRAME_INVALID", "请求哈希与参数不一致");
   const payloadHash = renderSha256(filmCanonicalJson(frame.params));
+  const videoFormat = frame.method === "video.generate" ? resolveFilmVideoFormat(ctx) : undefined;
   const ledger = ctx.ledger;
   const reserved = ledger.reserveComponent({
     jobId: ctx.job.id, component: expectedComponent, stepKey: frame.stepKey, shotId: frame.shotId,
@@ -573,7 +574,9 @@ export async function handleFilmChannelRequest(ctx: RunContext, frame: FilmChann
   const component = await reserved;
   let providerTask: FilmProviderTaskReceipt | undefined;
   try {
-    return await abortable(ctx.signal, () => dispatchComponent(ctx, frame, component.id, (task) => { providerTask = task; }));
+    return await abortable(ctx.signal, () => videoFormat
+      ? runVideo(ctx, frame, component.id, videoFormat, (task) => { providerTask = task; })
+      : dispatchComponent(ctx, frame, component.id));
   } catch (error) {
     const failureClass = error instanceof SubmissionError ? error.code.split(":")[0]! : "UNEXPECTED";
     await ledger.recordComponentFailure(component.id, ctx.ownerToken, {
@@ -647,13 +650,11 @@ function reserveFor(frame: FilmChannelRequestFrame): number {
 
 async function dispatchComponent(
   ctx: RunContext, frame: FilmChannelRequestFrame, componentId: string,
-  rememberProviderTask: (receipt: FilmProviderTaskReceipt) => void,
 ): Promise<unknown> {
   switch (frame.method) {
     case "llm.chat": return runLlm(ctx, frame, componentId);
     case "image.generate": return runImage(ctx, frame, componentId);
     case "media.fetch": return runMediaFetch(ctx, frame, componentId);
-    case "video.generate": return runVideo(ctx, frame, componentId, rememberProviderTask);
     case "gate.review": return runGateReview(ctx, frame, componentId);
     case "voice.dub": return runVoiceDub(ctx, frame, componentId);
     case "voice.verify": return runVoiceVerify(ctx, frame, componentId);
@@ -803,8 +804,17 @@ async function runMediaFetch(ctx: RunContext, frame: FilmChannelRequestFrame, co
   return written;
 }
 
+function resolveFilmVideoFormat(ctx: RunContext) {
+  // Match the CLI's frozen option/document precedence. UHD is produced locally from 1080p source footage.
+  const aspectRatio = ctx.job.options.aspect ?? (typeof ctx.frozen.aspect === "string" ? ctx.frozen.aspect : "9:16");
+  const requestedResolution = ctx.job.options.resolution ?? (typeof ctx.frozen.resolution === "string" ? ctx.frozen.resolution : "1080p");
+  if (aspectRatio !== "9:16" && aspectRatio !== "16:9" && aspectRatio !== "1:1") fail("REQUEST_INVALID", "冻结画幅不受支持");
+  if (requestedResolution !== "720p" && requestedResolution !== "1080p" && requestedResolution !== "2160p") fail("REQUEST_INVALID", "冻结分辨率不受支持");
+  return { aspectRatio, resolution: requestedResolution === "2160p" ? "1080p" : requestedResolution };
+}
+
 async function runVideo(
-  ctx: RunContext, frame: FilmChannelRequestFrame, componentId: string,
+  ctx: RunContext, frame: FilmChannelRequestFrame, componentId: string, format: ReturnType<typeof resolveFilmVideoFormat>,
   rememberProviderTask: (receipt: FilmProviderTaskReceipt) => void,
 ): Promise<unknown> {
   const params = record(frame.params);
@@ -836,6 +846,9 @@ async function runVideo(
     params: {
       providerModel: model,
       durationSec: seconds,
+      // The provider takes the aspect from the first frame in image-to-video mode.
+      ...(firstFrameUrl ? {} : { aspectRatio: format.aspectRatio }),
+      resolution: format.resolution,
       generateAudio,
       returnLastFrame: true,
       ...(firstFrameUrl ? { firstFrameUrl } : {}),

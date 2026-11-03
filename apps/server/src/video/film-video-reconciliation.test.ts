@@ -73,7 +73,7 @@ function fixture(mode: "retry" | "deadline" | "provider-failed" | "ledger-failed
     scope: { tenantId: "film-tenant", workspaceId: "film-workspace" },
     env: { VOLCENGINE_ARK_API_KEY: "fixture-only", SEEDANCE_ENDPOINT: endpoint, SEEDANCE_MODEL: "fixture-video-model" },
     job: { id: "film-job", project_id: "film-project", stages: ["videos"], options: {} },
-    worker: { capabilities: ["video.generate"] }, workDir, shots: new Map([["S1", { shotId: "S1" }]]),
+    worker: { capabilities: ["video.generate"] }, workDir, shots: new Map([["S1", { shotId: "S1" }]]), frozen: {},
     signal: aborted.signal, deadlineAt: now + 200, ownerToken: "film-owner", issuedUrls: new Map(),
     log: vi.fn(), ledger,
   } as unknown as Parameters<typeof handle>[0];
