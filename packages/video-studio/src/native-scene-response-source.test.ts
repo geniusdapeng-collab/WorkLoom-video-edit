@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { OpenAiCompatibleProvider, resetCircuit, type EventSink } from "@workloom/base/model-router";
-import { nativeReasonCompleted, nativeReasonFailure, nativeSceneResponseSource, WorkloomLLMEngine } from "./llm-adapter.js";
+import { nativeReasonCompleted, nativeReasonFailure, nativeSceneResponseRouteCurrent, nativeSceneResponseSource,
+  sameNativeSceneResponseRoute, WorkloomLLMEngine } from "./llm-adapter.js";
 
 const schema = {
   type: "object",
@@ -53,6 +54,7 @@ describe("native Scene Responses text evidence", () => {
     expect(transport).toHaveBeenCalledTimes(1);
     expect(transport.mock.calls[0]?.[0]).toBe(`${baseUrl}/responses`);
     const receipt = nativeSceneResponseSource(result);
+    expect(nativeSceneResponseRouteCurrent(result)).toBe(true);
     expect(receipt).toEqual({
       rawText, requestSha256: sha256(String(transport.mock.calls[0]?.[1]?.body)), responseSha256: sha256(body),
       schemaSha256: sha256(JSON.stringify(JSON.parse(String(transport.mock.calls[0]?.[1]?.body)).text.format.schema)),
@@ -61,6 +63,7 @@ describe("native Scene Responses text evidence", () => {
     expect(nativeSceneResponseSource({ ...result, source: receipt })).toBeUndefined();
     expect(nativeSceneResponseSource(structuredClone(result))).toBeUndefined();
     expect(nativeSceneResponseSource(new Proxy(result, {}))).toBeUndefined();
+    expect(nativeSceneResponseRouteCurrent({ ...result })).toBe(false);
     expect(Object.keys(result).filter(key => key === "rawText" || key.endsWith("Sha256"))).toEqual([]);
     expect(JSON.stringify(result)).not.toContain(JSON.stringify(rawText));
   });
@@ -78,6 +81,7 @@ describe("native Scene Responses text evidence", () => {
       const result = await engine.reasonStructured("场景", schema, request);
       expect(result.success).toBe(success);
       expect(nativeSceneResponseSource(result)).toBeUndefined();
+      expect(nativeSceneResponseRouteCurrent(result)).toBe(false);
       expect(transport).toHaveBeenCalledTimes(1);
     } finally {
       resetCircuit("video.preproduction.plan");
@@ -101,6 +105,59 @@ describe("native Scene Responses text evidence", () => {
     expect(changedResult.success).toBe(true);
     expect(nativeReasonCompleted(changedResult)).toBe(false);
     expect(nativeSceneResponseSource(changedResult)).toBeUndefined();
+    expect(nativeSceneResponseRouteCurrent(changedResult)).toBe(false);
     expect(nativeSceneResponseSource({ success: false, error: "JSON 解析失败", rawText: "{}" })).toBeUndefined();
+  });
+
+  it("pairs two distinct malformed native results and a third fresh, valid result on the exact route", async () => {
+    const { engine, transport } = engineFor(responsesWire('{"sceneCount":3 "extra":true}'));
+    transport.mockResolvedValueOnce(new Response(responsesWire('{"sceneCount":3 "extra":true}', { id: "scene-first" })))
+      .mockResolvedValueOnce(new Response(responsesWire('{"sceneCount":3 "extra":false}', { id: "scene-second" })))
+      .mockResolvedValueOnce(new Response(responsesWire('{"sceneCount":3}', { id: "scene-third" })));
+    const first = await engine.reason("完整原始输入", { ...options, forceJson: true });
+    const second = await engine.reason("完整原始输入＋第一次纠正", { ...options, forceJson: true });
+    const third = await engine.reason("完整原始输入＋格式再生成", { ...options, forceJson: true });
+    expect([first.success, second.success, third.success]).toEqual([false, false, true]);
+    expect([nativeReasonFailure(first), nativeReasonFailure(second)]).toEqual(["json-syntax", "json-syntax"]);
+    expect(sameNativeSceneResponseRoute(first, second)).toBe(true);
+    expect(sameNativeSceneResponseRoute(first, third)).toBe(true);
+    expect(sameNativeSceneResponseRoute(second, third)).toBe(true);
+    expect(sameNativeSceneResponseRoute(first, first)).toBe(false);
+    expect(transport).toHaveBeenCalledTimes(3);
+    third.content = "{}";
+    expect(nativeSceneResponseRouteCurrent(third)).toBe(false);
+    expect(sameNativeSceneResponseRoute(first, third)).toBe(false);
+  });
+
+  it.each(["response-id", "request", "schema", "engine"] as const)("rejects pair with shared identity or changed route (%s)", async (variant) => {
+    const { engine, transport } = engineFor(responsesWire('{"sceneCount":3}', { id: "scene-first" }));
+    const first = await engine.reason("完整原始输入", { ...options, forceJson: true });
+    const secondWire = responsesWire('{"sceneCount":4}', { id: variant === "response-id" ? "scene-first" : "scene-second" });
+    transport.mockResolvedValueOnce(new Response(secondWire));
+    const selectedEngine = variant === "engine" ? engineFor(secondWire).engine : engine;
+    const nextSchema = variant === "schema" ? { ...schema, title: "different schema" } : schema;
+    const second = await selectedEngine.reason(variant === "request" ? "完整原始输入" : "完整原始输入＋纠正", {
+      ...options, responsesJsonSchema: { name: sceneName, schema: nextSchema }, forceJson: true,
+    });
+    expect(nativeSceneResponseRouteCurrent(first)).toBe(true);
+    expect(nativeSceneResponseRouteCurrent(second)).toBe(true);
+    expect(sameNativeSceneResponseRoute(first, second)).toBe(false);
+  });
+
+  it("invalidates only the new route proof when a previously measured transport or router changes", async () => {
+    const { engine, cfg } = engineFor(responsesWire('{"sceneCount":3}'));
+    const first = await engine.reasonStructured("场景", schema, options);
+    expect(nativeSceneResponseRouteCurrent(first)).toBe(true);
+    cfg.apiKey = "changed-after-response";
+    expect(nativeSceneResponseRouteCurrent(first)).toBe(false);
+    expect(nativeSceneResponseSource(first)?.rawText).toBe('{"sceneCount":3}');
+    const second = await engine.reasonStructured("另一场景", schema, options);
+    expect(nativeSceneResponseRouteCurrent(second)).toBe(true);
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", cfg);
+    const sink: EventSink = { recordModelTrace: async () => undefined, recordDegradation: async () => undefined,
+      recordCircuitBreak: async () => undefined };
+    engine.attachRouter({ providers: new Map([[provider.modelId, provider]]), sink });
+    expect(nativeSceneResponseRouteCurrent(second)).toBe(false);
+    expect(nativeSceneResponseSource(second)).toBeDefined();
   });
 });
