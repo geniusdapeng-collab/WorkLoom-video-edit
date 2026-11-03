@@ -7,7 +7,7 @@ description: 用本仓 WorkLoom Video Edit 的正式流程制作、返修或交�
 
 从 Edit 仓库根目录读取 [本仓专属规则](../../../AGENTS.repo.md) 和 [视频工作台指南](../../../docs/ai-video-workbench-guide.md)。也可用 `node scripts/workloom-agent.mjs invoke growth.video.workbench.guide` 或 MCP 工具 `workloom_growth_video_workbench_guide` 获取全文和摘要。核对产品 ID `workloom-ai-video-edit`。新环境按 [接入指南](../../../docs/AGENT-CLIENTS.md) 启动本仓服务和预检。
 
-新生成任务先用 `node --import tsx scripts/tools/codex-video-workflow.mjs --intent "$EDIT_RAW_INTENT"` 生成只读计划。确认授权后用同一入口加 `--execute --api "$EDIT_API" --receipt "$EDIT_RUN_ROOT/studio-start.json"`，然后用 `--status --receipt "$EDIT_RUN_ROOT/studio-start.json"` 继续回读。每次执行沿用同一私有回执路径。入口只操作正式 Studio；如果回执指出需要审批、渲染或后期，按指南接续相应产品操作。
+新生成任务先用 `node --import tsx scripts/tools/codex-video-workflow.mjs --intent "$EDIT_RAW_INTENT"` 生成只读计划。确认授权后用同一入口加 `--execute --api "$EDIT_API" --receipt "$EDIT_RUN_ROOT/studio-start.json"`，然后用 `--status --receipt "$EDIT_RUN_ROOT/studio-start.json"` 继续回读。每次执行沿用同一私有回执路径。遇到审批先回读正式审批。在 `preproduction_archived` 且本次渲染授权已具备时，用同一入口的 `--continue --receipt` 接续同轮 Film、后期和交付质检。已生成作业用原回执查询当前成片和摘要。
 
 1. 保留用户原话，冻结人物、商品、平台、时长、声音、交付规格与授权。把明确指定的秒数写入 `metadata.brief.duration`，避免 Studio 缺省 30 秒覆盖要求。核验已有成功源片的项目、镜号、供应商回执、当前字节和授权，按需走正式后期。
 2. 新生成从正式分流和 Studio 入口启动。营销走商品情报与 G1，其余门按本次片型适用性核验。缺项采用本仓分流器返回的澄清，口播走正式解说入口。发现阶段失败、额度或授权阻断时保留原始事实，按本项目状态恢复。
