@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WorkloomLLMEngine } from "./llm-adapter.js";
 import {
   assertRequirementContractBridge, installRequirementContractBridge, installVendorRequirementContractBridge,
   withRequirementContractScope
@@ -483,6 +484,65 @@ describe("actual native scene prompt and strict production response", () => {
       expectCompleteSources(call.prompt, run);
     }
   });
+
+  it.each(["valid repair", "malformed repair", "unknown transport"])(
+    "keeps native JSON mode and makes only a genuine syntax correction after %s",
+    async outcome => {
+      installNativeDiscovery();
+      const run = privateRun(`native-wire-${outcome}`, 30, physicalScene([10, 10, 10]));
+      const sceneBodies: Array<{ raw: string; prompt: string; model: unknown; maxTokens: unknown; format: unknown }> = [];
+      const admissions = new Set<string>();
+      const malformed = '{"scenes":[{"purpose":"SYNTHETIC_RAW_REJECTED_CONTENT"} {"index":2}]}';
+      const engine = new WorkloomLLMEngine({
+        baseUrl: "http://127.0.0.1:1", apiKey: "synthetic-local-bearer", model: "deepseek-flash",
+        fetchImpl: async (_url, init) => {
+          const raw = String(init?.body), body = JSON.parse(raw), prompt: string = body.messages[1].content;
+          let content: string;
+          if (prompt.startsWith("你是一位电影导演")) {
+            sceneBodies.push({ raw, prompt, model: body.model, maxTokens: body.max_tokens, format: body.response_format });
+            if (admissions.has(raw)) {
+              return Response.json({ error: { code: "BUDGET_DUPLICATE_REQUEST" } }, { status: 409 });
+            }
+            admissions.add(raw);
+            if (outcome === "unknown transport") {
+              return Response.json({ error: { code: "BUDGET_OUTCOME_UNKNOWN" } }, { status: 502 });
+            }
+            content = admissions.size === 1 || outcome === "malformed repair" ? malformed : JSON.stringify(run.modules.scene);
+          } else {
+            const module = prompt.slice(0, 180).includes("受众分析") ? "audience"
+              : prompt.slice(0, 180).includes("技术制片人") ? "risk" : "reference";
+            content = JSON.stringify(run.modules[module]);
+          }
+          return Response.json({ model: "deepseek-flash", choices: [{ finish_reason: "stop", message: { content } }],
+            usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 } });
+        },
+      });
+      const engineObject = engine as unknown as RequirementRecord;
+      const discovery = nativeDiscovery(engineObject);
+      requirementRecord(requirementRecord(discovery.agents, "agents").scene, "scene").maxRetries = 2;
+      const result = runDiscovery(run, engineObject, discovery);
+      if (outcome === "valid repair") {
+        await expect(result).resolves.toMatchObject({ sceneStructure: run.modules.scene });
+      } else {
+        await expect(result).rejects.toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+      }
+      expect(sceneBodies).toHaveLength(outcome === "unknown transport" ? 3 : 2);
+      expect(admissions.size).toBe(outcome === "unknown transport" ? 1 : 2);
+      const schemaHeading = "本次实际 SceneArchitect 响应 JSON Schema（完整适用，不是示例成品）：";
+      for (const call of sceneBodies) {
+        expect(call.model).toBe("deepseek-flash");
+        expect(call.maxTokens).toBe(393_216);
+        expect(call.format).toEqual({ type: "json_object" });
+        expectCompleteSources(call.prompt, run);
+        expect(promptJson(call.prompt, schemaHeading)).toEqual(promptJson(sceneBodies[0]!.prompt, schemaHeading));
+        expect(call.prompt).not.toContain("SYNTHETIC_RAW_REJECTED_CONTENT");
+      }
+      expect(sceneBodies[0]!.prompt).not.toContain("上一次原生场景 JSON 语法纠正");
+      if (outcome !== "unknown transport") {
+        expect(sceneBodies[1]!.prompt).toContain("上一次原生场景 JSON 语法纠正");
+      }
+    },
+  );
 
   it.each(["transport", "parser"])("clears the first schema diagnostic when the current second attempt fails in %s", async kind => {
     installNativeDiscovery();

@@ -27,6 +27,9 @@ interface Scope {
 }
 const scopes = new AsyncLocalStorage<Scope>();
 const receivers = new WeakMap<object, Scope>();
+const sceneJsonCorrection = "\n\n## 上一次原生场景 JSON 语法纠正\n"
+  + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成一个完整 JSON 对象。"
+  + "检查数组元素之间的逗号、对象与数组逐层闭合，以及字符串内引号和换行的合法转义。只输出对象，禁止代码围栏或解释。";
 
 /**
  * The vendor treats every populated brief as a marketing brief. A host-routed
@@ -379,15 +382,32 @@ export function installRequirementContractBridge(
         const effectiveSchema = structuredSceneSchema(schema);
         const runView = Object.create(this) as RequirementRecord;
         let pendingFeedback = "", attemptFeedback = "";
-        let currentValidationFailure: RequirementContractError | undefined;
+        let currentSceneFailure: RequirementContractError | undefined;
+        let jsonCorrectionScheduled = false;
+        let jsonCorrectionExhausted = false;
         runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
           requireActiveScope();
+          if (jsonCorrectionExhausted) throw currentSceneFailure;
           // Feedback belongs to the previous completed validation. The current
           // failure must be cleared independently before transport/JSON parsing.
           attemptFeedback = pendingFeedback;
           pendingFeedback = "";
-          currentValidationFailure = undefined;
+          currentSceneFailure = undefined;
           try { return await Reflect.apply(callScene, this, args); }
+          catch (error) {
+            // The adapter strictly parses returned content; the pinned vendor
+            // promotes its parse result to Error.message or parses content itself.
+            // Never put response bytes or transport errors into a new prompt.
+            if (error instanceof SyntaxError || (error instanceof Error && error.message.startsWith("JSON 解析失败: "))) {
+              currentSceneFailure = new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "SceneArchitect 模型正文不是有效 JSON");
+              jsonCorrectionExhausted = jsonCorrectionScheduled;
+              if (!jsonCorrectionScheduled) {
+                jsonCorrectionScheduled = true;
+                pendingFeedback = sceneJsonCorrection;
+              }
+            }
+            throw error;
+          }
           finally { attemptFeedback = ""; }
         };
         runView._buildPrompt = function (this: RequirementRecord, input: unknown) {
@@ -405,27 +425,27 @@ export function installRequirementContractBridge(
           } catch (error) {
             const feedback = structuredSceneFeedback(error);
             if (feedback && error instanceof RequirementContractError) {
-              currentValidationFailure = error;
+              currentSceneFailure = error;
               pendingFeedback = feedback;
             }
             throw error;
           }
           pendingFeedback = "";
-          currentValidationFailure = undefined;
+          currentSceneFailure = undefined;
           // The native defaults bridge eagerly evaluates _fallback, even for a
           // complete object. Strict responses never enter that invented path.
           return structuredClone(response);
         };
         runView._fallback = function () {
           requireActiveScope();
-          finalSceneFailure = currentValidationFailure ?? unverifiedScene();
+          finalSceneFailure = currentSceneFailure ?? unverifiedScene();
           throw finalSceneFailure;
         };
         try { return await Reflect.apply(run, runView, [value, effectiveSchema]); }
         finally {
           pendingFeedback = "";
           attemptFeedback = "";
-          currentValidationFailure = undefined;
+          currentSceneFailure = undefined;
         }
       };
       sceneView._fallback = function () {
