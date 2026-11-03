@@ -83,6 +83,9 @@ export interface StageContext {
  * 而不是 `LLM_TIMEOUT`（限流不是超时，混在一起会让监控聚类误判根因）。
  */
 export function classifyError(err: unknown): string {
+  // A1 aggregates source failures into a source gate rejection. An HTTP code
+  // in its diagnostic is from an article fetch, not a model request.
+  if (err instanceof Error && err.message.startsWith("MARKETING_A1_UNVERIFIED:")) return "GATE_REJECTED";
   const msg = err instanceof Error ? `${err.name} ${err.message}` : String(err);
   if (/ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|fetch failed|socket hang up|network error/i.test(msg)) return "NETWORK";
   if (/rate.?limit|429|too many requests|quota exceeded|insufficient_quota/i.test(msg)) return "LLM_RATE_LIMIT";

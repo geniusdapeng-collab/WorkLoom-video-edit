@@ -118,6 +118,20 @@ describe("StageRunner", () => {
     expect(events.map((e) => e.kind)).toContain("stage.failed");
   });
 
+  it.each(["", "；https://source.example/product → HTTP 429"])("A1 缺核实来源保持 failed 并归类为来源闸拒绝：%s", async (diagnostic) => {
+    const ledger = new FakeLedger();
+    const runner = new StageRunner(store, ledger, "RUN-A1");
+    const boom = new Error("MARKETING_A1_UNVERIFIED: 商品身份/规格没有任何可抓取核实的来源正文；候选 0 / 尝试 0" + diagnostic);
+    boom.name = "SubmissionError";
+
+    await expect(runner.run("preproduction", {}, async () => { throw boom; })).rejects.toBe(boom);
+
+    expect(ledger.finished).toEqual([expect.objectContaining({ status: "failed", errorClass: "GATE_REJECTED", errorMsg: boom.message, outputRef: null })]);
+    const meta = await store.readJson<{ errorClass: string }>("stages/preproduction/attempt-1.meta.json");
+    expect(meta?.errorClass).toBe("GATE_REJECTED");
+    expect(await store.readEvents()).toContainEqual(expect.objectContaining({ kind: "stage.failed", errorClass: "GATE_REJECTED" }));
+  });
+
   it("重跑开新 attempt：第 2 次尝试独立落盘，attempt-1 不被覆盖", async () => {
     const ledger = new FakeLedger();
     const runner = new StageRunner(store, ledger, "RUN-3");
