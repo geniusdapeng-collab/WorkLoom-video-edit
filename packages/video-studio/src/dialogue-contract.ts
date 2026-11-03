@@ -42,6 +42,20 @@ export function dialogueLines(shot: DialogueShotLike): string[] {
     .filter(Boolean);
 }
 
+/** A negative production note is not a script line. Match the whole field. */
+export function isNoSpeechDeclaration(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const clauses = value.trim().split(/[，,。；;、（）()]+/u).map(part => part.trim()).filter(Boolean);
+  if (!/^(?:(?:本镜|全片)?无(?:台词|对白|口播|旁白|人声)?|NONE)$/iu.test(clauses[0] ?? "")) return false;
+  return clauses.slice(1).every(clause => {
+    if (/^(?:本镜|全片)?无(?:台词|对白|口播|旁白|人声)$/u.test(clause)) return true;
+    const subject = /^本镜([\p{L}]{1,8})不开口$/u.exec(clause)?.[1];
+    if (subject && !/说|念|唱|读|喊|开口/u.test(subject)) return true;
+    return /^(?:仅|只)保留/u.test(clause)
+      && !/人声|台词|对白|对话|口播|旁白|配音|说话|朗读|喊话|念出|dialogue|voice|speech|narrat/i.test(clause);
+  });
+}
+
 const stripPunct = (value: string): string =>
   value.replace(/[\s，。！？、,.!?；;：:“”"'「」『』（）()【】\[\]—-]/g, "").toLowerCase();
 

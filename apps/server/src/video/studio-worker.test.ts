@@ -285,7 +285,12 @@ async function archiveOutput(projectId: string, attempt: number) {
 }
 
 describe("预生产原始结果与诚实终态", () => {
-  it.each([false, true])("真实 worker G6 定点修复后，G7 仍核对当前镜头合同（漂移=%s）", async (drift) => {
+  it.each([
+    { drift: false, frozen: false },
+    { drift: true, frozen: false },
+    { drift: false, frozen: true },
+    { drift: true, frozen: true },
+  ])("真实 worker G6 定点修复后，G7 仍核对当前镜头合同（$drift, $frozen）", async ({ drift, frozen }) => {
     doubles.realModelRouting = true;
     doubles.emitGates = false;
     vi.stubEnv("PROMPT_CONTRACT_V2", "enforce");
@@ -301,8 +306,11 @@ describe("预生产原始结果与诚实终态", () => {
     ));
     Object.assign(fields, { character: "明确无人", portraits: "NONE", dialogue: "无台词", constraint: "9:16画幅，30fps，MP4",
       camera_movement: originalCamera, timeline: "T00:00到T00:05，湖面轻晃" });
-    const shots = ["S01", "S02"].map((shotId) => ({ shotId, duration: 5, sceneType: "content", noPeople: true,
-      prompt: "原生分镜提示词", fields: { ...fields, camera_movement: shotId === "S01" ? originalCamera : fixedCamera } }));
+    const staleTemplate = "9:16画幅，4K分辨率，24fps，MP4格式";
+    const shots = ["S01", "S02"].map((shotId) => ({ shotId, duration: 5,
+      sceneType: frozen && shotId === "S01" ? "opening" : "content", noPeople: true,
+      prompt: "原生分镜提示词", fields: { ...fields, ...(frozen ? { constraint: staleTemplate } : {}),
+        camera_movement: shotId === "S01" ? originalCamera : fixedCamera } }));
     const calls: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       expect(String(url)).toBe("http://g6-worker.invalid/v1/chat/completions");
@@ -329,18 +337,29 @@ describe("预生产原始结果与诚实终态", () => {
     doubles.runPreproduction.mockImplementation(async () => {
       const approve = doubles.studioConfigs[0]!.onApproval;
       for (const gate of ["G2_THEME", "G3_INSIGHT", "G4_PRD", "G6_PROMPT", "G7_FINAL"]) {
-        if (drift && gate === "G7_FINAL") shots[1]!.fields.camera_movement = "前景突然改为手持推进";
+        if (drift && gate === "G7_FINAL") {
+          if (frozen) shots[1]!.fields.constraint = staleTemplate;
+          else shots[1]!.fields.camera_movement = "前景突然改为手持推进";
+        }
         verdicts[gate] = await approve({ gate, vendorType: "test-gate", runId: "vendor-run", title: "完整确认单",
           contentMd: "具体场景、角色、动作与镜头交付标准。".repeat(20), structuredArtifact: shots });
       }
       return { ...success(), shots, success: verdicts.G7_FINAL!.approved,
         errors: verdicts.G7_FINAL!.approved ? [] : [{ message: verdicts.G7_FINAL!.reason }] };
     });
-    const { entry, projectId } = await runToTerminal(false, { hasPerson: false, characters: [], noCharacters: true });
+    const { entry, projectId } = await runToTerminal(frozen, { hasPerson: false, characters: [], noCharacters: true,
+      ...(frozen ? { brief: { aspectRatio: "9:16", productionRequirements: { titleCard: false, resolution: "1080p", frameRate: 30,
+        subtitleMode: "none", nativeAudio: true, openWithCover: false, durationToleranceFrames: 1 } } } : {}) });
+    if (frozen) expect(doubles.runPreproduction.mock.calls[0]![0]).toMatchObject({ metadata: { brief: { productionRequirements: { titleCard: false } } }, isMarketing: true });
+    expect(verdicts.G6_PROMPT, JSON.stringify(verdicts.G6_PROMPT) + " " + entry.error).toMatchObject({ approved: true });
     expect(calls).toEqual(["review:S01", "review:S02", "repair:S01", "review:S01"]);
-    expect(verdicts.G6_PROMPT).toMatchObject({ approved: true });
     expect(shots[0]!.fields.camera_movement).toBe(fixedCamera);
     expect(shots[0]!.prompt).toContain(fixedCamera);
+    if (frozen) {
+      expect(shots[0]!.sceneType).toBe("opening");
+      expect(shots[0]!.fields.constraint).toBe("9:16画幅，1080p分辨率，30fps，MP4格式");
+      expect(shots[0]!.prompt).not.toContain("【主标题内容】");
+    }
     const gateDir = path.join(doubles.workDir, "workspaces", scope.workspaceId, "gates", projectId, "attempt-1");
     const semantic = JSON.parse(await readFile(path.join(gateDir, "prompt-quality/semantic-quality-report.json"), "utf8"));
     expect(semantic.reports[1]).toMatchObject({ shotId: "S02", proofReuse: { sourcePass: 1 } });
@@ -348,7 +367,7 @@ describe("预生产原始结果与诚实终态", () => {
     expect(eligibility).toMatchObject({ current: !drift, eligible: !drift });
     expect(verdicts.G7_FINAL).toMatchObject({ approved: !drift });
     expect(entry).toMatchObject({ status: drift ? "failed" : "finished" });
-    if (drift) expect(eligibility.reasons).toContain("PROMPT_CONTRACT_DRIFT:S02");
+    if (drift) expect(eligibility.reasons).toContain(frozen ? "S02:HARD_CONSTRAINT_FPS_CONFLICT:stage" : "PROMPT_CONTRACT_DRIFT:S02");
   });
 
   it.each(["SEEDANCE_MODEL", "ARK_VIDEO_MODEL"])("G6合同绑定部署实际模型覆盖%s，而非静态目录别名", async (key) => {

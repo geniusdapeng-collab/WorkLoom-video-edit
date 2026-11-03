@@ -566,6 +566,7 @@ function promptCompileOptionsFor(
   workDir: string,
   charactersDir: string,
   source: Record<string, unknown>,
+  applyFrozenDelivery = false,
   archiveCopies?: ReturnType<typeof readCurrentPortraitArchiveCopies>,
 ): PromptCompileOptions {
   const brief = metadata?.brief && typeof metadata.brief === "object" && !Array.isArray(metadata.brief)
@@ -588,6 +589,9 @@ function promptCompileOptionsFor(
   const limits = model.limits;
   const providerModel = resolveProviderModel(model, process.env);
   return {
+    ...(typeof production.titleCard === "boolean" ? { titleCard: production.titleCard } : {}),
+    ...(applyFrozenDelivery && typeof production.resolution === "string" && typeof production.frameRate === "number"
+      ? { applyFrozenDelivery: true } : {}),
     delivery: { aspectRatio: aspect, resolution, fps, format: "mp4", generateAudio },
     model: {
       modelId: model.id,
@@ -611,7 +615,7 @@ function promptCompileOptionsFor(
       archiveCopies,
     }),
     requiredClauses: [
-      "镜头内音频仅允许台词、旁白、环境音效与动作音效；禁止镜头外 BGM 与配乐。",
+      "声音须遵守本镜台词和音频字段；禁止镜头外 BGM 与配乐。",
       "人物与场景必须服从镜头卡；不得用参考图背景、光线或色调替换本镜场景。",
     ],
   };
@@ -1011,7 +1015,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
               shotId: String(source.shotId ?? source.shot_id ?? ""),
             },
             compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
-              path.join(runWorkDir, "characters", input.projectId), source, archiveCopies),
+              path.join(runWorkDir, "characters", input.projectId), source, input.isMarketing, archiveCopies),
           }));
           promptQualityForGate = await evaluatePromptPackage({
             mode: promptContractMode === "enforce" ? "enforce" : "shadow",
@@ -1087,7 +1091,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
           const currentShots = structuredPromptPackage.map((source) => ({
             source: { ...source, shotId: String(source.shotId ?? source.shot_id ?? "") },
             compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
-              path.join(runWorkDir, "characters", input.projectId), source, archiveCopies),
+              path.join(runWorkDir, "characters", input.projectId), source, false, archiveCopies),
           }));
           const currentness = verifyCurrentPromptContracts({ shots: currentShots }, prior);
           const eligibility = {

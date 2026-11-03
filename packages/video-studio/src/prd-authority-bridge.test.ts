@@ -2053,13 +2053,14 @@ try {
  const ProductionEngine = load("engines/production-engine/production-engine.js", "ProductionEngine");
  const Phase1SceneDesign = load("engines/production-engine/phases/phase-1-scene-design.js", "Phase1SceneDesign");
  const PromptFusionAgent = load("engines/production-engine/agents/prompt-fusion-agent.js", "PromptFusionAgent");
+ const FieldConsistencyChecker = load("engines/field-consistency-checker.js", "FieldConsistencyChecker");
  const FieldContentRefiner = load("engines/production-engine/agents/field-content-refiner.js", "FieldContentRefiner");
  const CharacterCostumePrompter = load("engines/character-system/character-costume-prompter.js", "CharacterCostumePrompter");
  const FieldGuard = load("engines/field-guard.js", "FieldGuard");
  const QualityGate = load("engines/production-engine/utils/quality-gate.js", "QualityGate");
  const PromptDeliveryGuard = load("engines/production-engine/agents/prompt-delivery-guard.js", "PromptDeliveryGuard");
  const SemanticRefinementPass = load("engines/production-engine/agents/semantic-refinement-pass.js", "SemanticRefinementPass");
- const prototypes = [HyperrealitySystem, ProductionEngine, Phase1SceneDesign, PromptFusionAgent, FieldContentRefiner, CharacterCostumePrompter, FieldGuard, QualityGate, PromptDeliveryGuard, SemanticRefinementPass].map(value => value.prototype);
+ const prototypes = [HyperrealitySystem, ProductionEngine, Phase1SceneDesign, PromptFusionAgent, FieldContentRefiner, FieldConsistencyChecker, CharacterCostumePrompter, FieldGuard, QualityGate, PromptDeliveryGuard, SemanticRefinementPass].map(value => value.prototype);
  const before = prototypes.map(value => Object.getOwnPropertyDescriptors(value));
  class AuthoritySystem {
   constructor(generator) { this.prdGenerator = generator; }
@@ -2084,6 +2085,7 @@ try {
  const system = Object.create(HyperrealitySystem.prototype), engine = Object.create(ProductionEngine.prototype);
  const phase1 = Object.create(Phase1SceneDesign.prototype), fusion = Object.create(PromptFusionAgent.prototype);
  const refiner = new FieldContentRefiner(), fieldGuard = new FieldGuard(), quality = new QualityGate(), delivery = new PromptDeliveryGuard();
+ const consistency = new FieldConsistencyChecker({ logLevel: "silent" });
  const shot = ${JSON.stringify(productionShot("S00"))}, prompt = ${JSON.stringify(deliveryPrompt())};
  const semantic = new SemanticRefinementPass({ guard: delivery, callLLM: async () => ({ result: { prompt, actions: [] } }) });
  let consumerChecks = 0;
@@ -2110,6 +2112,18 @@ try {
   check(engine._saveCheckpoint("must not write"), undefined);
   check(fusion._loadSubCheckpoint({}), null);
   check(fusion._clearSubCheckpoint(), undefined);
+  const audio = "入弯转速抬高，只保留引擎声、换挡声和轮胎摩擦声。";
+  check(consistency._checkDialogueAudio({ dialogue: "无（本镜无对白、无口播、无旁白）。", audio }).length, 0);
+  check(consistency._checkDialogueAudio({ dialogue: "无台词。她说：我赢了。", audio }).length, 1);
+  check(consistency._checkDialogueAudio({ dialogue: "无台词,本镜英子不开口，全片无对白、无口播、无旁白，只保留原生机械与环境声。", audio }).length, 0);
+  check(consistency._checkDialogueAudio({ dialogue: "无台词（全片无对白、无口播、无旁白）。", audio }).length, 0);
+  const fusionPrompt = fusion._buildBatchPrompt([], "9:16", [], {});
+  check(fusionPrompt.includes('constraint 固定为"9:16画幅，1080p分辨率，30fps，MP4格式"'), true);
+  check(fusionPrompt.includes('constraint 固定为"16:9画幅，4K分辨率，24fps，MP4格式"'), false);
+  const negativeNote = delivery.verify(prompt + " | 【台词】无（本镜无对白、无口播、无旁白）。", { shotId: "S00", sceneType: "opening", duration: 5 });
+  check(negativeNote.issues.some(issue => issue.includes("台词")), false);
+  const falseNegative = delivery.verify(prompt + " | 【台词】无台词。她说：我赢了。", { shotId: "S00", sceneType: "opening", duration: 5 });
+  check(falseNegative.issues.some(issue => issue.includes("台词")), true);
   check(refiner._normalizeConstraint("16:9画幅，4K分辨率，24fps，MP4格式"), "9:16画幅，1080x1920分辨率，30fps，MP4格式");
   check(fieldGuard.normalizeAndValidate([shot], "Final-Export").report.passed, true);
   check(quality.run([shot]).passed, true);
@@ -2135,7 +2149,7 @@ console.log("RESULT " + JSON.stringify({ ...receipt, clearedTimers }));
 `, "utf8");
     const stdout = execFileSync(process.execPath, [`${repo}node_modules/tsx/dist/cli.mjs`, script], { cwd: repo, timeout: 20000, encoding: "utf8" });
     const result = JSON.parse(stdout.split("\n").find(line => line.startsWith("RESULT "))!.slice(7));
-    expect(result).toMatchObject({ success: true, consumerChecks: 13, nativeTruthVerified: true, restoredPrototypes: 10 });
+    expect(result).toMatchObject({ success: true, consumerChecks: 21, nativeTruthVerified: true, restoredPrototypes: 11 });
     expect(result.clearedTimers).toBeGreaterThanOrEqual(2);
   });
 });

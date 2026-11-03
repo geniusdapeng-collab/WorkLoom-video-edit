@@ -238,3 +238,49 @@ describe("deterministic prompt and request compiler", () => {
     }
   });
 });
+
+describe("authorized title-card applicability and frozen delivery", () => {
+  it("keeps the actual opening action and uses 25 fields when the title card is disabled", () => {
+    const source = shot({ shotId: "opening", sceneType: "opening" });
+    const compiled = compilePromptShot(source, { ...options, titleCard: false });
+    expect(compiled.hardErrors).toEqual([]);
+    expect(compiled.contract.fieldCount).toBe(25);
+    expect(compiled.prompt).toContain(String(source.fields.action));
+    expect(compiled.prompt).not.toMatch(/主标题|副标题|标题动画|标题字体|开场音频设计/);
+    expect(validatePromptContract(compiled.contract).valid).toBe(true);
+    expect(compilePromptShot(source, options).hardErrors).toContainEqual(expect.objectContaining({ field: "title_content" }));
+    expect(compilePromptShot({ ...source, fields: openingFields }, { ...options, titleCard: false }).hardErrors)
+      .toContainEqual(expect.objectContaining({ field: "title_content", code: "HARD_FIELD_UNKNOWN" }));
+  });
+
+  it("projects the stale native 4K/24 technical template only when the frozen source explicitly applies", () => {
+    const source = shot({ fields: { ...contentFields, constraint: "9:16画幅，4K分辨率，24fps，MP4格式" } });
+    expect(compilePromptShot(source, options).hardErrors).toContainEqual(expect.objectContaining({ code: "HARD_CONSTRAINT_FPS_CONFLICT" }));
+    const compiled = compilePromptShot(source, { ...options, applyFrozenDelivery: true });
+    expect(compiled.hardErrors).toEqual([]);
+    expect(compiled.fieldValues.constraint).toBe("9:16画幅，1080p分辨率，30fps，MP4格式");
+    expect(compiled.contract.request.parameters).toMatchObject({ aspect_ratio: "9:16", resolution: "1080p", fps: 30, format: "mp4" });
+    expect(compilePromptShot({ ...source, fields: compiled.fieldValues }, options).contract.fieldsSha256)
+      .toBe(compiled.contract.fieldsSha256);
+    expect(source.fields.constraint).toBe("9:16画幅，4K分辨率，24fps，MP4格式");
+    const ambiguous = shot({ fields: { ...contentFields, constraint: `${source.fields.constraint}；用其他播放速度。` } });
+    expect(compilePromptShot(ambiguous, { ...options, applyFrozenDelivery: true }).hardErrors)
+      .toContainEqual(expect.objectContaining({ code: "HARD_CONSTRAINT_FPS_CONFLICT" }));
+  });
+  it("binds the no-speech declaration while removing only a known host annotation and refusing an injected voice", () => {
+    const authorAudio = "仅保留引擎、轮胎与看台原生环境声。";
+    const dialogue = "无台词（全片无对白、无口播、无旁白）。";
+    const source = shot({ fields: { ...contentFields, dialogue,
+      audio: `${authorAudio}；【音频纪律】本镜头音频仅允许：台词人声、旁白、环境音效与动作音` } });
+    const compiled = compilePromptShot(source, options);
+    expect(compiled.hardErrors).toEqual([]);
+    expect(compiled.contract.request.technical.audio).toBe(authorAudio);
+    expect(compiled.contract.request.technical.dialogue).toBe(dialogue);
+    expect(compiled.prompt).toContain("不得出现台词/旁白/口播与可辨词句人声");
+    expect(compiled.prompt).not.toContain("仅允许：台词人声");
+    expect(compilePromptShot({ ...source, fields: { ...source.fields, audio: `人声对话清晰可辨，${authorAudio}` } }, options).hardErrors)
+      .toContainEqual(expect.objectContaining({ code: "HARD_DIALOGUE_AUDIO_CONFLICT", field: "audio" }));
+    const realSpeech = compilePromptShot(shot({ fields: { ...contentFields, dialogue: "无台词。她说：我赢了。", audio: "人声对话清晰可辨。" } }), options);
+    expect(realSpeech.prompt).not.toContain("不得出现台词/旁白/口播与可辨词句人声");
+  });
+});

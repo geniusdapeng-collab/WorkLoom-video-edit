@@ -12,6 +12,7 @@ import {
 } from "./prd-authority.js";
 import { marketingPrdReferenceView, normalizeMarketingPrdContract } from "./marketing-prd-contract.js";
 import { verifyPrdPortraitSources } from "./prd-portrait-source.js";
+import { isNoSpeechDeclaration } from "./dialogue-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { nativeReasonCompleted, nativeReasonFailure, WorkloomLLMEngine } from "./llm-adapter.js";
 
@@ -797,6 +798,7 @@ interface ProductionDependencies {
   deliveryGuardPrototype: RequirementRecord;
   semanticPrototype: RequirementRecord;
   fieldQualityPrototype?: RequirementRecord;
+  fieldConsistencyPrototype?: RequirementRecord;
   structuredAgent?: {
     prototype: RequirementRecord;
     limiter: { withLimit<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> };
@@ -1106,18 +1108,55 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   });
   add(deliveryGuardPrototype, "verify", original => function (prompt, shot = {}, ...args) {
     const scope = productionScope(this);
-    if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, [prompt, shot, ...args]);
+    if (!scope) return Reflect.apply(original, this, [prompt, shot, ...args]);
     return guard(scope, () => {
       check(scope);
       const result = requirementRecord(Reflect.apply(original, this, [prompt, shot, ...args]), "原生提示词交付检查");
       if (!Array.isArray(result.issues) || result.issues.some(issue => typeof issue !== "string")) prdFail("PRD_VENDOR_UNAVAILABLE", "交付检查缺少原始错误明细");
-      const retired = new Set(RETIRED_TITLE_LABELS.map(label => `缺片头专属字段:${label.slice(1, -1)}`));
-      const issues = (result.issues as string[]).filter(issue => !retired.has(issue));
-      if (typeof prompt === "string" && RETIRED_TITLE_LABELS.some(label => prompt.includes(label))) issues.push("生成侧重新出现已退休片头标题字段");
-      return { ...result, pass: issues.length === 0, issues, expectedMin: fields.length,
-        applicability: Object.fromEntries(RETIRED_TITLES.map(key => [key, "not_applicable"])) };
+      const noTitle = scope.authority.profile.titleCard === false;
+      const retired = new Set(noTitle ? RETIRED_TITLE_LABELS.map(label => `缺片头专属字段:${label.slice(1, -1)}`) : []);
+      // Keep the native utterance checks unless this whole field is a negative declaration
+      // and the structured source does not contain any spoken lines.
+      const body = typeof prompt === "string" && typeof this._fieldBody === "function"
+        ? Reflect.apply(method(this, "_fieldBody"), this, [prompt.replace(/^\s*\d{1,2}\.\s*(?=【)/gm, ""), "台词"])
+        : "";
+      const noSpeech = isNoSpeechDeclaration(body) && typeof this._shotExpectsDialogue === "function"
+        && Reflect.apply(method(this, "_shotExpectsDialogue"), this, [shot]) === false;
+      const issues = (result.issues as string[]).filter(issue => !retired.has(issue)
+        && !(noSpeech && (issue === "数据层无台词但出现【台词】字段（疑似虚构）" || issue.startsWith("台词格式不规范:"))));
+      if (noTitle && typeof prompt === "string" && RETIRED_TITLE_LABELS.some(label => prompt.includes(label))) {
+        issues.push("生成侧重新出现已退休片头标题字段");
+      }
+      return { ...result, pass: issues.length === 0, issues, ...(noTitle ? { expectedMin: fields.length,
+        applicability: Object.fromEntries(RETIRED_TITLES.map(key => [key, "not_applicable"])) } : {}) };
     });
   });
+  if (deps.fieldConsistencyPrototype) {
+    add(deps.fieldConsistencyPrototype, "_checkDialogueAudio", original => function (fieldsValue, ...args) {
+      const scope = productionScope(this);
+      if (!scope) return Reflect.apply(original, this, [fieldsValue, ...args]);
+      return guard(scope, () => {
+        check(scope);
+        const shotFields = requirementRecord(fieldsValue, "跨字段台词及音频一致性");
+        return isNoSpeechDeclaration(shotFields.dialogue) ? [] : Reflect.apply(original, this, [fieldsValue, ...args]);
+      });
+    });
+    add(fusionPrototype, "_buildBatchPrompt", original => function (...args) {
+      const scope = productionScope(this);
+      if (!scope) return Reflect.apply(original, this, args);
+      return guard(scope, () => {
+        check(scope);
+        const prompt = Reflect.apply(original, this, args);
+        const { aspectRatio, resolution, frameRate } = scope.authority.profile;
+        if (!aspectRatio || !resolution || !frameRate) return prompt;
+        const native = 'constraint 固定为"16:9画幅，4K分辨率，24fps，MP4格式"(竖屏项目为9:16)';
+        if (typeof prompt !== "string" || prompt.split(native).length !== 2) {
+          prdFail("PRD_VENDOR_UNAVAILABLE", "PromptFusion 技术规格模板边界已经变化");
+        }
+        return prompt.replace(native, `constraint 固定为"${aspectRatio}画幅，${resolution}分辨率，${frameRate}fps，MP4格式"（帧率为最终交付要求）`);
+      });
+    });
+  }
   add(semanticPrototype, "_buildPrompt", original => function (...args) {
     const scope = productionScope(this);
     if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, args);
@@ -1330,6 +1369,7 @@ export function installVendorPrdProductionBridge(constructor: { prototype: objec
       deliveryGuardPrototype: load("engines/production-engine/agents/prompt-delivery-guard.js", "PromptDeliveryGuard"),
       semanticPrototype: load("engines/production-engine/agents/semantic-refinement-pass.js", "SemanticRefinementPass"),
       fieldQualityPrototype: load("engines/field-quality/field-quality-pipeline.js", "FieldQualityPipeline"),
+      fieldConsistencyPrototype: load("engines/field-consistency-checker.js", "FieldConsistencyChecker"),
       structuredAgent: { prototype: load("engines/production-engine/agents/base-agent.js", "BaseAgent"), limiter: globalLLMLimiter },
       standardizeShot: standardizer.standardizeShot, validateShot: standardizer.validateShot, fields: standardizer.CRITICAL_FIELDS });
   } finally { lease.release(); }
