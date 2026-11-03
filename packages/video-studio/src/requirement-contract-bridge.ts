@@ -692,6 +692,9 @@ export function installRequirementContractBridge(
                 formatReissueScheduled = true;
                 pendingFeedback = sceneFinalFormatReissue;
               }
+              // V8 may include an excerpt of a malformed private response in
+              // its error message. The vendor logs what we throw here.
+              if (segments) throw currentSceneFailure;
             }
             if (slot.formatReissue && error instanceof RequirementContractError) currentSceneFailure = error;
             throw error;
