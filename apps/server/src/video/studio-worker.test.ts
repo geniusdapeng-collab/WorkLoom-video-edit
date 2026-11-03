@@ -495,10 +495,13 @@ describe("预生产原始结果与诚实终态", () => {
     { key: "SEEDANCE_MODEL", mode: "enforce" },
     { key: "ARK_VIDEO_MODEL", mode: "enforce" },
     { key: "SEEDANCE_MODEL", mode: "shadow" },
-  ])("G6合同绑定部署实际模型覆盖$key（$mode），最终上限仅用于强制模式", async ({ key, mode }) => {
+    { key: "SEEDANCE_MODEL", mode: "enforce", exact: true },
+    { key: "ARK_VIDEO_MODEL", mode: "shadow", exact: true },
+  ])("G6合同绑定部署实际模型覆盖$key（$mode、$exact），最终上限和传输能力仅用于强制模式", async ({ key, mode, exact }) => {
     vi.stubEnv("PROMPT_CONTRACT_V2", mode);
     vi.stubEnv("SEEDANCE_MODEL", ""); vi.stubEnv("ARK_VIDEO_MODEL", "");
-    vi.stubEnv(key, "deployment-specific-seedance-endpoint");
+    const providerModel = exact ? "doubao-seedance-2-5-260628" : "deployment-specific-seedance-endpoint";
+    vi.stubEnv(key, providerModel);
     const captured: any[] = [];
     doubles.capturePromptOptions = async (options) => { captured.push(options); throw new Error("stop-after-contract-model-capture"); };
     doubles.emitGates = false;
@@ -514,7 +517,9 @@ describe("预生产原始结果与诚实终态", () => {
     if (mode === "enforce") expect(captured[0].maxFinalPromptChars).toBe(fieldSpec().lengths.hardMax);
     else expect(captured[0]).not.toHaveProperty("maxFinalPromptChars");
     expect(captured[0].shots[0].compile.model).toMatchObject({ modelId: "doubao-seedance-2-5",
-      providerModel: "deployment-specific-seedance-endpoint", version: "workloom.media-catalog/v1:deployment-specific-seedance-endpoint" });
+      providerModel, version: `workloom.media-catalog/v1:${providerModel}` });
+    if (mode === "enforce" && exact) expect(captured[0].shots[0].compile.model.cameraFixedSupported).toBe(false);
+    else expect(captured[0].shots[0].compile.model).not.toHaveProperty("cameraFixedSupported");
   });
   it("坏复用配置在启动注册、vendor和租约之前失败，不回退生成", () => {
     vi.stubEnv("HR_PORTRAIT_REUSE_MANIFEST", path.join(doubles.workDir, "missing-manifest.json"));

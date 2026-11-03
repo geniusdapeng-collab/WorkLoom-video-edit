@@ -37,6 +37,7 @@ import {
   installVendorPortraitBindingBridge,
   installVendorRenderCompatBridge,
   normalizePrdProductionProfile,
+  providerRejectsCameraFixed,
   resolveVideoModel,
   reviewStage,
   updateContextBundle,
@@ -714,6 +715,7 @@ function promptCompileOptionsFor(
   source: Record<string, unknown>,
   applyFrozenDelivery = false,
   archiveCopies?: ReturnType<typeof readCurrentPortraitArchiveCopies>,
+  enforceProviderCapabilities = false,
 ): PromptCompileOptions {
   const brief = metadata?.brief && typeof metadata.brief === "object" && !Array.isArray(metadata.brief)
     ? metadata.brief as Record<string, unknown>
@@ -752,6 +754,7 @@ function promptCompileOptionsFor(
       resolutions: limits?.resolutions?.length ? [...limits.resolutions] : [resolution],
       maxReferenceImages: limits?.maxReferenceImages ?? 0,
       maxPromptChars: limits?.maxPromptChars ?? 4000,
+      ...(enforceProviderCapabilities && providerRejectsCameraFixed(model.provider, providerModel) ? { cameraFixedSupported: false } : {}),
     },
     assets: resolvePromptAssets({
       source,
@@ -1171,7 +1174,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
               shotId: String(source.shotId ?? source.shot_id ?? ""),
             },
             compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
-              path.join(runWorkDir, "characters", input.projectId), source, input.isMarketing, archiveCopies),
+              path.join(runWorkDir, "characters", input.projectId), source, input.isMarketing, archiveCopies, promptContractMode === "enforce"),
           }));
           promptQualityForGate = await evaluatePromptPackage({
             mode: promptContractMode === "enforce" ? "enforce" : "shadow",
@@ -1259,7 +1262,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
           const currentShots = structuredPromptPackage.map((source) => ({
             source: { ...source, shotId: String(source.shotId ?? source.shot_id ?? "") },
             compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
-              path.join(runWorkDir, "characters", input.projectId), source, false, archiveCopies),
+              path.join(runWorkDir, "characters", input.projectId), source, false, archiveCopies, promptContractMode === "enforce"),
           }));
           const currentness = verifyCurrentPromptContracts({
             shots: currentShots,
