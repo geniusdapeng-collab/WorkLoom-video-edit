@@ -224,6 +224,29 @@ function workerModelFixture() {
 }
 
 describe("G6 同次修复的真实模型路由", () => {
+  it("修复运镜时在真实出站请求中附上完整只读动作与时间轴，不授予修改权限", async () => {
+    const fixture = workerModelFixture();
+    const timeline = "T00:00–T00:02停稳摘盔；T00:02–T00:05踏上台阶、举起奖杯。";
+    const action = "摘下头盔后放稳，再走上台阶举杯。";
+    const current: Record<string, unknown> = { ...fields, timeline, action };
+    fixture.evaluation.shots[0]!.source = { ...source, fields: current };
+    const result = await evaluatePromptPackage(fixture.evaluation);
+    expect(fixture.calls).toEqual(["review:S01", "review:S02", "repair:S01", "review:S01"]);
+    expect(fixture.onRepair).toHaveBeenCalledWith(expect.objectContaining({
+      shotId: "S01",
+      durationSec: 5,
+      allowedFields: [{ field: "camera_movement", value: current.camera_movement }],
+      readOnlyFields: expect.arrayContaining([{ field: "action", value: action }, { field: "timeline", value: timeline }]),
+    }), expect.anything());
+    const sent = fixture.onRepair.mock.calls[0]![0];
+    expect(Object.fromEntries(sent.readOnlyFields.map(({ field, value }: { field: string; value: unknown }) =>
+      [field, value]))).toEqual(Object.fromEntries(Object.entries(current).filter(([field]) => field !== "camera_movement")));
+    expect(result.status).toBe("passed");
+    expect(result.shotContracts[0]!.source.fields).toEqual({ ...current, camera_movement: repairedCamera });
+    expect(result.g6Eligible).toBe(true);
+    expect(result.renderEligible).toBe(false);
+  });
+
   it("复用未变镜头已通过的语义证明，仅重审发生变化的镜头", async () => {
     const fixture = workerModelFixture();
     const result = await evaluatePromptPackage(fixture.evaluation);
