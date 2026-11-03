@@ -1564,11 +1564,9 @@ export async function renderWithSubtitles({
   if (path.resolve(input) === path.resolve(output)) {
     throw new SubtitleError("禁止覆盖原片（输出路径等于输入路径）", "overwrite_source_forbidden", false);
   }
-  if (mode === "subtitle" && cues.length === 0) throw new SubtitleError("字幕烧录需要 SRT 字幕条", "bad_request", false);
-  if (mode === "title" && !titleText) throw new SubtitleError("标题烧录需要 title_text", "bad_request", false);
-
+  const persistentOnly = Boolean(persistentText && mode === "subtitle" && !cues.length && !secondaryCues.length);
   if (!["subtitle", "title", "both"].includes(mode)) throw new SubtitleError("未知字幕处理模式", "bad_request", false);
-  if (mode !== "title" && !cues.length) throw new SubtitleError("字幕烧录需要 SRT 字幕条", "bad_request", false);
+  if (mode !== "title" && !cues.length && !persistentOnly) throw new SubtitleError("字幕烧录需要 SRT 字幕条", "bad_request", false);
   if (mode !== "subtitle" && !titleText) throw new SubtitleError("标题烧录需要 title_text", "bad_request", false);
   assertRenderable({ input, output });
   if (mode !== "subtitle") {
@@ -1583,7 +1581,7 @@ export async function renderWithSubtitles({
     }
   }
   const started = Date.now();
-  const scenes = mode === "title" ? ["标题"] : mode === "subtitle" ? ["字幕"] : ["标题", "字幕"];
+  const scenes = mode === "title" || persistentOnly ? ["标题"] : mode === "subtitle" ? ["字幕"] : ["标题", "字幕"];
   const planOutcome = await plan({
     input,
     brief,
@@ -1727,7 +1725,7 @@ export async function renderWithSubtitles({
       },
     } : null,
     pipeline: {
-      textLayers: ["subtitles", ...(persistentText ? ["persistent-text"] : []), ...(danmaku ? ["danmaku"] : [])],
+      textLayers: [...(persistentOnly ? [] : ["subtitles"]), ...(persistentText ? ["persistent-text"] : []), ...(danmaku ? ["danmaku"] : [])],
       textEncodingPasses: 1,
       sourceEncodingPolicy: "single-pass-combined-ass",
     },
@@ -2909,8 +2907,9 @@ export async function exportSidecars({
   persistentText = validatePersistentSubtitleText(persistentText);
   if (persistentText && titleText) throw new SubtitleError("持续字幕与装饰标题不能共用Title文字层", "bad_request", false);
   if (persistentText && (typeof input !== "string" || !input.trim())) throw new SubtitleError("持续字幕旁挂需要实际视频输入", "bad_request", false);
-  if (!Array.isArray(cues) || cues.length === 0) {
-    throw new SubtitleError("旁挂字幕交付需要至少一条字幕（SRT/VTT 都不为空）", "bad_srt", false);
+  const persistentOnly = Boolean(persistentText && Array.isArray(cues) && !cues.length && !cuesEn?.length);
+  if (!Array.isArray(cues) || !cues.length && !persistentOnly) {
+    throw new SubtitleError("旁挂字幕交付需要至少一条字幕或明确的持续文字", "bad_srt", false);
   }
   if (typeof outputDir !== "string" || !outputDir.trim()) {
     throw new SubtitleError("output_dir 缺失（旁挂字幕要落到交付目录）", "bad_request", false);
@@ -2927,7 +2926,7 @@ export async function exportSidecars({
     titleText,
     persistentText,
     cues,
-    scenes: ["标题", "字幕"],
+    scenes: persistentOnly ? ["标题"] : ["标题", "字幕"],
     catalog,
     fontsDir: fontsDir ?? fontsRoot(),
     bins,
@@ -2953,20 +2952,20 @@ export async function exportSidecars({
     return record;
   };
 
-  const zhSrt = await writeFile(".zh.srt", cuesToSrt(cues), { role: "subtitle", lang: "chi", format: "srt", primary: true,
+  const zhSrt = persistentOnly ? null : await writeFile(".zh.srt", cuesToSrt(cues), { role: "subtitle", lang: "chi", format: "srt", primary: true,
     ...(persistentText ? { contentScope: "dialogue-only" } : {}) });
   const assText = await fsp.readFile(outcome.assPath, "utf8");
   const zhAss = await writeFile(".zh.ass", assText, {
     role: "subtitle", lang: "chi", format: "ass", primary: true,
-    styled: true, note: "与烧录/软轨同源（同一 ASS 生成器 + 同一字体选型）",
-    ...(persistentText ? { contentScope: "complete-composition", layers: ["dialogue", "persistent-text"] } : {}),
+    styled: true, note: persistentOnly ? "持续文字完整组合 ASS，与烧录使用同一生成器和字体" : "与烧录/软轨同源（同一 ASS 生成器 + 同一字体选型）",
+    ...(persistentText ? { contentScope: "complete-composition", layers: persistentOnly ? ["persistent-text"] : ["dialogue", "persistent-text"] } : {}),
   });
   let enSrt = null;
   if (Array.isArray(cuesEn) && cuesEn.length) {
     enSrt = await writeFile(".en.srt", cuesToSrt(cuesEn), { role: "subtitle", lang: "eng", format: "srt", secondary: true,
       ...(persistentText ? { contentScope: "dialogue-only" } : {}) });
   }
-  const vtt = await writeFile(".vtt", cuesToVtt(cues, {
+  if (!persistentOnly) await writeFile(".vtt", cuesToVtt(cues, {
     secondaryCues: Array.isArray(cuesEn) ? cuesEn : [],
     label: `WorkLoom ${baseName} · ${resolvedPlatform}${outcome.plan.resolution ? ` · ${outcome.plan.resolution.join("x")}` : ""}`,
   }), {
@@ -2979,15 +2978,15 @@ export async function exportSidecars({
   const assEvents = parseAssEvents(assText).filter((event) => event.style === "Sub");
   const timelineOk = assEvents.length === cues.length
     && assEvents.every((event, index) => event.start === cues[index].start && event.end === cues[index].end);
-  const srtRoundTrip = parseSrt(await fsp.readFile(zhSrt.path, "utf8"));
-  const srtOk = srtRoundTrip.length === cues.length
-    && srtRoundTrip.every((cue, index) => cue.text === String(cues[index].text).trim());
+  const zhSrtText = zhSrt ? await fsp.readFile(zhSrt.path, "utf8") : "";
+  const srtRoundTrip = zhSrt ? parseSrt(zhSrtText) : [];
+  const srtOk = zhSrt ? srtRoundTrip.length === cues.length
+    && srtRoundTrip.every((cue, index) => cue.text === String(cues[index].text).trim()) : null;
   const secondaryOk = !enSrt || parseSrt(await fsp.readFile(enSrt.path, "utf8")).length === cuesEn.length;
   /**
    * 标点体检（2026-09-25 口径）：交付的字幕文件里不得残留标点。
    * 判定看**落盘文件**而不是内存里的 cues——"清的是内存、发的是脏文件"正是这类事故的典型形态。
    */
-  const zhSrtText = await fsp.readFile(zhSrt.path, "utf8");
   const punctuationHits = zhSrtText.split(/\r?\n/)
     .filter((line) => line.includes("-->") === false && !/^\d+$/.test(line.trim()) && line.trim() !== "")
     .flatMap((line) => findSubtitlePunctuation(line));
@@ -3008,7 +3007,7 @@ export async function exportSidecars({
     ...outcome.checks.map((check) => ({ ...check,
       hard: check.kind === "font_resolution" || check.kind === "persistent_text_layout" })),
     { kind: "timeline_readback", ok: timelineOk, detail: { cues: cues.length, events: assEvents.length } },
-    { kind: "srt_round_trip", ok: srtOk, detail: { cues: cues.length, parsed: srtRoundTrip.length } },
+    ...(zhSrt ? [{ kind: "srt_round_trip", ok: srtOk, detail: { cues: cues.length, parsed: srtRoundTrip.length } }] : []),
     { kind: "secondary_language", ok: secondaryOk, detail: { cuesEn: cuesEn.length } },
     {
       kind: "no_punctuation",
@@ -3031,7 +3030,7 @@ export async function exportSidecars({
     platform: outcome.plan.platform,
     resolution: outcome.plan.resolution,
     burnedIn: false,
-    note: "母版不含字幕；字幕以旁挂文件交付，可后置决定『不用 / 软轨内嵌 / 硬烧』",
+    note: persistentOnly ? "无对白。完整持续文字以组合 ASS 交付，烧录与其使用相同文字层。" : "母版不含字幕；字幕以旁挂文件交付，可后置决定『不用 / 软轨内嵌 / 硬烧』",
     source: input
       ? { path: input, sha256: beforeFingerprint.sha256, sizeBytes: beforeFingerprint.sizeBytes, untouched: sourceUntouched }
       : null,
@@ -3041,7 +3040,7 @@ export async function exportSidecars({
     },
     styles: outcome.styles.map((entry) => ({ name: entry.name, ...entry.style })),
     ...(persistentText ? { persistentText: { ...outcome.persistentText, assSha256: zhAss.sha256 },
-      primaryComposition: path.basename(zhAss.path), portableSidecars: "dialogue-only" } : {}),
+      primaryComposition: path.basename(zhAss.path), portableSidecars: persistentOnly ? "not-applicable-no-dialogue" : "dialogue-only" } : {}),
     timeline: {
       cues: cues.length,
       secondaryCues: Array.isArray(cuesEn) ? cuesEn.length : 0,

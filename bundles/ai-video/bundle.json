@@ -852,7 +852,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "a93a153ff49bc5072c32c1a3905aa29628a752599cbdd70167c7d279494152fd",
+    "digest": "9186d1c1426c0fa25c6642af7934543bb15828565140fdcb91ca512547a91e98",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -900,8 +900,8 @@
       "connectors/post-bridge/rhythm-post.mjs": "7a71bee3da911bce8612fa7ba177d7011c149a84007bfb2b28e045be8c7a1768",
       "connectors/post-bridge/server-adapter.mts": "80780fbfef049f3690bdd14b591d59cd4e8ddfba6e9854344601a4ffb5073d48",
       "connectors/post-bridge/server.mjs": "d3641f6b81fd8574e10830f02a734bff4e84677e17eaf9468699d390a9852e36",
-      "connectors/subtitle-bridge/cli.mjs": "47e3acb64902803dd0f2b354efb384138d3faa9a1461e04033022b4a5ad9473e",
-      "connectors/subtitle-bridge/core.mjs": "f852a072a85759b2ca264101ccc06c6cb5a8fdaf19ba7620bb74fd674cfbe430",
+      "connectors/subtitle-bridge/cli.mjs": "bc2eb165002ff2c860bbcd73fac4f41bf16b6c3e70f8d3af0279d76caeb1a460",
+      "connectors/subtitle-bridge/core.mjs": "45833651f3db636ab6665a22d9b0bb79ba64a816eb63827fe819bd3c0d9c4fda",
       "connectors/subtitle-bridge/executor.ts": "ae5ad37e44a4407a2f6bc53499ac9adc7d4caeeed38d4b20ad2a358296c1deb1",
       "connectors/subtitle-bridge/kit/fonts-pin.json": "b3b19159777af663168dee1cb94e5c607e7875b96522d4b37de3627826987ce4",
       "connectors/subtitle-bridge/kit/install-fonts.sh": "2faf221c1431b9b35311d1721606d496664af9e2f451bd35b2a3af0f63e8ddcc",
