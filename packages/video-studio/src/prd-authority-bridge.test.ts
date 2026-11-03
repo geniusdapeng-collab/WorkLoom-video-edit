@@ -1989,7 +1989,8 @@ describe("approved production authority at native technical and title seams", ()
     }))).rejects.toThrow("PRD_REVIEW_CHANGED");
   });
 
-  it.each(["valid", "reordered", "stale-original", "unknown-cast", "actor-absent", "non-frozen"])(
+  it.each(["valid", "reordered", "alias-conflict", "non-string-id", "stale-original", "unknown-cast",
+    "actor-absent", "non-frozen", "frozen-with-speech"])(
     "runs native Layer2 before G6 with exact owner portrait candidates (%s)", async mode => {
       const value = fixture(`LAYER2-PORTRAIT-${mode}`, [10, 10, 10]), h = productionHarness();
       if (mode !== "non-frozen") {
@@ -1997,7 +1998,8 @@ describe("approved production authority at native technical and title seams", ()
           count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
           intervals: Array.from({ length: 3 }, (_, i) => ({ startSec: i * 10, endSec: (i + 1) * 10, brief: `冻结段 ${i + 1}` })),
         };
-        declareDelivery(value, { speechPolicy: "none" });
+        if (mode === "frozen-with-speech") refreshContract(value);
+        else declareDelivery(value, { speechPolicy: "none" });
       }
       if (mode === "actor-absent") {
         const sceneStructure = requirementRecord(value.discovery.sceneStructure, "source scene structure");
@@ -2019,6 +2021,8 @@ describe("approved production authority at native technical and title seams", ()
       delete shots[0]!.portraits;
       delete requirementRecord(shots[0]!.fields, "opening fields").portraits;
       if (mode === "reordered") [shots[1], shots[2]] = [shots[2]!, shots[1]!];
+      if (mode === "alias-conflict") shots[0]!.shot_id = "ending";
+      if (mode === "non-string-id") shots[0]!.shotId = 0;
       const input = structuredClone(shots);
       const execute = () => h.accepted(run, () => {
         if (mode === "stale-original") writeFileSync(portrait.originals.front!.path, Buffer.alloc(1024, 9));
@@ -2039,10 +2043,13 @@ describe("approved production authority at native technical and title seams", ()
       else {
         const error = {
           reordered: "PRD_SCENE_UNVERIFIED",
+          "alias-conflict": "PRD_SCENE_UNVERIFIED",
+          "non-string-id": "PRD_SCENE_UNVERIFIED",
           "stale-original": "PRD_PORTRAIT_SOURCE_UNVERIFIED",
           "unknown-cast": "PRD_CAST_UNVERIFIED",
           "actor-absent": "Production 25 fields missing: portraits",
           "non-frozen": "Production 25 fields missing: portraits",
+          "frozen-with-speech": "Production 25 fields missing: portraits",
         }[mode];
         await expect(execute()).rejects.toThrow(error);
         expect(shots).toEqual(input);

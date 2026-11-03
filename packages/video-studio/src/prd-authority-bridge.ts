@@ -1268,8 +1268,12 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       if (Object.hasOwn(raw, "fields")) shot.fields = structuredClone(raw.fields);
       if (typeof raw.prompt === "string") shot.prompt = raw.prompt;
       if (typeof raw.sceneType === "string") shot.sceneType = raw.sceneType;
-      if (bindLayer2Portraits && String(raw.shotId ?? raw.shot_id ?? "") !== shot.shotId) {
-        prdFail("PRD_SCENE_UNVERIFIED", "字段标准化改变了本次冻结镜头的身份");
+      if (bindLayer2Portraits) {
+        const rawId = raw.shotId ?? raw.shot_id;
+        if (typeof rawId !== "string" || rawId !== shot.shotId
+          || (Object.hasOwn(raw, "shotId") && Object.hasOwn(raw, "shot_id") && raw.shotId !== raw.shot_id)) {
+          prdFail("PRD_SCENE_UNVERIFIED", "字段标准化改变了本次冻结镜头的身份，或原始镜号存在冲突");
+        }
       }
       shot._context = context;
       return shot;
@@ -1588,6 +1592,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     return guard(scope, () => {
       check(scope);
       const bindLayer2Portraits = key === "normalizeAndValidate" && context === "Layer2-Production"
+        && scope.authority.profile.speechPolicy === "none"
         && scope.authority.portraitReferenceSelection?.angles.length === 2 && frozenCuts(scope) !== undefined;
       const result = inspect(shots, context, true, bindLayer2Portraits);
       if (key !== "check" && !result.report.passed) {
