@@ -13,6 +13,7 @@ import {
   type PromptCompileOptions,
   type PromptCompileShot,
 } from "./prompt-compiler.js";
+import { FROZEN_NO_SPEECH_AUDIO_DISCIPLINE } from "./frozen-speech-policy.js";
 
 const digest = (value: string | Uint8Array): string => createHash("sha256").update(value).digest("hex");
 
@@ -282,5 +283,20 @@ describe("authorized title-card applicability and frozen delivery", () => {
       .toContainEqual(expect.objectContaining({ code: "HARD_DIALOGUE_AUDIO_CONFLICT", field: "audio" }));
     const realSpeech = compilePromptShot(shot({ fields: { ...contentFields, dialogue: "无台词。她说：我赢了。", audio: "人声对话清晰可辨。" } }), options);
     expect(realSpeech.prompt).not.toContain("不得出现台词/旁白/口播与可辨词句人声");
+  });
+
+  it("binds the complete frozen sound rule when the vendor audio field ends with a partial copy", () => {
+    const authorAudio = "原生引擎怠速逐渐回落，靴底与台阶碰触，现场声不中断。";
+    const partial = FROZEN_NO_SPEECH_AUDIO_DISCIPLINE.split("人声", 1)[0]!;
+    const withAudio = (audio: string) => shot({ fields: { ...contentFields, dialogue: "本镜无台词。", audio } });
+    const compiled = compilePromptShot(withAudio(`${authorAudio}；${partial}`), options);
+    expect(compiled.hardErrors).toEqual([]);
+    expect(compiled.request.technical.audio).toBe(`${authorAudio}；【音频纪律】仅留原生环境与动作声；禁止可辨识人声及镜外配乐。`);
+    const full = compilePromptShot(withAudio(`${authorAudio}；${FROZEN_NO_SPEECH_AUDIO_DISCIPLINE}`), options);
+    const recompiled = compilePromptShot(shot({ fields: compiled.fieldValues }), options);
+    expect(full.contract).toEqual(compiled.contract);
+    expect(recompiled.contract).toEqual(compiled.contract);
+    const authoredAnnotation = `${authorAudio}；${partial}机械设备的报警节奏。`;
+    expect(compilePromptShot(withAudio(authoredAnnotation), options).request.technical.audio).toBe(authoredAnnotation);
   });
 });

@@ -18,6 +18,7 @@ import {
   type ShotFieldSchemaVersion,
 } from "./prompt-contract.js";
 import { isNoSpeechDeclaration, noSpeechClause } from "./dialogue-contract.js";
+import { FROZEN_NO_SPEECH_AUDIO_DISCIPLINE } from "./frozen-speech-policy.js";
 import { AUDIO_DISCIPLINE_CLAUSE } from "./shot-spec.js";
 
 export interface PromptCompileAsset extends PromptAssetBinding {
@@ -75,6 +76,9 @@ const DEFAULT_AUXILIARY_KEYS = new Set([
   "promptCharCount",
   "fusionText",
 ]);
+
+const FROZEN_SOUND_ANNOTATION_PREFIX = "【音频纪律】只保留与画面对应的真实环境声和动作音效；";
+const COMPILED_FROZEN_SOUND_ANNOTATION = "【音频纪律】仅留原生环境与动作声；禁止可辨识人声及镜外配乐。";
 
 function safeRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -267,8 +271,17 @@ export function compilePromptShot(
       // This is a host policy annotation, not authored sound. The pinned parser can copy
       // the generic annotation into the audio field, including an incomplete final phrase.
       const annotationAt = value.indexOf("【音频纪律】");
-      if (annotationAt >= 0 && AUDIO_DISCIPLINE_CLAUSE.startsWith(value.slice(annotationAt).trimEnd())) {
-        value = value.slice(0, annotationAt).replace(/[；;|\s]+$/u, "");
+      if (annotationAt >= 0) {
+        const annotation = value.slice(annotationAt).trimEnd();
+        const authoredSound = value.slice(0, annotationAt).replace(/[；;|\s]+$/u, "");
+        if (AUDIO_DISCIPLINE_CLAUSE.startsWith(annotation)) {
+          value = authoredSound;
+        } else if (annotation.startsWith(FROZEN_SOUND_ANNOTATION_PREFIX)
+          && FROZEN_NO_SPEECH_AUDIO_DISCIPLINE.startsWith(annotation)) {
+          // Keep the complete meaning in the bound audio field, even if the native
+          // field parser retained only a prefix. Other author text is untouched.
+          value = authoredSound ? `${authoredSound}；${COMPILED_FROZEN_SOUND_ANNOTATION}` : COMPILED_FROZEN_SOUND_ANNOTATION;
+        }
       }
       if (typeof value === "string" && /^人声对话清晰可辨[，,]/u.test(value)) {
         add("HARD_DIALOGUE_AUDIO_CONFLICT", "audio", "无台词镜头的音频字段要求清晰人声对话");
