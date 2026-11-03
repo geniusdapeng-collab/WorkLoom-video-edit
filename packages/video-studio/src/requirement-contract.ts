@@ -18,9 +18,11 @@ export class RequirementContractError extends Error {
 
 const validationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const riskValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
+const discoveryValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const finiteNumber = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
 const schemaPath = /^SceneArchitect response(?:\/(?:opening|scenes|ending|duration|purpose|keyElements|index|emotionalBeat|productionContract|props|actions|name|description|actorId|noPropsReason|totalDuration|sceneCount|narrativeArc|\d{1,6}))*$/;
 const riskArrayPath = /^RiskAssessor response\/(?:technicalRisks|businessConstraints|mitigationSuggestions)$/;
+const discoverySchemaPath = /^((AudienceProfiler|ReferenceCurator|RiskAssessor) response)(?:\/(?:primaryAudience|secondaryAudience|emotionTriggers|painPoints|contentExpectations|ageRange|gender|interestTags|occupation|consumptionLevel|technicalRisks|businessConstraints|mitigationSuggestions|risk|level|impact|filmReferences|adReferences|styleReferences|title|relevance|keyTakeaway|brand|\d{1,6}))*$/;
 
 function withValidationFacts(error: RequirementContractError, details: RequirementRecord,
   registry = validationFacts): RequirementContractError {
@@ -47,6 +49,11 @@ export function structuredSceneFeedback(error: unknown): string {
 export function structuredRiskFeedback(error: unknown): string {
   const facts = error instanceof RequirementContractError ? riskValidationFacts.get(error) : undefined;
   return facts ? `\n\n## 上一次原生风险校验反馈\n${JSON.stringify(facts)}\n仅依据这些数组数量校验事实重新生成完整合法响应；不截取、补填或复用上次风险文本，不改变原有 schema 与完整来源约束。` : "";
+}
+
+export function structuredDiscoveryFeedback(error: unknown): string {
+  const facts = error instanceof RequirementContractError ? discoveryValidationFacts.get(error) : undefined;
+  return facts ? `\n\n## 上一次原生需求结构校验反馈\n${JSON.stringify(facts)}\n根据完整原始输入与本次实际 schema 重新生成完整 JSON 对象。保留原有字段、数组范围和枚举约束，不复用或补填上次响应。` : "";
 }
 
 export function requirementRecord(value: unknown, label: string): RequirementRecord {
@@ -130,11 +137,12 @@ export function requirementHash(value: unknown): string {
 export function validateRequirementSchema(value: unknown, schemaValue: unknown, label = "SceneArchitect response"): void {
   const ancestors = new Set<object>();
   const risk = label === "RiskAssessor response";
+  const discovery = risk || label === "AudienceProfiler response" || label === "ReferenceCurator response";
   const check = (item: unknown, schemaInput: unknown, location: string): void => {
     const schema = requirementRecord(schemaInput, "SceneArchitect schema");
-    const invalid = (reason: string, keyword = "type", observed: unknown = item, limit?: unknown): never => {
-      const error = new RequirementContractError(risk ? "REQUIREMENT_DISCOVERY_UNVERIFIED" : "REQUIREMENT_SCENE_UNVERIFIED",
-        `${risk ? label : location} ${reason}`);
+    const invalid = (reason: string, keyword = "type", observed: unknown = item, limit?: unknown, field = location): never => {
+      const error = new RequirementContractError(discovery ? "REQUIREMENT_DISCOVERY_UNVERIFIED" : "REQUIREMENT_SCENE_UNVERIFIED",
+        `${discovery ? label : location} ${reason}`);
       // Fixed schema keys and bounded indices only; never echo a response key,
       // string value, arbitrary label, enum prose or the raw response.
       if (risk && riskArrayPath.test(location) && ["minItems", "maxItems"].includes(keyword)
@@ -144,7 +152,12 @@ export function validateRequirementSchema(value: unknown, schemaValue: unknown, 
         error.message += `；validation ${JSON.stringify(details)}`;
         throw withValidationFacts(error, details, riskValidationFacts);
       }
-      if (!risk && location.length <= 256 && schemaPath.test(location)) {
+      if (discovery && field.length <= 256 && discoverySchemaPath.test(field)) {
+        const details = { kind: "schema", path: field, keyword };
+        error.message += `；validation ${JSON.stringify(details)}`;
+        throw withValidationFacts(error, details, discoveryValidationFacts);
+      }
+      if (!discovery && location.length <= 256 && schemaPath.test(location)) {
         const details = { kind: "schema", path: location, keyword, observed: finiteNumber(observed), limit: finiteNumber(limit) };
         error.message += `；validation ${JSON.stringify(details)}`;
         throw withValidationFacts(error, details);
@@ -161,7 +174,12 @@ export function validateRequirementSchema(value: unknown, schemaValue: unknown, 
         try {
           const properties = schema.properties === undefined ? {} : requirementRecord(schema.properties, "schema properties");
           for (const key of schema.required === undefined ? [] : array(schema.required, "schema required")) {
-            if (typeof key !== "string" || !Object.prototype.hasOwnProperty.call(record, key)) invalid("缺少必需字段", "required", null);
+            if (typeof key !== "string") {
+              throw new RequirementContractError("REQUIREMENT_SCHEMA_UNSUPPORTED", "schema required 出现非文本字段");
+            }
+            if (!Object.prototype.hasOwnProperty.call(record, key)) {
+              invalid("缺少必需字段", "required", null, undefined, `${location}/${key}`);
+            }
           }
           for (const key of Object.keys(record)) {
             if (Object.prototype.hasOwnProperty.call(properties, key)) check(record[key], properties[key], `${location}/${key}`);
