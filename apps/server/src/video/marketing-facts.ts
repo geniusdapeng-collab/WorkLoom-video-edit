@@ -187,18 +187,16 @@ export function stageFactPointers(stage: IntelStage, payload: unknown): string[]
   return [...factLeaves(stagePayloadShape(stage, payload)).keys()];
 }
 
+/** Optional blank prose is absent. Keep the archived response and every fact intact. */
+export function normalizeOptionalEvidenceReason(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const copy = { ...(raw as Record<string, unknown>) };
+  if (typeof copy.noEvidenceReason === "string" && !copy.noEvidenceReason.trim()) delete copy.noEvidenceReason;
+  return copy;
+}
+
 export function validateStageFacts(stage: IntelStage, raw: unknown, sources: SourceSnapshot[]): ValidatedStageFacts {
-  const normalizedRaw = raw && typeof raw === "object" && !Array.isArray(raw)
-    ? { ...(raw as Record<string, unknown>) }
-    : raw;
-  if (normalizedRaw && typeof normalizedRaw === "object" && !Array.isArray(normalizedRaw)
-    && typeof (normalizedRaw as Record<string, unknown>).noEvidenceReason === "string"
-    && !String((normalizedRaw as Record<string, unknown>).noEvidenceReason).trim()) {
-    // Empty optional prose is absence, not evidence. Schema validation remains
-    // strict for A2/A3 because a genuinely empty station still needs a reason.
-    delete (normalizedRaw as Record<string, unknown>).noEvidenceReason;
-  }
-  const extraction = extractionSchema.parse(normalizedRaw);
+  const extraction = extractionSchema.parse(normalizeOptionalEvidenceReason(raw));
   const payload = stagePayloadShape(stage, extraction.payload);
   const sourceMap = new Map(sources.map(source => [source.sourceId, source]));
   if (sourceMap.size !== sources.length) throw new Error("MARKETING_SOURCE_INVALID：来源ID重复");

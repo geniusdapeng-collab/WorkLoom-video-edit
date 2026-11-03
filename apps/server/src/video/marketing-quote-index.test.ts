@@ -34,6 +34,26 @@ describe("当前完整来源的可选择引文片段", () => {
     expect(validateStageFacts("A1", result.extraction, [snapshot]).claims[0]).toMatchObject({ quote: text, quoteStart: 0, quoteEnd: text.length });
     expect(JSON.stringify(raw)).toBe(before); expect(result.extraction.payload).toEqual(raw.payload);
   });
+  it.each(["", " \t\n　"])("只在解析副本上忽略空白的可选缺证据原因", noEvidenceReason => {
+    const snapshot = source(), raw = { ...extraction(snapshot), noEvidenceReason }, before = structuredClone(raw);
+    const resolved = resolveMarketingExtraction(raw, [snapshot]);
+    expect(resolved.extraction).not.toHaveProperty("noEvidenceReason");
+    expect(resolved.bindings).toHaveLength(2);
+    expect(validateStageFacts("A1", resolved.extraction, [snapshot])).toMatchObject({ status: "source_bound" });
+    expect(raw).toEqual(before);
+  });
+  it.each([["A2", { reviews: [] }], ["A3", { competitors: [] }]] as const)("%s 空站仍需有效原因", (stage, payload) => {
+    const raw = { payload, citations: [], noEvidenceReason: "　" };
+    expect(() => validateStageFacts(stage, resolveMarketingExtraction(raw, []).extraction, []))
+      .toThrow("MARKETING_EVIDENCE_EMPTY");
+    const resolved = resolveMarketingExtraction({ ...raw, noEvidenceReason: "来源没有可核实证据" }, []);
+    expect(resolved.extraction.noEvidenceReason).toBe("来源没有可核实证据");
+    expect(validateStageFacts(stage, resolved.extraction, []).status).toBe("no_evidence");
+  });
+  it.each([null, 42, "字".repeat(8001)])("拒绝不符合原合同的缺证据原因", noEvidenceReason => {
+    const snapshot = source();
+    expect(() => resolveMarketingExtraction({ ...extraction(snapshot), noEvidenceReason }, [snapshot])).toThrow();
+  });
   it("重复原文选择后一个片段时，选择绑定、事实位置和复读保持同一位置", () => {
     const body = "同文".repeat(320), snapshot = source(body.repeat(2)), fragments = sourceQuoteFragments(snapshot);
     expect(fragments).toHaveLength(2); expect(fragments[0]!.text).toBe(fragments[1]!.text);
