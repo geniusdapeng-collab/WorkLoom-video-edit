@@ -4,7 +4,8 @@ import path from "node:path";
 import {
   RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast,
   projectDeclaredFields, requirementHash, requirementRecord, requirementScenes, structuredDiscoveryFeedback, structuredRiskFeedback, structuredSceneFeedback, structuredSceneInstructions, structuredScenePrompt, structuredSceneSchema,
-  validateRequirementSchema, verifiedRequirementContract, type RequirementCast, type RequirementRecord
+  frozenSegmentContract, techniqueReferenceSchema, validateFrozenSceneTiming, validateRequirementSchema, validateTechniqueReferences,
+  verifiedRequirementContract, type FrozenSegmentContract, type RequirementCast, type RequirementRecord
 } from "./requirement-contract.js";
 import { nativeReasonFailure } from "./llm-adapter.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
@@ -25,6 +26,7 @@ interface Scope {
   authorityHash?: string;
   options?: RequirementAuthorityOptions;
   optionsSource?: RequirementAuthorityOptions;
+  segments?: FrozenSegmentContract;
 }
 const scopes = new AsyncLocalStorage<Scope>();
 const receivers = new WeakMap<object, Scope>();
@@ -90,6 +92,10 @@ export async function withRequirementContractScope<T>(
     try {
       if (scope.authority && requirementHash(scope.metadata) !== requirementHash(scope.authority.metadata)) {
         requirementAuthorityFailure("REQUIREMENT_AUTHORITY_CHANGED", "需求清单与宿主私有权威不属于同一输入快照");
+      }
+      if (scope.authority && scope.metadata.brief !== undefined) {
+        const brief = requirementRecord(scope.metadata.brief, "冻结客户 Brief");
+        scope.segments = frozenSegmentContract(brief, brief.duration);
       }
       return await awaited(scope, operation);
     }
@@ -242,7 +248,7 @@ export function installRequirementContractBridge(
       const original = await Reflect.apply(convert, this, [discovery, upstream]);
       if (currentScope() !== scope) throw new RequirementContractError("REQUIREMENT_SCOPE_CLOSED", "转换结束时运行作用域已经关闭");
       const bound = bindRequirementContract(original, discovery, upstream, metadata, expectedCast!,
-        typeof ownerAudience === "string" && ownerAudience.trim() ? ownerAudience : null);
+        typeof ownerAudience === "string" && ownerAudience.trim() ? ownerAudience : null, scope.segments);
       if (scope && !scope.authority && bound && typeof bound === "object") {
         scope.metadata._workloomRequirementContract = structuredClone(
           (bound as RequirementRecord)._workloomRequirementContract,
@@ -270,6 +276,14 @@ export function installRequirementContractBridge(
     return awaited(scope, async () => {
       check(scope); bindReceiver(scope, this);
       const cast = scopeCast(scope);
+      const brief = scope.authority && scope.metadata.brief !== undefined
+        ? requirementRecord(scope.metadata.brief, "冻结客户 Brief") : {};
+      const techniqueOnly = typeof brief.requirements === "string"
+        && /参考(?:案例)?(?:只|仅)(?:写|使用)无品牌的?摄影[、，,]剪辑(?:和|与|及|[、，,])声音手法/u.test(brief.requirements);
+      const segments = scope.segments;
+      if (segments && Number(requirementRecord(input, "原始洞察来源").duration_sec) !== segments.totalSeconds) {
+        throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "上游创意时长与冻结分段合同不一致");
+      }
       const agents = requirementRecord(this.agents, "需求洞察 agents");
       const inputHash = scope.authority ? requirementHash(input) : undefined;
       const originalEngine = this;
@@ -322,6 +336,8 @@ export function installRequirementContractBridge(
           agentView.run = async function (this: RequirementRecord, value: unknown, schema: unknown) {
             requireActiveScope();
             finalFailure = undefined;
+            const techniqueReference = name === "reference" && techniqueOnly;
+            const effectiveSchema = techniqueReference ? techniqueReferenceSchema(schema) : schema;
             const runView = Object.create(this) as RequirementRecord;
             let pendingFeedback = "", attemptFeedback = "";
             let started = false, correctionUsed = false;
@@ -357,12 +373,29 @@ export function installRequirementContractBridge(
               requireActiveScope();
               const original = Reflect.apply(build, this, [input]);
               if (typeof original !== "string") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", `${label} 原始 prompt 不是文本`);
+              if (techniqueReference) {
+                const boundary = original.lastIndexOf("\n\n【推荐心法】");
+                if (boundary === -1 || !original.startsWith("你是一位泡在片库里的剪辑指导。")) {
+                  requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "ReferenceCurator 原始创作指令边界发生变化");
+                }
+                // Keep the native video fields and remove the incompatible named-case brief and examples.
+                const fields = original.indexOf("\n\n视频类型: ");
+                if (fields < 0 || fields >= boundary) requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "ReferenceCurator 原始主题字段边界发生变化");
+                return "你是一位泡在片库里的剪辑指导。只提出适合本片的具体摄影、剪辑和声音手法。"
+                  + original.slice(fields, boundary)
+                  + "\n\n客户只允许无品牌的视听手法。filmReferences 和 adReferences 均必须是空数组。"
+                  + "styleReferences 写 2–4 条可执行的具体手法，覆盖本片所需的摄影、剪辑与声音，不写导演、影片、作品、品牌或其他商业标识。"
+                  + "只输出符合实际 schema 的完整 JSON 对象。" + attemptFeedback;
+              }
               return original + attemptFeedback;
             };
             runView._validateAndFill = function (this: RequirementRecord, response: unknown, responseSchema: unknown) {
               requireActiveScope();
               const candidate = name === "risk" ? projectDeclaredFields(response, responseSchema) : response;
-              try { validateRequirementSchema(candidate, responseSchema, `${label} response`); }
+              try {
+                validateRequirementSchema(candidate, responseSchema, `${label} response`);
+                if (techniqueReference) validateTechniqueReferences(candidate);
+              }
               catch (error) {
                 currentFailure = { error };
                 pendingFeedback = structuredRiskFeedback(error) || structuredDiscoveryFeedback(error);
@@ -375,7 +408,7 @@ export function installRequirementContractBridge(
               finalFailure = currentFailure ?? { error: unverified("未提供完整真实响应，拒绝规则洞察回填") };
               throw finalFailure.error;
             };
-            return Reflect.apply(run, runView, [value, schema]);
+            return Reflect.apply(run, runView, [value, effectiveSchema]);
           };
           agentView._fallback = function () {
             requireActiveScope();
@@ -396,15 +429,21 @@ export function installRequirementContractBridge(
       sceneView.run = async function (this: RequirementRecord, value: unknown, schema: unknown) {
         requireActiveScope();
         finalSceneFailure = undefined;
-        const effectiveSchema = structuredSceneSchema(schema);
+        const effectiveSchema = structuredSceneSchema(schema, segments);
         const runView = Object.create(this) as RequirementRecord;
         let pendingFeedback = "", attemptFeedback = "";
         let currentSceneFailure: RequirementContractError | undefined;
         let jsonCorrectionScheduled = false;
         let jsonCorrectionExhausted = false;
+        let started = false, correctionUsed = false;
         runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
           requireActiveScope();
           if (jsonCorrectionExhausted) throw currentSceneFailure;
+          if (segments) {
+            if (started && (!pendingFeedback || correctionUsed)) throw currentSceneFailure ?? unverifiedScene();
+            correctionUsed = started;
+            started = true;
+          }
           // Feedback belongs to the previous completed validation. The current
           // failure must be cleared independently before transport/JSON parsing.
           attemptFeedback = pendingFeedback;
@@ -430,7 +469,8 @@ export function installRequirementContractBridge(
         runView._buildPrompt = function (this: RequirementRecord, input: unknown) {
           requireActiveScope();
           const original = Reflect.apply(build, this, [input]);
-          return structuredScenePrompt(original, input, effectiveSchema) + structuredSceneInstructions(cast, audience(scope)) + attemptFeedback;
+          return structuredScenePrompt(original, input, effectiveSchema, segments)
+            + structuredSceneInstructions(cast, audience(scope), segments) + attemptFeedback;
         };
         runView._validateAndFill = function (this: RequirementRecord, response: unknown, responseSchema: unknown) {
           requireActiveScope();
@@ -439,6 +479,7 @@ export function installRequirementContractBridge(
           try {
             validateRequirementSchema(response, responseSchema);
             requirementScenes(response, cast, upstream.duration_sec);
+            if (segments) validateFrozenSceneTiming(response, segments);
           } catch (error) {
             const feedback = structuredSceneFeedback(error);
             if (feedback && error instanceof RequirementContractError) {
@@ -476,6 +517,7 @@ export function installRequirementContractBridge(
       if (currentScope() !== scope) throw new RequirementContractError("REQUIREMENT_SCOPE_CLOSED", "需求洞察结束时运行作用域已经关闭");
       const record = requirementRecord(result, "实际需求洞察结果");
       requirementScenes(record.sceneStructure, cast, requirementRecord(input, "上游输入").duration_sec);
+      if (segments) validateFrozenSceneTiming(record.sceneStructure, segments);
       return { ...record, audienceAuthority: audience(scope) ?? null, audienceProfileStatus: "model-hypothesis" };
     });
   };

@@ -214,6 +214,18 @@ function runDiscovery(run: ReturnType<typeof privateRun>, engine: RequirementRec
   return withRequirementContractScope(run.metadata,
     () => Reflect.apply(discovery.discover as NativeMethod, discovery, [run.input]) as Promise<RequirementRecord>, run.options);
 }
+function withFrozenSegmentBrief(run: ReturnType<typeof privateRun>) {
+  const brief = requirementRecord(run.metadata.brief, "test Brief");
+  brief.requirements = "参考只写无品牌的摄影、剪辑和声音手法。";
+  brief.segmentContract = { count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+    intervals: [{ startSec: 0, endSec: 10, brief: "从高速追击直接开始" },
+      { startSec: 10, endSec: 20, brief: "保持位置连贯并在第二段末冲线" },
+      { startSec: 20, endSec: 30, brief: "停车停稳后摘盔、登台举杯" }] };
+  run.authority.metadata = structuredClone(run.metadata);
+  run.modules.reference.filmReferences = [];
+  run.modules.reference.adReferences = [];
+  return run;
+}
 function failureText(error: unknown): string {
   return `${error instanceof Error ? error.message : String(error)}\n${JSON.stringify(error && typeof error === "object" ? { ...error } : {})}`;
 }
@@ -245,6 +257,72 @@ describe("actual native scene prompt and strict production response", () => {
   afterEach(() => {
     expect(network).not.toHaveBeenCalled();
     vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals();
+  });
+
+  it("uses the three frozen hard cuts and technique-only reference schema in the actual native calls", async () => {
+    installNativeDiscovery();
+    const valid = physicalScene([10, 10, 10]), rejected = physicalScene([4, 6, 9, 5, 6]);
+    const run = withFrozenSegmentBrief(privateRun("frozen-segments", 30, valid));
+    const model = modelFor(run, [rejected, valid]);
+    const result = await runDiscovery(run, model.engine);
+    expect(result.sceneStructure).toEqual(valid);
+    expect(result.referenceCases).toEqual(run.modules.reference);
+    const scenes = model.calls.filter(call => call.method === "reason");
+    expect(scenes).toHaveLength(2);
+    for (const call of scenes) {
+      expect(call.prompt).toContain("从高速追击直接开始");
+      expect(call.prompt).toContain("停车停稳后摘盔、登台举杯");
+      expect(call.prompt).not.toMatch(/1\.3倍|falling 级的留白场景|一句台词|自行决定开场、零个或多个/u);
+      expectCompleteSources(call.prompt, run);
+    }
+    expect(scenes[1]!.prompt).toContain(feedbackHeading);
+    const refs = model.calls.find(call => call.prompt.startsWith("你是一位泡在片库里的剪辑指导"));
+    expect(refs).toBeDefined();
+    expect(refs!.prompt).not.toMatch(/Apple新春短片|至少一部|影片名称必须带/u);
+    expectCompleteSources(refs!.prompt, run);
+    expect(requirementRecord(requirementRecord(refs!.schema, "reference schema").properties, "reference properties"))
+      .toMatchObject({ filmReferences: { minItems: 0, maxItems: 0 }, adReferences: { minItems: 0, maxItems: 0 } });
+  });
+
+  it("rejects conflicting or discontinuous frozen segments before a model call", async () => {
+    installNativeDiscovery();
+    const run = withFrozenSegmentBrief(privateRun("conflicting-segments", 30, physicalScene([10, 10, 10])));
+    const brief = requirementRecord(run.metadata.brief, "test Brief");
+    const segments = requirementRecord(brief.segmentContract, "test segment contract");
+    requirementRecord((segments.intervals as unknown[])[1], "middle interval").startSec = 10.01;
+    run.authority.metadata = structuredClone(run.metadata);
+    const model = modelFor(run, [run.modules.scene]);
+    await expect(runDiscovery(run, model.engine)).rejects.toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+    expect(model.calls).toHaveLength(0);
+  });
+
+  it("makes one scoped correction for the wrong index and never retries an unknown scene outcome", async () => {
+    installNativeDiscovery();
+    const valid = physicalScene([10, 10, 10]), invalid = structuredClone(valid);
+    requirementRecord((invalid.scenes as unknown[])[0], "middle").index = 2;
+    const first = withFrozenSegmentBrief(privateRun("frozen-index", 30, valid));
+    const repair = modelFor(first, [invalid, valid]);
+    await expect(runDiscovery(first, repair.engine)).resolves.toMatchObject({ sceneStructure: valid });
+    const corrected = repair.calls.filter(call => call.method === "reason");
+    expect(corrected).toHaveLength(2);
+    expect(promptJson(corrected[1]!.prompt, feedbackHeading)).toMatchObject({ path: "SceneArchitect response/scenes/0/index", observed: 2, limit: 1 });
+
+    const second = withFrozenSegmentBrief(privateRun("frozen-unknown", 30, valid));
+    const unknown = modelFor(second, [new Error("synthetic outcome unknown"), valid]);
+    await expect(runDiscovery(second, unknown.engine)).rejects.toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+    expect(unknown.calls.filter(call => call.method === "reason")).toHaveLength(1);
+  });
+
+  it("rejects a named case hidden inside technique prose before G3 review", async () => {
+    installNativeDiscovery();
+    const valid = physicalScene([10, 10, 10]), run = withFrozenSegmentBrief(privateRun("frozen-ref-named", 30, valid));
+    run.modules.reference.styleReferences = ["《内部示例作品》镜头", "仅用原生环境声"];
+    const model = modelFor(run, [valid]);
+    await expect(runDiscovery(run, model.engine)).rejects.toThrow("REQUIREMENT_DISCOVERY_UNVERIFIED");
+    const refs = model.calls.filter(call => call.prompt.startsWith("你是一位泡在片库里的剪辑指导"));
+    expect(refs).toHaveLength(2);
+    expect(refs[1]!.prompt).toContain("ReferenceCurator response/styleReferences/0");
+    expect(refs[1]!.prompt).not.toContain("内部示例作品");
   });
 
   it.each([

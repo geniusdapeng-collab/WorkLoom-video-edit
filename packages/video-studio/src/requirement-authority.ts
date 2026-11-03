@@ -125,6 +125,21 @@ export function qualifyRequirementThemeInput(value: unknown, intent: unknown, me
     + "本次 A3 若为 no_evidence，不得据此写竞品没讲、竞品弱点或市场领先。具体事实与用途以本次完整 G1 为准。";
 }
 
+function requirementAdoptionBoundary(metadata: RequirementRecord): string {
+  const brief = metadata.brief === undefined ? {} : requirementRecord(metadata.brief, "客户 Brief");
+  const audience = typeof brief.audience === "string" && brief.audience.trim() ? brief.audience : null;
+  return "\n## G3 成片采用边界与本轮自检\n"
+    + "事实可核实与成片可采用分别判断。完整 G1 原件、来源限定与裁决供核对，采用范围以冻结客户原文及 Brief 为准。"
+    + "即使规格已核实，钩子、开场/主体/结尾的目的与关键元素、道具名称与可见描述、动作、机位特写、屏幕文字、对白和声音仍须各自符合本片允许的用途。\n"
+    + "当 Brief 限定为商品身份与用途、或要求无标识虚构演绎时，将未获本片采用许可的配置、部件细节、品牌外观和性能数字留在事实底账。"
+    + "仪表读数、部件尺寸、外观纹样、声音或画面的表现也可能传递商品主张。依 Brief 创作可拍的通用道具、动作和相对关系，并把后期指定文字与生成画面分开。\n"
+    + `客户 Brief 受众原文（JSON）：${JSON.stringify(audience)}。`
+    + "有原文时，以其为本片受众范围；模型细分、年龄、兴趣和情绪触发只能是范围内创作假设，不能新增投放地区、语言人群或其他传播对象。"
+    + "未指定时保留未指定；推测不能成为本片投放要求。无需扩大人群来说明画面清晰或内容易懂。\n"
+    + "在同一次响应内逐项自检上述用途、画面与受众边界，把可执行内容填入现有字段后一次提交供独立 G3 审核。"
+    + "已有明确口径时完成相应创作字段，省去占位、二选一或等待客户确认的文案。真实缺口写入相应风险字段，审核状态由实际流程记录。\n";
+}
+
 /** Only transport prompts contain this block. It must never be saved as the original story. */
 export function requirementAuthorityPrompt(authority: PrdAuthority, theme?: RequirementApprovedTheme): string {
   if (theme && (requirementHash(theme.scope) !== requirementHash(authority.marketing.scope)
@@ -148,7 +163,7 @@ export function requirementAuthorityPrompt(authority: PrdAuthority, theme?: Requ
     + `完整宿主选角与人物表达依据：\n${JSON.stringify({ selection: metadata.builtinCharacterSelection, characters: metadata.characters })}\n`
     + (wardrobeBoundary ? `${wardrobeBoundary}。\n` : "")
     + `人物档案只约束角色表达，不构成商品参数、试驾记录或真实消费者体验。客户受众原文优先；模型细分、情绪触发点和互动预期均为待审创作假设，不是已核实人群事实。\n`
-    + `二、下面本次真实非降级 G1 原件只授权已接受 claims 及其限定用途。完整遵守 restrictions，并阅读嵌套 A1/A2/A3 support review 的 issues、suggestions 和证据状态。`
+    + `二、下面本次真实非降级 G1 原件只支持已接受 claims 及其来源限定。完整遵守 restrictions，并阅读嵌套 A1/A2/A3 support review 的 issues、suggestions 和证据状态。`
     + `A1 来源主张不构成竞品证据；A2/A3 为 no_evidence 时不得补写口碑、评分、销量、共识、竞品弱点或市场领先。媒体事实保留媒体、日期和 reported 等来源限定，不升格为实测或厂家独立认证。`
     + `已核规格数字和宣传性来源用语仍保留在事实底账；本片是否可用及如何使用须服从完整客户 Brief。未知外观不因选入道具或动作就成为已核实配置。\n`
     + `G1 完整原始裁决（所有意见与建议保持原层级）：\n${JSON.stringify(authority.marketing.g1Proof)}\n`
@@ -157,7 +172,8 @@ export function requirementAuthorityPrompt(authority: PrdAuthority, theme?: Requ
     + themeSelfCheck
     + `三、${theme ? `本次已批准 G2 的完整原文与原始裁决只提供创作上下文。advisories 是非阻断建议，不新增硬性门槛、审批或强制重试；不能覆盖客户 Brief/G1 用途限制。\nG2 SHA256 ${theme.contentSha256}：\n${theme.contentMd}\nG2 原始裁决：\n${JSON.stringify(theme.verdict)}\n` : "本次尚无已批准 G2 上下文；不推定主题或新创作已经通过。\n"}`
     + `场景、道具、动作、情绪、风险和艺术参考都是待审核创作方案，不是已核实拍摄事实或产品质量证明。${MARKETING_REFERENCE_BOUNDARY}ReferenceCurator 的内部参考字段仍按其实际 schema 保留；从中归纳手法，不将名称转成正式 PRD 参考。`
-    + `保留原任务的 JSON schema、输出格式、时长与人物合同。由本次模型生成内容，不要求抄写示例或固定镜头。G1/G2 输入不批准新场景，仍须实际 G3/G4 评审。\n`;
+    + `保留原任务的 JSON schema、输出格式、时长与人物合同。由本次模型生成内容，不要求抄写示例或固定镜头。G1/G2 输入不批准新场景，仍须实际 G3/G4 评审。\n`
+    + (theme ? requirementAdoptionBoundary(metadata) : "");
 }
 
 type Protect = <T>(operation: () => T) => T;

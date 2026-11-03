@@ -56,6 +56,27 @@ export function structuredDiscoveryFeedback(error: unknown): string {
   return facts ? `\n\n## 上一次原生需求结构校验反馈\n${JSON.stringify(facts)}\n根据完整原始输入与本次实际 schema 重新生成完整 JSON 对象。保留原有字段、数组范围和枚举约束，不复用或补填上次响应。` : "";
 }
 
+export function techniqueReferenceSchema(value: unknown): RequirementRecord {
+  const schema = structuredClone(requirementRecord(value, "ReferenceCurator schema"));
+  const fields = requirementRecord(schema.properties, "ReferenceCurator properties");
+  for (const key of ["filmReferences", "adReferences"]) {
+    Object.assign(requirementRecord(fields[key], `ReferenceCurator ${key}`), { minItems: 0, maxItems: 0 });
+  }
+  return schema;
+}
+
+export function validateTechniqueReferences(value: unknown): void {
+  const methods = array(requirementRecord(value, "ReferenceCurator response").styleReferences, "styleReferences");
+  methods.forEach((method, index) => {
+    // Named cases in a free-form sentence remain subject to the independent
+    // reviewer. Reject obvious placeholders and explicit work title markers.
+    if (typeof method === "string" && method.trim().length >= 2
+      && !/^[\s—\-无空]+$|^(?:N\/?A|待补充|待定|无参考)$|[《》〈〉]/iu.test(method.trim())) return;
+    throw withValidationFacts(new RequirementContractError("REQUIREMENT_DISCOVERY_UNVERIFIED", "ReferenceCurator 缺少无名称的可执行参考手法"),
+      { kind: "schema", path: `ReferenceCurator response/styleReferences/${index}`, keyword: "techniqueOnly" }, discoveryValidationFacts);
+  });
+}
+
 export function requirementRecord(value: unknown, label: string): RequirementRecord {
   if (!value || typeof value !== "object" || Array.isArray(value)
     || typeof (value as RequirementRecord).then === "function") {
@@ -317,6 +338,56 @@ export interface DiscoveryTimingNormalization {
   normalizedDuration: number | null;
 }
 
+export interface FrozenSegmentContract {
+  count: number;
+  totalSeconds: number;
+  secondsPerSegment: number;
+  hardCuts: true;
+  intervals: Array<{ startSec: number; endSec: number; brief: string }>;
+}
+
+export function frozenSegmentContract(brief: RequirementRecord, targetValue: unknown): FrozenSegmentContract | undefined {
+  if (brief.segmentContract === undefined) return undefined;
+  const invalid = (): never => { throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "冻结分段合同的段数、时长、连续区间或硬切要求不一致"); };
+  const raw = requirementRecord(brief.segmentContract, "冻结分段合同");
+  const { count, totalSeconds, secondsPerSegment, hardCuts } = raw;
+  const target = Number(targetValue);
+  // Accommodate only floating-point arithmetic, never an editorial gap.
+  const sameBoundary = (actual: number, expected: number) =>
+    Math.abs(actual - expected) <= Number.EPSILON * Math.max(1, Math.abs(expected));
+  if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 2
+    || typeof totalSeconds !== "number" || !Number.isFinite(totalSeconds) || totalSeconds <= 0
+    || typeof secondsPerSegment !== "number" || !Number.isFinite(secondsPerSegment) || secondsPerSegment <= 0
+    || !sameBoundary(count * secondsPerSegment, totalSeconds)
+    || hardCuts !== true || totalSeconds !== target || totalSeconds !== Number(brief.duration)
+    || !Array.isArray(raw.intervals) || raw.intervals.length !== count) return invalid();
+  const intervals = raw.intervals.map((value, index) => {
+    const interval = requirementRecord(value, "冻结分段区间");
+    const { startSec, endSec, brief } = interval;
+    if (typeof startSec !== "number" || !Number.isFinite(startSec)
+      || typeof endSec !== "number" || !Number.isFinite(endSec)
+      || !sameBoundary(startSec, index * secondsPerSegment)
+      || !sameBoundary(endSec, (index + 1) * secondsPerSegment)
+      || typeof brief !== "string" || !brief.trim()) return invalid();
+    return { startSec, endSec, brief };
+  });
+  return { count, totalSeconds, secondsPerSegment, hardCuts, intervals };
+}
+
+export function validateFrozenSceneTiming(value: unknown, contract: FrozenSegmentContract): void {
+  const structure = requirementRecord(value, "冻结场景结构");
+  const nodes = sceneNodes(structure);
+  if (nodes.length !== contract.count || structure.sceneCount !== contract.count || structure.totalDuration !== contract.totalSeconds
+    || nodes.some(node => node.duration !== contract.secondsPerSegment)) {
+    throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "场景未满足冻结分段合同的精确时长和段数");
+  }
+  nodes.slice(1, -1).forEach((node, index) => {
+    if (node.index === index + 1) return;
+    throw withValidationFacts(new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "主体场景没有按冻结区间顺序编号"),
+      { kind: "schema", path: `SceneArchitect response/scenes/${index}/index`, keyword: "index", observed: finiteNumber(node.index), limit: index + 1 });
+  });
+}
+
 function sceneNodes(structure: RequirementRecord): RequirementRecord[] {
   return [
     requirementRecord(structure.opening, "SceneArchitect opening"),
@@ -337,6 +408,7 @@ export function normalizeDiscoveryTiming(
   structureValue: unknown,
   audienceValue: unknown,
   restrictions: string[] = [],
+  exactTiming = false,
 ): DiscoveryTimingNormalization {
   const target = Number(targetValue);
   if (!Number.isFinite(target) || target <= 0 || !structureValue || typeof structureValue !== "object" || Array.isArray(structureValue)) {
@@ -348,7 +420,7 @@ export function normalizeDiscoveryTiming(
   if (durations.some((value) => !Number.isFinite(value) || value <= 0)) {
     return { changes: [], previousDuration: null, normalizedDuration: null };
   }
-  const previousDuration = Math.round(durations.reduce((sum, value) => sum + value, 0) * 10) / 10;
+  const previousDuration = exactTiming ? target : Math.round(durations.reduce((sum, value) => sum + value, 0) * 10) / 10;
   const changes: string[] = [];
   let residual = Math.round((previousDuration - target) * 10) / 10;
   if (Math.abs(residual) > TARGET_DURATION_TOLERANCE_SECONDS) {
@@ -468,7 +540,7 @@ export function requirementScenes(structureValue: unknown, cast: RequirementCast
 
 export function bindRequirementContract(
   originalValue: unknown, discoveryValue: unknown, upstreamValue: unknown, metadataValue: unknown, expectedCastHash: string,
-  expectedOwnerAudience: string | null
+  expectedOwnerAudience: string | null, segments?: FrozenSegmentContract
 ): RequirementRecord {
   const original = requirementRecord(originalValue, "ProfileResolver 完成后的需求清单");
   const originalDiscovery = requirementRecord(discoveryValue, "需求洞察结果");
@@ -477,6 +549,7 @@ export function bindRequirementContract(
   const metadata = requirementRecord(metadataValue, "当前运行 metadata");
   const cast = requirementCast(metadata);
   if (cast.hash !== expectedCastHash) throw new RequirementContractError("REQUIREMENT_CAST_CHANGED", "洞察前后权威人物合同发生变化");
+  if (segments) validateFrozenSceneTiming(discovery.sceneStructure, segments);
   const timing = normalizeDiscoveryTiming(
     upstream.duration_sec,
     discovery.sceneStructure,
@@ -484,6 +557,7 @@ export function bindRequirementContract(
     Array.isArray(metadata.marketingRestrictions)
       ? metadata.marketingRestrictions.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
       : [],
+    segments !== undefined,
   );
   if (timing.changes.length > 0) {
     metadata._workloomDiscoveryTimingNormalization = {
@@ -575,12 +649,14 @@ export function renderRequirementContract(contract: RequirementContract, metadat
     + `- 商品事实是否已被本次审核覆盖，仍由真实 G3 结合宿主提供的本次 G1 证据判断；本合同不产生事实通过凭据。\n`;
 }
 
-export function structuredSceneInstructions(cast: RequirementCast, audience: unknown): string {
+export function structuredSceneInstructions(cast: RequirementCast, audience: unknown, segments?: FrozenSegmentContract): string {
   return `\n\n## 宿主结构化需求合同（本次 SceneArchitect 同一响应，不新增提取调用）\n`
     + `唯一出镜人物：${JSON.stringify(cast.characters.map(character => ({ id: character.id, name: character.name, role: character.role })))}。`
     + `动作 actorId 只能是这些 ID；非人物动作可用 "$product"（商品）或 "$scene"（环境）。\n`
     + `客户受众原文：${typeof audience === "string" ? audience : "未显式指定"}。不得把模型年龄/性别推测当作客户要求。\n`
-    + `自行决定开场、零个或多个主体节点和结尾；sceneCount 必须等于 opening + scenes.length + ending 的真实节点总数；节点时长之和必须等于 totalDuration，并位于目标时长 ±${TARGET_DURATION_TOLERANCE_SECONDS} 秒内。\n`
+    + (segments
+      ? "按冻结分段合同的区间顺序映射 opening、scenes、ending，分段和时长必须精确；段内画面和动作由本次模型完整创作。\n"
+      : `自行决定开场、零个或多个主体节点和结尾；sceneCount 必须等于 opening + scenes.length + ending 的真实节点总数；节点时长之和必须等于 totalDuration，并位于目标时长 ±${TARGET_DURATION_TOLERANCE_SECONDS} 秒内。\n`)
     + `每个 opening、scenes[i]、ending 必须在原有 duration/purpose/keyElements 字段之外，直接输出 productionContract：\n`
     + `有可见道具时：{"props":[{"name":"镜头中实际可见的物体","description":"这个物体的可见形态或本场用途"}],"actions":[{"actorId":"所选人物ID或$product/$scene","description":"完整可拍的动作过程、对象和结果，至少6字"}]}\n`
     + `确实无可见道具时：{"props":[],"actions":[{"actorId":"$scene","description":"云影缓慢移过封闭场地的地面"}],"noPropsReason":"本场只展示环境光影变化，没有独立可见道具"}。有 props 时必须完全省略 noPropsReason，不能填空串或 null；两个示例互斥。\n`
@@ -632,7 +708,7 @@ export function structuredSceneTiming(schemaValue: unknown, targetDuration: numb
 }
 
 /** Correct only the pinned vendor-generated suffix, never matching customer text. */
-export function structuredScenePrompt(value: unknown, inputValue: unknown, schemaValue: unknown): string {
+export function structuredScenePrompt(value: unknown, inputValue: unknown, schemaValue: unknown, segments?: FrozenSegmentContract): string {
   if (typeof value !== "string") throw new RequirementContractError("REQUIREMENT_VENDOR_UNAVAILABLE", "原始场景 prompt 不是文本");
   const input = requirementRecord(inputValue, "SceneArchitect 输入");
   const duration = input.duration_sec || 45, target = Number(duration);
@@ -671,6 +747,17 @@ ${example}
   let schema: string;
   try { schema = JSON.stringify(requirementRecord(schemaValue, "本次实际 SceneArchitect schema")); }
   catch { throw new RequirementContractError("REQUIREMENT_SCHEMA_UNSUPPORTED", "本次实际场景 schema 无法完整序列化"); }
+  if (segments) {
+    // Keep the actual model's input and the frozen customer's interval prose.
+    // Genre grammar and the generic suffix can both contradict explicit cuts.
+    const header = `你是一位电影导演，正在为AI视频生成系统设计场景结构。每个场景的设计要回答三个问题：观众看到了什么？观众感受到了什么？观众为什么继续看下去？\n\n视频类型: ${input.type}\n核心主题: ${input.theme}\n目标时长: ${duration}秒\n情绪基调: ${input.tone || "未指定"}\n主题描述: ${input.description || "未提供"}\n\n`;
+    if (!value.startsWith(header)) throw new RequirementContractError("REQUIREMENT_VENDOR_UNAVAILABLE", "原始场景输入字段边界发生变化");
+    return header + `## 本次冻结分段合同（精确硬切）\n${JSON.stringify(segments)}\n`
+      + "按区间顺序把首段写入 opening，中间段按时间顺序写入 scenes（index 从 1 连续编号），末段写入 ending。"
+      + "高潮、节奏变化、机位变化、留白和收束全部放在现有分段内部，严禁另加节点、重叠或改变时长。逐段写出完整、可拍的画面与动作，不强制台词。"
+      + "按实际 schema 输出一个完整 JSON 对象，禁止代码围栏和解释。\n"
+      + `本次实际 SceneArchitect 响应 JSON Schema（完整适用，不是示例成品）：\n${schema}\n`;
+  }
   const timing = structuredSceneTiming(schemaValue, target);
   const fallingMinimum = Math.max(3, timing.middle.minimum), fallingMaximum = Math.min(6, timing.middle.maximum);
   const fallingRange = fallingMinimum <= fallingMaximum
@@ -689,7 +776,7 @@ ${example}
 }
 
 /** Extend the schema supplied to the existing SceneArchitect run, preserving its other fields. */
-export function structuredSceneSchema(value: unknown): RequirementRecord {
+export function structuredSceneSchema(value: unknown, segments?: FrozenSegmentContract): RequirementRecord {
   const schema = structuredClone(requirementRecord(value, "SceneArchitect schema"));
   const properties = requirementRecord(schema.properties, "场景 schema.properties");
   const physical = {
@@ -715,5 +802,23 @@ export function structuredSceneSchema(value: unknown): RequirementRecord {
   const middle = requirementRecord(properties.scenes, "主体场景 schema");
   extend(middle.items);
   middle.minItems = 0;
+  if (segments) {
+    const bounds = structuredSceneTiming(schema, segments.totalSeconds);
+    const middleCount = segments.count - 2, duration = segments.secondsPerSegment;
+    if (middleCount > bounds.middleCount.maximum
+      || [bounds.opening, bounds.ending, ...(middleCount ? [bounds.middle] : [])]
+        .some(range => duration < range.minimum || duration > range.maximum)) {
+      throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "冻结分段合同超出当前 SceneArchitect schema 支持边界");
+    }
+    middle.minItems = middleCount;
+    middle.maxItems = middleCount;
+    const fixNumber = (field: unknown, number: number) => Object.assign(requirementRecord(field, "冻结数值 schema"), { minimum: number, maximum: number });
+    for (const node of [properties.opening, middle.items, properties.ending]) {
+      const nodeProperties = requirementRecord(requirementRecord(node, "冻结场景节点 schema").properties, "冻结场景节点 properties");
+      fixNumber(nodeProperties.duration, duration);
+    }
+    fixNumber(properties.totalDuration, segments.totalSeconds);
+    fixNumber(properties.sceneCount, segments.count);
+  }
   return schema;
 }
