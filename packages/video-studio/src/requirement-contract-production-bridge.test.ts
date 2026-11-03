@@ -327,6 +327,56 @@ describe("actual native scene prompt and strict production response", () => {
     expect(refs[1]!.prompt).not.toContain("内部示例作品");
   });
 
+  it("binds only the current accepted complete SceneArchitect draft to later agents and preserves their G3-visible conflicts", async () => {
+    installNativeDiscovery();
+    const valid = physicalScene([10, 10, 10]), wrong = physicalScene([4, 6, 9, 5, 6]);
+    const acceptedTail = "完整结尾草案：" + "持续保存源文本至末尾。".repeat(220) + "ACCEPTED-SCENE-EXACT-TAIL";
+    requirementRecord(valid.ending, "accepted ending").purpose = acceptedTail;
+    requirementRecord(wrong.ending, "rejected ending").purpose = "REJECTED-SCENE-MUST-STAY-PRIVATE";
+    const raw = JSON.stringify(valid, null, 2);
+    const run = withFrozenSegmentBrief(privateRun("current-scene-annex", 30, valid));
+    run.modules.risk.mitigationSuggestions = ["刻意保留的冲突：增加一个独立的第四生成片段"];
+    run.modules.reference.styleReferences = ["刻意保留的冲突：改用额外补拍插入成片", "保留环境原生声音"];
+    const model = modelFor(run, [wrong, raw]), discovery = nativeDiscovery(model.engine);
+    const actual = await withRequirementContractScope(run.metadata, async () => {
+      const record = await Reflect.apply(discovery.discover as NativeMethod, discovery, [run.input]) as RequirementRecord;
+      const g3Markdown = Reflect.apply(discovery.generateMarkdown as NativeMethod, discovery, [record]);
+      return { record, g3Markdown };
+    }, run.options);
+    expect(actual.record.sceneStructure).toEqual(valid);
+    expect(actual.record.riskAssessment).toEqual(run.modules.risk);
+    expect(actual.record.referenceCases).toEqual(run.modules.reference);
+    expect(actual.g3Markdown).toContain(run.modules.risk.mitigationSuggestions[0]);
+    expect(actual.g3Markdown).toContain(run.modules.reference.styleReferences[0]);
+    expect(model.calls).toHaveLength(5);
+    const [audience, initialScene, repairedScene, risk, reference] = model.calls;
+    for (const call of [audience!, initialScene!, repairedScene!]) expect(call.prompt).not.toContain(raw);
+    expect(risk!.prompt).not.toContain("拆分为2-3个连续特写");
+    for (const call of [risk!, reference!]) {
+      expect(call.prompt.split(raw)).toHaveLength(2);
+      expect(call.prompt).toContain("ACCEPTED-SCENE-EXACT-TAIL");
+      expect(call.prompt).not.toContain("REJECTED-SCENE-MUST-STAY-PRIVATE");
+      expect(call.prompt).toContain("从高速追击直接开始");
+      expect(call.prompt).toContain("不得新增生成段");
+      expect(call.prompt).toContain("发型");
+      expect(call.prompt).toContain("姿态");
+      expect(call.prompt).toContain("按真实风险报告");
+      expectCompleteSources(call.prompt, run);
+    }
+  });
+
+  it("keeps ordinary private discovery on the native prompt without a frozen cross-agent scene annex", async () => {
+    installNativeDiscovery();
+    const scene = physicalScene([10, 10, 10]), run = privateRun("legacy-no-annex", 30, scene);
+    const model = modelFor(run, [scene]);
+    await expect(runDiscovery(run, model.engine)).resolves.toMatchObject({ sceneStructure: scene });
+    expect(model.calls).toHaveLength(4);
+    const risk = model.calls[2]!, reference = model.calls[3]!;
+    expect(risk.prompt).toContain("拆分为2-3个连续特写");
+    expect(reference.prompt).toContain("Apple新春短片");
+    for (const call of [risk, reference]) expect(call.prompt).not.toContain(JSON.stringify(scene));
+  });
+
   it.each([
     { duration: 30, feasibleMiddleCounts: [0, 1, 2, 3, 4, 5] },
     { duration: 30.96, feasibleMiddleCounts: [0, 1, 2, 3, 4, 5] },
