@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import {
-  requirementHash, requirementRecord, validateRequirementSchema,
+  frozenSegmentContract, requirementHash, requirementRecord, validateRequirementSchema,
   type RequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import { TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
@@ -221,8 +221,22 @@ export function preparePrdAuthority(input: {
   return { metadata, marketing: authority, profile: normalizePrdProductionProfile(metadata) };
 }
 
-/** Both existing real LLM agents receive the same complete authority; this grants no new approval. */
+export function frozenVisualPrdSegments(authority: PrdAuthority) {
+  return authority.profile.speechPolicy === "none"
+    ? frozenSegmentContract(requirementRecord(authority.metadata.brief, "本次无对白 Brief"), authority.profile.targetDuration)
+    : undefined;
+}
+
+/** Original G3 contracts stay intact. Unapproved audience copy is not execution input. */
+export function prdContractExecutionView(authority: PrdAuthority, contract: RequirementContract): RequirementContract | RequirementRecord {
+  if (!frozenVisualPrdSegments(authority)) return contract;
+  const { modelAudienceHypothesis, ...execution } = contract;
+  return { ...execution, originalModelAudienceHypothesisSha256: requirementHash(modelAudienceHypothesis ?? null) };
+}
+
+/** Both existing real LLM agents receive the same execution authority; this grants no new approval. */
 export function prdAuthorityPrompt(authority: PrdAuthority, contract: RequirementContract): string {
+  const execution = prdContractExecutionView(authority, contract);
   return `\n\n## 本次宿主 PRD 权威输入（补充前述通用模板，冲突时以本节为准）\n`
     + `完整客户 Brief：\n${JSON.stringify(authority.metadata.brief)}\n`
     + `当前已核验商品营销路线的交付类型是商业广告；本次获批类型细分可继续描述创作风格。${MARKETING_REFERENCE_BOUNDARY}\n`
@@ -231,7 +245,7 @@ export function prdAuthorityPrompt(authority: PrdAuthority, contract: Requiremen
     + (authority.profile.speechPolicy === "none"
       ? "本次明确禁止创作或生成台词、旁白、口播、独白及可辨词句；保留已要求的原生环境和动作声。无对白不表示静音，后期文字仍按本次交付合同执行。\n"
       : "")
-    + `本次 G3 已审的完整场景、道具、动作和宿主选角合同：\n${JSON.stringify(contract)}\n`
+    + `本次 G3 已审的完整场景、道具、动作和宿主选角合同${execution === contract ? "" : "（受众推测仍在原始审核材料，不是制作指令）"}：\n${JSON.stringify(execution)}\n`
     + `客户受众原文是权威口径；模型年龄/性别细分仅为推测。只使用合同内人物，characterId 必须等于所选 id，姓名一致。`
     + `人物档案是人物表达依据，不能当成商品事实；保留其人物档案/版本来源锚点。portraitPath 可以留空，G5 后续独立核验，不能提前声称出图或一致性已通过。\n`
     + (authority.portraitSources?.length ? `以下是已按本次原文、人物和既有所有者用途证据核对的源图；它们仍待本次 G5 执行复制与审核，不能填入项目 portraitPath：\n${JSON.stringify(authority.portraitSources)}\n` : "")
@@ -284,12 +298,15 @@ function declaredDeliveryItems(profile: PrdProductionProfile): RequirementRecord
   const items: RequirementRecord[] = [];
   const persistent = profile.persistentSubtitleText === undefined ? ""
     : `全片持续文字${JSON.stringify(profile.persistentSubtitleText)}（实际视频流0秒至末帧，ASS百分秒终点向上取整且最多超出0.01秒）`;
+  const persistentOnly = profile.speechPolicy === "none" && persistent !== "" && profile.sidecarPolicy === "dialogue-and-composite-ass";
   if (profile.subtitleMode && ["both", "burned"].includes(profile.subtitleMode)) items.push({ item: "subtitle_burned",
-    spec: !declared ? "字幕烧录进本次视频母版"
+    spec: persistentOnly ? `将${persistent}烧录进本次视频母版；不新增台词字幕。按完整组合ASS同一文字、区间、样式与compositionSha256核验；此为待执行交付要求`
+      : !declared ? "字幕烧录进本次视频母版"
       : `将本次台词字幕${persistent ? `及${persistent}` : ""}烧录进本次视频母版；按当前台词、实际总时长、时间线与字体样式核验${profile.sidecarPolicy === "dialogue-and-composite-ass" ? "，并与完整组合ASS使用同一文字、区间、样式与compositionSha256" : ""}；此为待执行交付要求`,
     priority: "required" });
   if (profile.subtitleMode && ["both", "sidecar"].includes(profile.subtitleMode)) items.push({ item: "subtitle_sidecar",
-    spec: !declared ? "交付与视频时间线一致的独立字幕文件"
+    spec: persistentOnly ? `交付含${persistent}的完整组合ASS（complete-composition）；零台词时对白SRT/VTT（dialogue-only）不适用，不创建空台词文件。按实际视频、区间与字体样式核验${profile.subtitleMode === "both" ? "，并核对烧录版与ASS的compositionSha256" : ""}；此为待执行交付要求`
+      : !declared ? "交付与视频时间线一致的独立字幕文件"
       : profile.sidecarPolicy === "dialogue-and-composite-ass"
         ? `交付仅含台词的SRT/VTT（dialogue-only）与完整组合ASS（complete-composition）；ASS包含本次台词${persistent ? `及${persistent}` : "及本次明确请求的文字层"}，按当前视频、台词、时间线与字体样式核验${profile.subtitleMode === "both" ? "并核对烧录版同一文字、区间、样式与compositionSha256" : ""}；SRT/VTT不能单独证明持续文字交付；此为待执行交付要求`
         : "交付与本次视频台词和时间线一致的SRT/VTT独立字幕文件（dialogue-only）；不将台词侧车当成完整文字组合ASS或持续文字完成凭据；此为待执行交付要求",

@@ -1137,8 +1137,8 @@ describe("G4 executable plans and one native quality policy", () => {
   });
 });
 
-function truthFixture(name: string) {
-  const value = fixture(name), original = JSON.parse(value.content) as RequirementRecord, facts = requirementRecord(original.facts, "facts");
+function truthFixture(name: string, durations?: number[]) {
+  const value = fixture(name, durations), original = JSON.parse(value.content) as RequirementRecord, facts = requirementRecord(original.facts, "facts");
   const sourceHash = "c".repeat(64), fact = "仅限封闭场地";
   facts.sources = [{ sourceId: "source-media", textSha256: sourceHash, finalUrl: "https://media.example.test/report" }];
   facts.restrictions = ["不得虚构用户口碑或竞品主张"];
@@ -1152,6 +1152,62 @@ function truthFixture(name: string) {
 }
 
 describe("native truth-check preserves verdicts and scopes internal fact use to accepted G1 sources", () => {
+  it.each([true, false])("uses only execution sources for a frozen no-speech PRD (%s) and preserves original G3", async frozen => {
+    const { value, raw } = truthFixture(`VISUAL-EXECUTION-${frozen}`, [10, 10, 10]), h = harness();
+    const audienceCopy = "UNAPPROVED-AUDIENCE-0.5S：一条另加的台词或字幕";
+    const riskCopy = "UNBOUND-320RR：未核验型号不能作为执行限制";
+    const authoredSegments = ["第一段原始动作与声音", "第二段原始动作与声音", "第三段原始动作与声音"];
+    Object.assign(requirementRecord(value.discovery.audienceProfile, "audience"), {
+      emotionTriggers: [audienceCopy, "另一项模型推测"], contentExpectations: [audienceCopy],
+    });
+    value.discovery.riskAssessment = { technicalRisks: [], businessConstraints: [riskCopy] };
+    value.discovery._originalStoryText = "用户原创动作：主角在封闭场地观察商品。";
+    if (frozen) requirementRecord(value.metadata.brief, "brief").segmentContract = {
+      count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+      intervals: authoredSegments.map((brief, index) => ({ startSec: index * 10, endSec: (index + 1) * 10, brief })),
+    };
+    declareDelivery(value, { speechPolicy: "none", sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: "仅限封闭场地" });
+    const nativeBefore = structuredClone(value.discovery), contractBefore = structuredClone(value.contract), run = h.make(value);
+    run.system.truthStage = { pass: true, blocking: false, degraded: false, conflicts: [], issues: [], factRedLines: raw };
+    await withPrdAuthorityScope(value.authority, async () => {
+      invoke(run.system, "_runProductTruthCheckGate", structuredClone(value.metadata), {});
+      const prd = await h.generate(run), markdown = await h.review(run, prd);
+      const constraints = requirementRecord(prd.productionConstraints, "constraints");
+      const audience = requirementRecord(prd.audienceProfile, "audience");
+      const execution = productionModelInput("独立模型工位的真实输入");
+      const creativePrompt = run.calls[0]!.prompt;
+      const items = requirementRecord(prd.deliveryStandard, "delivery").deliverables as RequirementRecord[];
+      expect(items.find(item => item.item === "subtitle_sidecar")?.spec).toMatch(/完整组合ASS.+SRT\/VTT.+不适用/);
+      expect(items.find(item => item.item === "subtitle_burned")?.spec).toContain("不新增台词字幕");
+      expect(creativePrompt).toContain(String(value.discovery._originalStoryText));
+      expect(prd._workloomRequirementContract).toEqual(contractBefore);
+      expect(value.discovery).toEqual(nativeBefore);
+      expect(value.contract).toEqual(contractBefore);
+      if (frozen) {
+        expect(audience.contentExpectations).toEqual(authoredSegments);
+        expect(audience.emotionTriggers).toEqual(value.contract.scenes.map(scene => scene.purpose));
+        expect(constraints.businessConstraints).toEqual(expect.arrayContaining([expect.stringContaining("claim-prerequisite")]));
+        expect(constraints.businessConstraints).not.toContain(riskCopy);
+        expect(creativePrompt).toContain("与本次 3 个已审节点对应");
+        expect(creativePrompt).not.toContain("P0 必须能用一句钉子台词");
+        for (const prompt of [...run.calls.map(call => call.prompt), execution.prompt, markdown]) {
+          expect(prompt).not.toContain(audienceCopy);
+          expect(prompt).not.toContain(riskCopy);
+        }
+        for (const prompt of [...run.calls.map(call => call.prompt), execution.prompt]) expect(prompt).toContain(value.content);
+        const display = requirementRecord(authorityFromMarkdown(markdown).approvedRequirementContract, "display");
+        expect(display).not.toHaveProperty("modelAudienceHypothesis");
+        expect(display.originalModelAudienceHypothesisSha256).toBe(requirementHash(contractBefore.modelAudienceHypothesis));
+      } else {
+        expect(creativePrompt).toContain("P0 必须能用一句钉子台词");
+        expect(creativePrompt).toContain(audienceCopy);
+        expect(markdown).toContain(riskCopy);
+      }
+      return h.success(prd);
+    });
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+  });
+
   it("changes the actual inherited constraints before generation while retaining complete original G1 and diagnostic redlines", async () => {
     const input = truthFixture("TRUTH-REAL-PAYLOAD"), { value, raw } = input, h = harness(), run = h.make(value);
     const metadata = structuredClone(value.metadata), result: RequirementRecord = {}, stage = { pass: false, blocking: false, degraded: false,
