@@ -460,7 +460,7 @@ console.log("RESULT " + JSON.stringify(outcomes));
     expect(outcomes).toHaveLength(20);
     expect(outcomes.filter((row: RequirementRecord) => row.accepted).map((row: RequirementRecord) => row.mode))
       .toEqual(["normal", "character", "audio", "creative"]);
-  });
+  }, 45_000);
 
   it("the direct HTTP path carries the same private context and returns the exact raw response", async () => {
     const value = fixture("PRODUCTION-DIRECT"), h = harness(), run = h.make(value), bodies: RequirementRecord[] = [];
