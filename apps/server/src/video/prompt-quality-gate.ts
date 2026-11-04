@@ -499,6 +499,7 @@ function approvedExecutionChecks(
     || interval.endSec - interval.startSec !== Number(contract.request.parameters.duration_sec)) return findings;
   findings.push(...approvedMotionObligations({ frozenBrief: interval.brief, approvedActions: scene.approvedScene.actions.filter(action => action !== null),
     action: fieldValueFromSource(source, "action"), timeline: fieldValueFromSource(source, "timeline"),
+    cameraMovement: shotId === "ending" ? fieldValueFromSource(source, "camera_movement") : undefined,
     duration: interval.endSec - interval.startSec, nativeChecks }));
 
   const overtaking = [scene.approvedScene.purpose, interval.brief].filter((value): value is string => typeof value === "string")
@@ -1353,7 +1354,8 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           const motionFindings = executionFindings.filter(isApprovedMotionFinding);
           if (motionFindings.length) {
             const drift = approvedMotionRepairDrift({ findings: motionFindings, action: fieldValueFromSource(patched, "action"),
-              timeline: fieldValueFromSource(patched, "timeline"), duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
+              timeline: fieldValueFromSource(patched, "timeline"), cameraMovement: fieldValueFromSource(patched, "camera_movement"),
+              duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
               revisedTimeline: allowReviewedTimeline, revisedAction: shotChanges.some(change => change.field === "action") });
             if (drift) throw new Error(drift);
           }

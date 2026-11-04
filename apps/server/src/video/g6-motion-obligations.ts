@@ -22,6 +22,8 @@ const MISSING_ACTION_HANDOFF = "ACTION_PROP_HANDOFF_MISSING";
 const MISSING_TIMELINE_HANDOFF = "TIMELINE_PROP_HANDOFF_MISSING";
 const UNUSABLE_TIMELINE_CLOCK = "APPROVED_MOTION_TIMELINE_CLOCK_UNUSABLE";
 const HELMET_FINDINGS = new Set([HELMET_HANDOFF, MISSING_ACTION_HANDOFF, MISSING_TIMELINE_HANDOFF]);
+const ENDING_CAMERA_CHEST = "APPROVED_ENDING_CAMERA_CHEST_BEFORE_ACTION";
+const ENDING_CAMERA_HELMET = "APPROVED_ENDING_CAMERA_HELMET_WINDOW_SPILLS";
 
 function affirmativeMotion(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -48,6 +50,58 @@ function localWindows(value: string) {
 function completeLocalClock(ranges: ReturnType<typeof localWindows>, duration: number): boolean {
   return ranges.length > 0 && ranges[0]!.from === 0 && ranges.at(-1)!.to === duration
     && ranges.every(({ from, to }, index) => to > from && (index === 0 || from === ranges[index - 1]!.to));
+}
+
+type LocalWindow = ReturnType<typeof localWindows>[number];
+const ARRIVE_CHEST_FRAME = /(?:推(?:近|进)?|移|切)(?:至|到)[^；。]{0,6}胸(?:线|部)中景/u;
+const ARRIVE_FEET_FRAME = /(?:推(?:近|进)?|移|切)(?:至|到)[^；。]{0,6}(?:腿脚|双脚|脚部)/u;
+const FOLLOW_HELMET_AND_HAIR = /(?:跟住|跟随|随(?:着)?|配合)[^；。]{0,12}抬(?:起)?(?:全|头)?盔[^；。]{0,10}甩(?:头|发)/u;
+const FOLLOW_HELMET = /(?:跟住|跟随|随(?:着)?|配合)[^；。]{0,12}(?:抬(?:起)?|摘(?:下)?)(?:全|头)?盔/u;
+const FOLLOW_HAIR = /(?:跟住|跟随|随(?:着)?|配合)[^；。]{0,12}(?:甩(?:头|发)|长发落肩)/u;
+const REMOVE_HELMET_IN_FRAME = /(?:全盔|头盔)[^；。]{0,12}(?:摘下|抬离)/u;
+const HAIR_TOSS = /甩(?:头|发)/u;
+
+function uniqueWindow(ranges: readonly LocalWindow[], matches: (text: string) => boolean): LocalWindow | undefined {
+  const hits = ranges.filter(range => matches(affirmativeMotion(range.text)));
+  return hits.length === 1 ? hits[0] : undefined;
+}
+
+function endingCameraEvents(cameraMovement: unknown, timeline: unknown, duration: number) {
+  if (typeof cameraMovement !== "string" || typeof timeline !== "string") return undefined;
+  const camera = localWindows(cameraMovement), action = localWindows(timeline);
+  if (!completeLocalClock(camera, duration) || !completeLocalClock(action, duration)) return undefined;
+  return {
+    cameraChest: uniqueWindow(camera, text => ARRIVE_CHEST_FRAME.test(text)),
+    timelineChest: uniqueWindow(action, text => ARRIVE_CHEST_FRAME.test(text)),
+    parkedFeet: uniqueWindow(action, text => /停稳/u.test(text) && /双脚落地/u.test(text) && ARRIVE_FEET_FRAME.test(text)),
+    cameraHelmet: uniqueWindow(camera, text => FOLLOW_HELMET_AND_HAIR.test(text)),
+    cameraHelmetOnly: uniqueWindow(camera, text => FOLLOW_HELMET.test(text)),
+    cameraHairOnly: uniqueWindow(camera, text => FOLLOW_HAIR.test(text)),
+    timelineHelmet: uniqueWindow(action, text => HAIR_TOSS.test(text)
+      && (REMOVE_HELMET.test(text) || REMOVE_HELMET_IN_FRAME.test(text))),
+    dismount: uniqueWindow(action, text => DISMOUNT.test(text) && TURN.test(text)),
+  };
+}
+
+function endingCameraFindings(cameraMovement: unknown, timeline: unknown, duration: number): SemanticQualityCheck[] {
+  const events = endingCameraEvents(cameraMovement, timeline, duration);
+  if (!events) return [];
+  const { cameraChest, timelineChest, parkedFeet, cameraHelmet, timelineHelmet, dismount } = events;
+  const clock = (window: LocalWindow) => `${window.from}–${window.to} 秒`;
+  const findings: SemanticQualityCheck[] = [];
+  if (cameraChest && timelineChest && parkedFeet && cameraChest.from >= parkedFeet.from
+    && cameraChest.to === parkedFeet.to && cameraChest.to <= timelineChest.from) {
+    findings.push({ id: "SQ3_CAMERA_FEASIBLE", pass: false, field: "camera_movement", failureCode: ENDING_CAMERA_CHEST,
+      evidence: `运镜在 ${clock(cameraChest)} 已推至胸线中景；同一时段时间轴落点仍在停车后的腿脚，${clock(timelineChest)} 才明确推至胸线中景。`,
+      repair: "保留停车和落脚的起幅，把推至胸线中景放入当前时间轴已写明的同一动作窗口，不改时长或其他动作。" });
+  }
+  if (cameraHelmet && timelineHelmet && dismount && cameraHelmet.from >= timelineHelmet.from
+    && cameraHelmet.from < timelineHelmet.to && timelineHelmet.to === dismount.from && cameraHelmet.to > dismount.from) {
+    findings.push({ id: "SQ3_CAMERA_FEASIBLE", pass: false, field: "camera_movement", failureCode: ENDING_CAMERA_HELMET,
+      evidence: `运镜在 ${clock(cameraHelmet)} 跟随同一次抬盔甩发；时间轴该动作是 ${clock(timelineHelmet)}，之后的 ${clock(dismount)} 已在下车转身。`,
+      repair: "把跟随抬盔与甩发的运镜限制在同一事件实际窗口，随后才跟随完整下车和转身，保留已审切点与末段微动。" });
+  }
+  return findings;
 }
 
 const RIVAL_ORDINAL = /第([一二])辆(?:(?:对手|对方)车?|(?=后方))/gu;
@@ -113,6 +167,7 @@ function trophyHandWithHelmetSupport(value: unknown): "左" | "右" | undefined 
 
 export function isApprovedMotionFinding(check: SemanticQualityCheck): boolean {
   return check.failureCode === TIMELINE_DENSITY || check.failureCode === UNUSABLE_TIMELINE_CLOCK
+    || check.failureCode === ENDING_CAMERA_CHEST || check.failureCode === ENDING_CAMERA_HELMET
     || (check.failureCode !== undefined && HELMET_FINDINGS.has(check.failureCode));
 }
 
@@ -126,14 +181,14 @@ function nativeHelmetCustodyFinding(check: SemanticQualityCheck): boolean {
 /** Only the same actor's already approved helmet-to-podium action chain authorizes these diagnoses. */
 export function approvedMotionObligations(input: {
   frozenBrief: unknown; approvedActions: readonly { actorId?: unknown; description?: unknown }[];
-  action: unknown; timeline: unknown; duration: number; nativeChecks?: readonly SemanticQualityCheck[];
+  action: unknown; timeline: unknown; cameraMovement?: unknown; duration: number; nativeChecks?: readonly SemanticQualityCheck[];
 }): SemanticQualityCheck[] {
   const people = input.approvedActions.filter(row => typeof row?.actorId === "string" && row.actorId && !row.actorId.startsWith("$"));
   if (new Set(people.map(row => row.actorId)).size !== 1) return [];
   if (!orderedMotion(affirmativeMotion(input.frozenBrief), MOTION_CHAIN)
     || !orderedMotion(people.map(row => affirmativeMotion(row.description)).join("；"), MOTION_CHAIN)) return [];
 
-  const findings: SemanticQualityCheck[] = [];
+  const findings = endingCameraFindings(input.cameraMovement, input.timeline, input.duration);
   // At two seconds require the additional explicit evidence of a multi-step ascent.
   const dense = typeof input.timeline === "string" && localWindows(input.timeline).find(({ from, to, text }) => {
     const motion = affirmativeMotion(text);
@@ -181,10 +236,25 @@ function approvedMotionTimelineRetained(value: unknown, duration: number): boole
 
 export function approvedMotionRepairDrift(input: {
   findings: readonly SemanticQualityCheck[]; action: unknown; timeline: unknown; duration: number;
-  revisedTimeline: boolean; revisedAction: boolean;
+  cameraMovement?: unknown; revisedTimeline: boolean; revisedAction: boolean;
 }): string | undefined {
   if (input.revisedTimeline && !approvedMotionTimelineRetained(input.timeline, input.duration)) return "APPROVED_MOTION_TIMELINE_REPAIR_DRIFT";
   if (input.revisedAction && !orderedMotion(affirmativeMotion(input.action), MOTION_CHAIN)) return "APPROVED_MOTION_ACTION_REPAIR_DRIFT";
+  const chestRepair = input.findings.some(check => check.failureCode === ENDING_CAMERA_CHEST);
+  const helmetRepair = input.findings.some(check => check.failureCode === ENDING_CAMERA_HELMET);
+  if (chestRepair || helmetRepair) {
+    const events = endingCameraEvents(input.cameraMovement, input.timeline, input.duration);
+    if (!events) return "APPROVED_ENDING_CAMERA_REPAIR_DRIFT";
+    const { cameraChest, timelineChest, cameraHelmet, cameraHelmetOnly, cameraHairOnly, timelineHelmet } = events;
+    const withinHelmetEvent = (window?: LocalWindow) => !!window && !!timelineHelmet
+      && window.from >= timelineHelmet.from && window.to <= timelineHelmet.to;
+    const tracksInOrder = cameraHelmetOnly && cameraHairOnly && cameraHelmetOnly.to <= cameraHairOnly.from
+      && withinHelmetEvent(cameraHelmetOnly) && withinHelmetEvent(cameraHairOnly);
+    if ((chestRepair && (!cameraChest || !timelineChest || cameraChest.to <= timelineChest.from || cameraChest.to > timelineChest.to))
+      || (helmetRepair && !withinHelmetEvent(cameraHelmet) && !tracksInOrder)) {
+      return "APPROVED_ENDING_CAMERA_REPAIR_DRIFT";
+    }
+  }
   const timeline = timedAction(input.timeline);
   const actionTrophyHand = trophyHandWithHelmetSupport(input.action), timelineTrophyHand = trophyHandWithHelmetSupport(timeline);
   const missingHandoff = input.findings.some(check => {
