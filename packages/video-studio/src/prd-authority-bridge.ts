@@ -1332,6 +1332,11 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   const frozenField = (value: unknown): value is FrozenField =>
     typeof value === "string" && Object.hasOwn(frozenFieldLimits, value);
   const authoredField = (value: unknown): value is string => typeof value === "string" && fields.includes(value);
+  const authoredAliases = new Map<string, string>();
+  for (const field of fields) {
+    authoredAliases.set(field, field);
+    authoredAliases.set(field.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), field);
+  }
   const frozenFieldScope = (receiver: RequirementRecord, shotValue: unknown): Scope | undefined => {
     const scope = productionScope(receiver, false);
     if (!scope || scope.g4Decision !== "approved" || scope.authority.profile.speechPolicy !== "none"
@@ -1424,6 +1429,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       check(scope);
       const synchronize = nativeFieldRepairSynchronizer(shot, requestedFields,
         [...fieldGroups.p0, ...fieldGroups.p1, ...fieldGroups.p2, ...fieldGroups.p3]);
+      const requestedCanonicalFields = new Set(requestedFields.map(field => authoredAliases.get(field)));
       const engine = requirementRecord(this.llm, "原生字段修复模型");
       const reason = method(engine, "reason"), truncate = method(this, "_smartTruncate");
       const engineView = Object.create(engine) as RequirementRecord, receiver = Object.create(this) as RequirementRecord;
@@ -1448,7 +1454,8 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         guard(scope, () => synchronize.observeNativeFields(data));
         const entries = Object.entries(data);
         for (const [field, text] of entries) {
-          if (authoredField(field) && requestedFields.includes(field) && typeof text === "string" && text.trim()) {
+          const canonical = authoredAliases.get(field);
+          if (canonical && requestedCanonicalFields.has(canonical) && typeof text === "string" && text.trim()) {
             preservedValues.add(text);
           }
         }
