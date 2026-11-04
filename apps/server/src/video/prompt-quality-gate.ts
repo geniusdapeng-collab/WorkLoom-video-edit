@@ -31,7 +31,7 @@ import {
   type StructuredReviewDispatchProof,
 } from "@hyperreality/video-studio";
 import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
-import { approvedMotionObligations, approvedMotionRepairDrift, distinctRivalPassEndsAtNose, isApprovedMotionFinding } from "./g6-motion-obligations.js";
+import { approvedHelmetCustodyFields, approvedMotionObligations, approvedMotionRepairDrift, distinctRivalPassEndsAtNose, isApprovedMotionFinding } from "./g6-motion-obligations.js";
 import { approvedSecondPassEndsHalfway } from "./g6-rival-pass.js";
 import { approvedRaceCameraChecks, isApprovedRaceFinding } from "./g6-race-camera.js";
 import type { readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
@@ -110,6 +110,7 @@ interface FinalPromptFieldBudget extends FinalPromptLength {
 interface SemanticRepairContext extends SemanticReviewContext {
   findings: SemanticQualityCheck[];
   allowedFields: string[];
+  helmetCustodyFields?: ReturnType<typeof approvedHelmetCustodyFields>;
   finalPromptLength?: FinalPromptLength;
   finalPromptFieldBudget?: FinalPromptFieldBudget;
 }
@@ -698,6 +699,7 @@ function repairPrompt(
   upstreamContext?: Record<string, unknown>,
   finalPromptLength?: FinalPromptLength,
   finalPromptFieldBudget?: FinalPromptFieldBudget,
+  helmetCustodyFields?: SemanticRepairContext["helmetCustodyFields"],
 ): string {
   const fields = contract.bindings.map(({ field }) => ({ field, value: fieldValueFromSource(source, field) }));
   const writable = new Set(allowedFields);
@@ -716,6 +718,11 @@ function repairPrompt(
       ...(finalPromptLength ? ["descriptiveFieldBudgets 给出每个纯描述字段的现长及改写后单字段上限（UTF-16）。不要返回没变的字段；可保持短字段原样，只提交足够达到合计预算的真实缩写。不得返回空值、占位内容或与原值等长的替换。"] : []),
       ...(finalPromptFieldBudget.semanticFields.includes("timeline")
         ? ["时间轴也在诊断范围时，按本镜已审动作和现有时长重排镜内时点，运镜、动作、道具交接与时间轴必须互相对应，不得改变镜头切点。"] : []),
+    ] : []),
+    ...(helmetCustodyFields?.length ? [
+      `本次必须在每个指定字段内补全头盔交接：${JSON.stringify(helmetCustodyFields)}。在摘盔之后、取杯之前写明一个可见且已落实的头盔去向，不能依赖另一个字段来交代。`,
+      "沿用本镜已审动作和道具。若取杯需要双手，写清头盔先放稳在现有的哪一处支撑面，再腾出双手，例如「头盔放稳在车座上，空出双手」；若已审允许单手取杯，写清头盔由哪只手持续持住及对侧手取起并举杯，例如「左手提着头盔，右手举起奖杯」。例句中的位置和左右手须按本镜已有条件确定；在输出中只落实一种去向，不写备选。",
+      "时间轴的交接写进实际发生的段内时窗，保留完整原时长、切点和已审动作顺序，运镜及动作字段须与之相容。",
     ] : []),
     "只输出 JSON：changes[]，每项必须有 field、value、reason；至少产生一个变化。",
     `镜头：${JSON.stringify({ shotId: contract.shotId, durationSec: contract.request.parameters.duration_sec,
@@ -747,7 +754,7 @@ export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): Semant
     async repair(context) {
       const result = await llm.reasonStructured(
         repairPrompt(context.contract, context.shot, context.findings, context.allowedFields, context.upstreamContext,
-          context.finalPromptLength, context.finalPromptFieldBudget),
+          context.finalPromptLength, context.finalPromptFieldBudget, context.helmetCustodyFields),
         repairSchema(context),
         { scene: "preproduction", maxTokens: 1200, temperature: 0 },
       );
@@ -1300,6 +1307,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           const shotId = firstShot.shotId;
           const actualFindings = finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [];
           const { executionFindings } = firstShot;
+          const helmetCustodyFields = approvedHelmetCustodyFields(executionFindings).filter(field => shotAllowedFields.includes(field));
           const scopedFindings = executionFindings
             .filter(check => !actualFindings.some(actual => actual.field === check.field && actual.failureCode === check.failureCode));
           const changesRaw = await reviewer.repair({
@@ -1310,6 +1318,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
             upstreamContext: input.upstreamContext,
             findings: [...actualFindings, ...scopedFindings],
             allowedFields: [...shotAllowedFields],
+            ...(helmetCustodyFields.length ? { helmetCustodyFields } : {}),
             ...(finalPromptLength ? { finalPromptLength: { ...finalPromptLength } } : {}),
             ...(fieldBudget ? { finalPromptFieldBudget: structuredClone(fieldBudget) } : {}),
           });
