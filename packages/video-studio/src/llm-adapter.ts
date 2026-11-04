@@ -48,6 +48,7 @@ import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { types } from "node:util";
 import { productionModelInput } from "./prd-authority-bridge.js";
+import { parseStrictSceneJsonObject } from "./scene-json-comma-recovery.js";
 import {
   resolveOpenAiCompatibleBaseUrl,
   resolveVideoApiKey,
@@ -87,6 +88,13 @@ const nativeCompletions = new WeakSet<object>();
 const nativeBlankJsonFailures = new WeakMap<object, { receipt: NativeBlankJsonReceipt; engine: WorkloomLLMEngine;
   provider: OpenAiCompatibleProvider; routeCurrent: () => boolean }>();
 const nativeChatAnswers = new WeakMap<object, ChatResult>();
+const nativeStructuredChatRoutes = new WeakMap<object, {
+  engine: WorkloomLLMEngine;
+  binding: ReviewDispatchBinding;
+  receipt: ChatResult;
+  schemaOptionsSha256: string;
+  current: () => boolean;
+}>();
 const nativeSceneResponseSources = new WeakMap<object, NativeSceneResponseSource>();
 const nativeSceneResponseRoutes = new WeakMap<object, {
   engine: WorkloomLLMEngine;
@@ -133,6 +141,37 @@ export function sameNativeSceneResponseRoute(left: unknown, right: unknown): boo
     && first.receipt.responseId !== next.receipt.responseId
     && first.receipt.requestHash !== next.receipt.requestHash && first.receipt.responseHash !== next.receipt.responseHash
     && nativeSceneResponseRouteCurrent(left) && nativeSceneResponseRouteCurrent(right);
+}
+
+function nativeChatResultCurrent(value: LLMReasonResult, proof: NonNullable<ReturnType<typeof nativeStructuredChatRoutes.get>>): boolean {
+  const content = dataMember(value, "content"), usage = dataMember(value, "usage");
+  return typeof content === "string" && !!content.trim() && content === proof.receipt.text
+    && !!usage && typeof usage === "object" && !types.isProxy(usage)
+    && dataMember(usage, "promptTokens") === proof.receipt.promptTokens
+    && dataMember(usage, "completionTokens") === proof.receipt.completionTokens && proof.current();
+}
+
+/** A corrective dispatch may only follow this exact, measured syntax failure. */
+export function nativeChatJsonSyntaxRouteCurrent(engine: WorkloomLLMEngine, first: LLMReasonResult): boolean {
+  const proof = nativeStructuredChatRoutes.get(first);
+  return !!proof && proof.engine === engine && dataMember(first, "success") === false && dataMember(first, "retryable") === false
+    && nativeReasonFailure(first) === "json-syntax" && nativeChatResultCurrent(first, proof);
+}
+
+/** The corrective result must be a distinct, strictly parsed completion on the same live route. */
+export function nativeChatJsonSyntaxCorrected(first: LLMReasonResult, second: LLMReasonResult): boolean {
+  const before = nativeStructuredChatRoutes.get(first), after = nativeStructuredChatRoutes.get(second);
+  if (!before || !after || before.engine !== after.engine || before.schemaOptionsSha256 !== after.schemaOptionsSha256
+    || !sameReviewDispatch(before.binding, after.binding) || before.receipt.outputCeiling !== after.receipt.outputCeiling
+    || before.receipt.requestHash === after.receipt.requestHash || before.receipt.responseHash === after.receipt.responseHash
+    || before.receipt.responseId === after.receipt.responseId || dataMember(second, "success") !== true
+    || !nativeChatJsonSyntaxRouteCurrent(before.engine, first) || !nativeChatResultCurrent(second, after)) return false;
+  const data = dataMember(second, "data");
+  if (!plainDataTree(data)) return false;
+  return checkChatJsonTransport.call(after.binding.provider, after.receipt, rawText => {
+    const parsed = parseStrictSceneJsonObject(rawText);
+    return parsed !== undefined && JSON.stringify(parsed) === JSON.stringify(data);
+  });
 }
 
 /** A completed empty Chat JSON result remains a failed, non-retryable call. */
@@ -205,11 +244,14 @@ interface ReviewDispatchBinding {
 }
 
 const captureReviewDispatch = Symbol("captureReviewDispatch");
+const structuredChatIdentity = Symbol("structuredChatIdentity");
 type InternalReasonOptions = LLMReasonOptions & {
   [captureReviewDispatch]?: (proof: StructuredReviewDispatchProof) => void;
+  [structuredChatIdentity]?: () => string | undefined;
 };
 const nativeProviderChat = OpenAiCompatibleProvider.prototype.chat;
 const nativeTransportCheck = OpenAiCompatibleProvider.prototype.matchesCurrentTransport;
+const checkChatJsonTransport = OpenAiCompatibleProvider.prototype.matchesNativeCompletedChatJson;
 const nativeMapGet = Map.prototype.get;
 const digestPattern = /^[a-f0-9]{64}$/;
 
@@ -468,19 +510,21 @@ export class WorkloomLLMEngine {
       const binding = route?.providers === providers && route.sink === sink && route.policy === (policy ?? DEFAULT_MODEL_POLICY)
         ? describe.call(this, task, route)
         : undefined;
-      // Responses recovery compares route controls without including the prompt,
-      // which must differ on each real dispatch.
-      const describeSceneRoute = () => {
+      // Format correction must change the user prompt, but the live route
+      // controls and, for Chat, the system message must stay identical.
+      const describeRouteControls = (keepSystem = false) => {
         if (!WorkloomLLMEngine.supportsStructuredReviewProof(this) || this.#routerRevision !== revision) return undefined;
         const current = attestableRoute(this);
         if (!current || current.router !== router || current.providers !== providers || current.sink !== sink
           || current.router.policy !== policy || (opts.scene ?? current.router.scene ?? this.cfg.scene) !== scene) return undefined;
         const controls = WorkloomLLMEngine.nativeProofMethods.routeTask.call(this, "", opts, scene);
-        return describe.call(this, { ...controls, messages: [] }, current, false);
+        return describe.call(this, { ...controls, messages: keepSystem ? controls.messages.slice(0, -1) : [] }, current, false);
       };
       const sceneRoute = opts.forceJson && opts.responsesJsonSchema?.name === "workloom_scene_architect"
-        ? describeSceneRoute()
+        ? describeRouteControls()
         : undefined;
+      const chatIdentity = opts.forceJson && opts.responsesJsonSchema === undefined ? opts[structuredChatIdentity]?.() : undefined;
+      const chatRoute = chatIdentity ? describeRouteControls(true) : undefined;
       const result = await routeSmart(task, providers, sink, { policy });
       if ((result.kind === "answered" || result.kind === "circuit_broken" || result.kind === "reused")
         && result.text) {
@@ -500,12 +544,23 @@ export class WorkloomLLMEngine {
           && receipt.finishReason === "stop" && receipt.responseId?.trim() && nativeProvider instanceof OpenAiCompatibleProvider
           && nativeTransportCheck.call(nativeProvider, receipt, transportPath(opts))) {
           nativeCompletions.add(answer);
-          if (transportPath(opts) === DEEPSEEK_CHAT_PATH) nativeChatAnswers.set(answer, receipt);
-          else {
+          if (transportPath(opts) === DEEPSEEK_CHAT_PATH) {
+            nativeChatAnswers.set(answer, receipt);
+            if (chatRoute && chatIdentity && receipt.scene === scene
+              && receipt.mode === chatRoute.thinkingMode && receipt.effort === chatRoute.thinkingEffort
+              && receipt.policyVersion === TEXT_PRIMARY_POLICY_VERSION && receipt.registryVersion === TEXT_PRIMARY_REGISTRY_VERSION
+              && digestPattern.test(receipt.requestHash) && digestPattern.test(receipt.responseHash)) {
+              const current = () => chatIdentity === opts[structuredChatIdentity]?.()
+                && sameReviewDispatch(chatRoute, describeRouteControls(true))
+                && checkChatJsonTransport.call(chatRoute.provider, receipt);
+              if (current()) nativeStructuredChatRoutes.set(answer, { engine: this, binding: chatRoute, receipt,
+                schemaOptionsSha256: chatIdentity, current });
+            }
+          } else {
             const source = readSceneResponseSource.call(nativeProvider, receipt);
             if (source) {
               nativeSceneResponseSources.set(answer, source);
-              const current = () => Boolean(sceneRoute && sameReviewDispatch(sceneRoute, describeSceneRoute())
+              const current = () => Boolean(sceneRoute && sameReviewDispatch(sceneRoute, describeRouteControls())
                 && nativeTransportCheck.call(nativeProvider, receipt, DEEPSEEK_RESPONSES_PATH));
               if (sceneRoute && receipt.scene === scene && receipt.mode === sceneRoute.thinkingMode && receipt.effort === sceneRoute.thinkingEffort
                 && receipt.policyVersion === TEXT_PRIMARY_POLICY_VERSION && receipt.registryVersion === TEXT_PRIMARY_REGISTRY_VERSION
@@ -585,6 +640,8 @@ export class WorkloomLLMEngine {
         if (source) nativeSceneResponseSources.set(failure, source);
         const route = nativeSceneResponseRoutes.get(result);
         if (route) nativeSceneResponseRoutes.set(failure, route);
+        const chat = nativeStructuredChatRoutes.get(result);
+        if (chat) nativeStructuredChatRoutes.set(failure, chat);
         return failure;
       }
     }
@@ -625,7 +682,11 @@ export class WorkloomLLMEngine {
       reasonFailures.set(failure, "unavailable");
       return failure;
     }
-    const result = await this.reason(structuredPrompt, { ...options, forceJson: true });
+    const identity = () => plainDataTree(options) && plainDataTree(schema) && options.responsesJsonSchema === undefined
+      ? createHash("sha256").update(JSON.stringify([String(JSON.stringify(schema)), options])).digest("hex") : undefined;
+    const callOptions: InternalReasonOptions = { ...options, forceJson: true };
+    if (callOptions.responsesJsonSchema === undefined) callOptions[structuredChatIdentity] = identity;
+    const result = await this.reason(structuredPrompt, callOptions);
     if (!result.success && !reasonFailures.has(result)) reasonFailures.set(result, "unavailable");
     return result;
   }

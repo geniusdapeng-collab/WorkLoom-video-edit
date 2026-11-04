@@ -382,6 +382,7 @@ type OpenAiDispatch = OpenAiTransport & { provider: OpenAiCompatibleProvider };
 type BlankJsonDispatch = OpenAiDispatch & Pick<ChatResult, "scene" | "mode" | "effort">;
 const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiDispatch & {
   finalJson?: boolean;
+  finalJsonText?: string;
   sceneResponse?: NativeSceneResponseSource;
 }>();
 const nativeBlankJsonErrors = new WeakMap<ModelProviderError, NativeBlankJsonReceipt>();
@@ -429,6 +430,15 @@ export class OpenAiCompatibleProvider implements ModelProvider {
   ): boolean {
     const dispatched = openAiTransportReceipts.get(receipt);
     return !!dispatched && dispatched.provider === this && !types.isProxy(this) && this.#matchesTransport(dispatched, path);
+  }
+
+  /** Verify only the exact measured native Chat JSON completion, before any adapter parsing. */
+  matchesNativeCompletedChatJson(receipt: ChatResult, accept?: (rawText: string) => boolean): boolean {
+    const dispatched = openAiTransportReceipts.get(receipt);
+    return !!dispatched && dispatched.provider === this && !types.isProxy(this)
+      && typeof dispatched.finalJsonText === "string" && dispatched.finalJsonText.trim() === receipt.text
+      && this.#matchesTransport(dispatched, DEEPSEEK_CHAT_PATH)
+      && (accept === undefined || accept(dispatched.finalJsonText));
   }
 
   /** Reads only a source attached to the exact successful native Responses result. */
@@ -766,7 +776,8 @@ export class OpenAiCompatibleProvider implements ModelProvider {
             schemaSha256: createHash("sha256").update(JSON.stringify(structuredRequest.format.schema)).digest("hex"),
           })
         : undefined;
-      openAiTransportReceipts.set(receipt, { ...transport, provider: this, finalJson, sceneResponse });
+      openAiTransportReceipts.set(receipt, { ...transport, provider: this, finalJson,
+        finalJsonText: finalJson && typeof rawText === "string" ? rawText : undefined, sceneResponse });
       return receipt;
     }
     throw new ModelProviderError("模型调用重试耗尽", "http", { retryable: false, receipt: { attempts } });
