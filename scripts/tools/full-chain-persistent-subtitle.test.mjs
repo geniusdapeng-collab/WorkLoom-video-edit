@@ -37,6 +37,9 @@ test('persistent fullchain rejects missing, duplicate, malformed and title/intro
     [['--subtitle-persistent-style-json', '{"outlinePx":2,"sideMarginPx":65}'], /持续字幕样式/],
     [['--subtitle-persistent-text', '文字', '--subtitle-persistent-style-json', '{"outlinePx":2,"sideMarginPx":65,"alignment":2}'], /持续字幕样式/],
     [['--subtitle-persistent-text', '文字', '--subtitle-persistent-anchor', 'bottom-center', '--subtitle-persistent-style-json', '{"outlinePx":2,"sideMarginPx":65}'], /不能与底部版式共用/],
+    [['--subtitle-persistent-text', '文字', '--subtitle-persistent-anchor', 'bottom-center', '--subtitle-persistent-style-json', '{"fontSizePx":58.5}'], /持续字幕样式/],
+    [['--subtitle-persistent-text', '文字', '--subtitle-persistent-anchor', 'bottom-center', '--subtitle-persistent-style-json', '{"fontSizePx":58,"alignment":2}'], /持续字幕样式/],
+    [['--subtitle-persistent-text', '文字', '--subtitle-persistent-style-json', '{"fontSizePx":58}'], /持续字幕样式/],
   ]) {
     const result = invoke(['--shots', join(root, 'unread-source.json'), '--out', out, '--work-dir', work, ...extra]);
     assert.notEqual(result.status, 0); assert.match(result.stdout + result.stderr, expected);
@@ -64,14 +67,14 @@ test('persistent fullchain requires its subtitle consumer before creating work o
   assert.equal(existsSync(work), false); assert.equal(existsSync(out), false); assert.equal(sha(shots), original);
 });
 
-function fixture(t, { dialogue = [{ speaker: '原片人物', text: '保留原片全部台词' }], hasPriorHistory = true, resolution = '720p', duration = 1.4 } = {}) {
+function fixture(t, { dialogue = [{ speaker: '原片人物', text: '保留原片全部台词' }], hasPriorHistory = true, resolution = '720p', duration = 1.4, colour = 'black' } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'persistent 正式全链-')); t.after(() => rmSync(root, { recursive: true, force: true }));
   const project = 'PERSISTENT-OFFLINE', work = join(root, 'work'), out = join(root, 'out');
   const logs = join(work, 'logs', project), clips = join(work, 'clips', project);
   for (const dir of [logs, clips]) mkdirSync(dir, { recursive: true });
   const clip = join(clips, 'S1.mp4'), prompt = join(root, 'issued-prompt.txt'), shots = join(root, 'shots.json'), keys = join(root, 'empty.env');
   const dimensions = resolution === '1080p' ? '1080x1920' : '360x640';
-  const media = spawnSync(FFMPEG, ['-hide_banner', '-v', 'error', '-n', '-f', 'lavfi', '-i', `color=c=black:s=${dimensions}:r=25:d=${duration}`,
+  const media = spawnSync(FFMPEG, ['-hide_banner', '-v', 'error', '-n', '-f', 'lavfi', '-i', `color=c=${colour}:s=${dimensions}:r=25:d=${duration}`,
     '-f', 'lavfi', '-i', `sine=frequency=417:sample_rate=48000:duration=${duration}`, '-map', '0:v', '-map', '1:a',
     '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', clip], { encoding: 'utf8', timeout: 30000 });
   assert.equal(media.status, 0, media.stderr);
@@ -264,6 +267,68 @@ test('Film refuses invalid persistent anchors or conflicting lower text before p
     assert.equal(existsSync(join(f.out, 'current.json')), false);
     originals(f);
   }
+});
+
+test('native Film lower persistent font has exact source-sized glyphs and a visibly translucent black backdrop', { timeout: 180000 }, t => {
+  const f = fixture(t, { dialogue: [], hasPriorHistory: false, resolution: '1080p', colour: '0x8080c0' });
+  const result = run(f, 'AI剧情演绎｜封闭赛道', {}, { postOnly: true, anchor: 'bottom-center', style: { fontSizePx: 58 } });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  originals(f);
+  const manifest = readJson(readJson(join(f.out, 'current.json')).manifest);
+  const proof = manifest.subtitles.persistentText;
+  assert.equal(proof.style.fontSize, 58);
+  assert.equal(proof.style.alignment, 2);
+  assert.equal(proof.style.borderStyle, 3);
+  assert.equal(proof.style.primaryColour, '&H00FFFFFF');
+  assert.equal(proof.style.outlineColour, '&H80000000');
+  assert.equal(proof.style.backColour, '&H80000000');
+  assert.equal(proof.layout.anchor, 'bottom-center');
+  assert.equal(proof.layout.platform, '抖音/快手');
+  assert.deepEqual(proof.layout.occlusionHits, []);
+  assert.ok(proof.style.marginL >= Math.ceil(1080 * .06) && proof.style.marginR >= Math.ceil(1080 * .06));
+  const { x, y, w, h } = proof.layout.rect;
+  assert.ok(x >= .08 && x + w <= .92 && y >= .60 && y + h <= .88);
+  const ass = manifest.subtitles.compositionAss;
+  assert.equal(sha(ass), proof.assSha256);
+  assert.equal(parseAssEvents(readFileSync(ass, 'utf8')).length, 1);
+  const sidecar = readJson(join(dirname(ass), `${f.project}.subtitle-manifest.json`));
+  assert.equal(sidecar.persistentText.compositionSha256, proof.compositionSha256);
+  assert.equal(sidecar.persistentText.assSha256, proof.assSha256);
+  const crop = `crop=${Math.ceil(w * 1080)}:${Math.ceil(h * 1920)}:${Math.floor(x * 1080)}:${Math.floor(y * 1920)}:exact=1,format=rgb24`;
+  const frame = spawnSync(FFMPEG, ['-v', 'error', '-i', manifest.deliverable.path, '-frames:v', '1', '-vf', crop,
+    '-f', 'rawvideo', 'pipe:1'], { timeout: 20000, maxBuffer: 2_000_000 });
+  assert.equal(frame.status, 0, frame.stderr.toString());
+  let transmitted = 0, white = 0;
+  for (let index = 0; index < frame.stdout.length; index += 3) {
+    const [r, g, b] = frame.stdout.subarray(index, index + 3);
+    if (r >= 48 && r <= 85 && g >= 48 && g <= 85 && b >= 72 && b <= 120) transmitted++;
+    if (r >= 230 && g >= 230 && b >= 230) white++;
+  }
+  assert.ok(transmitted > 500, `translucent backdrop transmission missing (${transmitted})`);
+  assert.ok(white > 100, `visible white glyphs missing (${white})`);
+});
+
+test('native lower font option stays bounded by the actual portrait and measured platform exclusions', { timeout: 120000 }, async t => {
+  const f = fixture(t, { dialogue: [], hasPriorHistory: false, resolution: '1080p' });
+  const fontsDir = join(ROOT, 'bundles/ai-video/library/fonts'), bins = { ffmpeg: FFMPEG, ffprobe: FFPROBE };
+  const input = { input_path: f.clip, output_dir: join(f.root, 'lower-tool'), platform: '抖音',
+    persistent_text: 'AI剧情演绎｜封闭赛道', persistent_anchor: 'bottom-center', persistent_style: { fontSizePx: 58 } };
+  const env = { ...process.env, WORKLOOM_SUBTITLE_ALLOWED_ROOTS: f.root, WORKLOOM_SUBTITLE_FONTS_DIR: fontsDir };
+  const actual = await callTool('subtitlewrite.plan', input, { bins, env });
+  assert.equal(actual.result.plan.persistentText.style.fontSize, 58);
+  assert.equal(actual.result.plan.persistentText.style.borderStyle, 3);
+  assert.equal(actual.result.plan.persistentText.layout.contrast, 'white-on-translucent-black-backdrop');
+  for (const fontSizePx of [12, 116]) {
+    await assert.rejects(plan({ input: f.clip, platform: '抖音', persistentText: input.persistent_text,
+      persistentAnchor: 'bottom-center', persistentStyle: { fontSizePx }, fontsDir, bins,
+      outputDir: join(f.root, `invalid-${fontSizePx}`) }), /实际画高的 2%–6%/u);
+  }
+  const catalog = readJson(join(ROOT, 'bundles/ai-video/library/font-catalog/font_db.json'));
+  catalog.layout_policy['抖音/快手'].occlusion_zones.push({ id: 'fixture-lower-cover', x: .15, y: .75, w: .7, h: .13 });
+  await assert.rejects(plan({ input: f.clip, persistentText: input.persistent_text,
+    persistentAnchor: 'bottom-center', persistentStyle: { fontSizePx: 58 }, platform: '抖音',
+    catalog, fontsDir, bins, outputDir: join(f.root, 'blocked-lower') }), /未能.*底部居中安全区/u);
+  originals(f);
 });
 
 test('Film publishes one bounded two-pixel persistent style and exact same ASS for burn and sidecar', { timeout: 180000 }, t => {
