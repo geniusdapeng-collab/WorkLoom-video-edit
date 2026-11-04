@@ -20,6 +20,13 @@ const validationFacts = new WeakMap<RequirementContractError, Readonly<Requireme
 const riskValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const discoveryValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const prdCharacterShapePaths = new WeakMap<RequirementContractError, string>();
+const prdAudioReferencesPath = "/audioSpecification/audioReferences";
+const prdAudioReferencesOverflows = new WeakMap<RequirementContractError, Readonly<{
+  path: typeof prdAudioReferencesPath;
+  keyword: "maxItems";
+  observed: number;
+  limit: number;
+}>>();
 const prdCharacterPath = /^PRD production response(\/characterSystem\/characters\/(?:0|[1-9]\d{0,5}))$/;
 const finiteNumber = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
 const schemaPath = /^SceneArchitect response(?:\/(?:opening|scenes|ending|duration|purpose|keyElements|index|emotionalBeat|productionContract|props|actions|name|description|actorId|noPropsReason|totalDuration|sceneCount|narrativeArc|\d{1,6}))*$/;
@@ -61,6 +68,11 @@ export function structuredDiscoveryFeedback(error: unknown): string {
 /** Only the validator can attest this exact closed character-object violation. */
 export function prdCharacterShapePath(error: unknown): string | undefined {
   return error instanceof RequirementContractError ? prdCharacterShapePaths.get(error) : undefined;
+}
+
+/** Only this validator's fixed PRD path and numeric overflow may enter structural correction. */
+export function prdAudioReferencesOverflow(error: unknown) {
+  return error instanceof RequirementContractError ? prdAudioReferencesOverflows.get(error) : undefined;
 }
 
 export function techniqueReferenceSchema(value: unknown): RequirementRecord {
@@ -176,6 +188,11 @@ export function validateRequirementSchema(value: unknown, schemaValue: unknown, 
       if (keyword === "additionalProperties") {
         const prdPath = prdCharacterPath.exec(location)?.[1];
         if (prdPath) prdCharacterShapePaths.set(error, prdPath);
+      }
+      if (keyword === "maxItems" && location === "PRD production response" + prdAudioReferencesPath
+        && typeof observed === "number" && Number.isSafeInteger(observed)
+        && typeof limit === "number" && Number.isSafeInteger(limit) && limit >= 0 && observed > limit) {
+        prdAudioReferencesOverflows.set(error, Object.freeze({ path: prdAudioReferencesPath, keyword, observed, limit }));
       }
       if (risk && riskArrayPath.test(location) && ["minItems", "maxItems"].includes(keyword)
         && typeof observed === "number" && Number.isSafeInteger(observed) && observed >= 0

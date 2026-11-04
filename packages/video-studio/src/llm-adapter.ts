@@ -158,20 +158,38 @@ export function nativeChatJsonSyntaxRouteCurrent(engine: WorkloomLLMEngine, firs
     && nativeReasonFailure(first) === "json-syntax" && nativeChatResultCurrent(first, proof);
 }
 
-/** The corrective result must be a distinct, strictly parsed completion on the same live route. */
-export function nativeChatJsonSyntaxCorrected(first: LLMReasonResult, second: LLMReasonResult): boolean {
+function sameNativeChatRoute(first: LLMReasonResult, second: LLMReasonResult): boolean {
   const before = nativeStructuredChatRoutes.get(first), after = nativeStructuredChatRoutes.get(second);
-  if (!before || !after || before.engine !== after.engine || before.schemaOptionsSha256 !== after.schemaOptionsSha256
-    || !sameReviewDispatch(before.binding, after.binding) || before.receipt.outputCeiling !== after.receipt.outputCeiling
-    || before.receipt.requestHash === after.receipt.requestHash || before.receipt.responseHash === after.receipt.responseHash
-    || before.receipt.responseId === after.receipt.responseId || dataMember(second, "success") !== true
-    || !nativeChatJsonSyntaxRouteCurrent(before.engine, first) || !nativeChatResultCurrent(second, after)) return false;
-  const data = dataMember(second, "data");
+  return !!before && !!after && before.engine === after.engine && before.schemaOptionsSha256 === after.schemaOptionsSha256
+    && sameReviewDispatch(before.binding, after.binding) && before.receipt.outputCeiling === after.receipt.outputCeiling
+    && before.receipt.requestHash !== after.receipt.requestHash && before.receipt.responseHash !== after.receipt.responseHash
+    && before.receipt.responseId !== after.receipt.responseId;
+}
+
+/** A structured completion proves both the live native route and the exact parsed JSON object. */
+export function nativeChatJsonObjectRouteCurrent(engine: WorkloomLLMEngine, result: LLMReasonResult): boolean {
+  const proof = nativeStructuredChatRoutes.get(result);
+  if (!proof || proof.engine !== engine || dataMember(result, "success") !== true || !nativeChatResultCurrent(result, proof)) return false;
+  const data = dataMember(result, "data");
   if (!plainDataTree(data)) return false;
-  return checkChatJsonTransport.call(after.binding.provider, after.receipt, rawText => {
+  return checkChatJsonTransport.call(proof.binding.provider, proof.receipt, rawText => {
     const parsed = parseStrictSceneJsonObject(rawText);
     return parsed !== undefined && JSON.stringify(parsed) === JSON.stringify(data);
   });
+}
+
+/** The corrective result must be a distinct, strictly parsed completion on the same live route. */
+export function nativeChatJsonSyntaxCorrected(first: LLMReasonResult, second: LLMReasonResult): boolean {
+  const engine = nativeStructuredChatRoutes.get(first)?.engine;
+  return !!engine && sameNativeChatRoute(first, second) && nativeChatJsonSyntaxRouteCurrent(engine, first)
+    && nativeChatJsonObjectRouteCurrent(engine, second);
+}
+
+/** Structural correction starts and ends with distinct native JSON objects on the same live route. */
+export function nativeChatJsonObjectCorrected(first: LLMReasonResult, second: LLMReasonResult): boolean {
+  const engine = nativeStructuredChatRoutes.get(first)?.engine;
+  return !!engine && sameNativeChatRoute(first, second) && nativeChatJsonObjectRouteCurrent(engine, first)
+    && nativeChatJsonObjectRouteCurrent(engine, second);
 }
 
 /** A completed empty Chat JSON result remains a failed, non-retryable call. */
