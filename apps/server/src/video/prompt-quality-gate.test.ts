@@ -602,7 +602,7 @@ describe("prompt semantic quality gate", () => {
     });
   });
 
-  it.each(["complete", "front-only", "unrelated"] as const)("separates a whole overtake from a front-wheel claim (%s)", async mode => {
+  it.each(["complete", "front-only", "shoulder-only", "unrelated"] as const)("separates a whole overtake from a front-wheel claim (%s)", async mode => {
     const checked = currentG4();
     const row = checked.approvedProductionPlan.scenes[0]!;
     const upstreamContext = { approvedProductionPlan: { ...checked.approvedProductionPlan, scenes: [{ ...row,
@@ -610,9 +610,11 @@ describe("prompt semantic quality gate", () => {
       approvedScene: { ...row.approvedScene, purpose: mode === "unrelated" ? "观察木纹" : "追近对手，完成完整超越" },
     }] } };
     const front = "前轮先越过对手的车头形成完全领先；随后前轮先于对手压过终点线。";
+    const shoulder = "李英子肩线越过对手车前轮，完成从车后到完全领先的第一次超车，对手车退至画面左后。";
     const whole = "前轮开始超过对手车头，随后整车完整越过对手并保持领先；前轮先压过终点线。";
-    const shot = { source: { ...source, fields: { ...fields, action: mode === "complete" ? whole : front,
-      timeline: mode === "complete" ? `T00:00–T00:05：${whole}` : "T00:00–T00:05：前轮先越过对手车头，完成从车后到完全领先的第二次超越。" } }, compile };
+    const shot = { source: { ...source, fields: { ...fields, action: mode === "complete" ? whole : mode === "shoulder-only" ? shoulder : front,
+      timeline: mode === "complete" ? `T00:00–T00:05：${whole}` : mode === "shoulder-only" ? `T00:00–T00:05：${shoulder}`
+        : "T00:00–T00:05：前轮先越过对手车头，完成从车后到完全领先的第二次超越。" } }, compile };
     const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
       expect(new Set(context.allowedFields)).toEqual(new Set(["action", "timeline"]));
       expect(context.findings.every(check => check.failureCode === "APPROVED_FULL_PASS_NOT_VISIBLE")).toBe(true);
@@ -622,7 +624,7 @@ describe("prompt semantic quality gate", () => {
     const initial = compilePromptPackage({ shots: [shot] })[0]!.contract;
     const result = await evaluatePromptPackage({ ...input({ review: async () => passReview(), repair }), shots: [shot], upstreamContext, maxFinalPromptChars: 3000 });
     expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
-    expect(repair).toHaveBeenCalledTimes(mode === "front-only" ? 1 : 0);
+    expect(repair).toHaveBeenCalledTimes(mode === "front-only" || mode === "shoulder-only" ? 1 : 0);
     expect(result.shotContracts[0]!.contract.request.parameters).toEqual(initial.request.parameters);
   });
 
@@ -680,7 +682,7 @@ describe("prompt semantic quality gate", () => {
     expect(repair).toHaveBeenCalledTimes(singleActor ? 1 : 0);
   });
 
-  it.each(["both", "consistent", "foreign", "wrong-duration"] as const)(
+  it.each(["both", "entry-positive", "entry-beat", "entry-zero", "consistent", "foreign", "wrong-duration"] as const)(
     "binds explicit camera framing and hard-cut duration conflicts to the current frozen shot (%s)", async mode => {
       const checked = currentG4(mode === "foreign" ? "another-shot" : "S01");
       const upstream = { approvedProductionPlan: { ...checked.approvedProductionPlan, scenes: checked.approvedProductionPlan.scenes.map(row => ({
@@ -690,9 +692,12 @@ describe("prompt semantic quality gate", () => {
       const transition = "硬切，0.2秒，由本镜落幅直接切入下一镜。";
       const fixedCamera = "长焦贴地跟拍，落幅时车身完整留在右侧三分线上。";
       const fixedTransition = "硬切后保留0.2秒原生环境底声，直接切入下一镜。";
+      const entry = "硬切进入，0.2 秒，自上镜落幅直接切到本镜停车点。";
+      const consistent = ["consistent", "entry-beat", "entry-zero"].includes(mode);
       const shot = { source: { ...source, fields: { ...fields,
-        camera_movement: mode === "consistent" ? camera.replace("落幅时车身", "落幅时对手车身") : camera,
-        transition: mode === "consistent" ? fixedTransition : transition,
+        camera_movement: consistent ? camera.replace("落幅时车身", "落幅时对手车身") : camera,
+        transition: mode === "entry-positive" ? entry : mode === "entry-beat" ? "硬切进入，0.2秒后引擎原声加强。"
+          : mode === "entry-zero" ? "硬切转场，时长0秒，切点保持车位连续。" : mode === "consistent" ? fixedTransition : transition,
       } }, compile };
       const review = vi.fn<SemanticQualityReviewer["review"]>(async ({ shot: current }) => {
         const actual = (current.fields as Record<string, string>).camera_movement;
@@ -713,8 +718,9 @@ describe("prompt semantic quality gate", () => {
       const initial = compilePromptPackage({ shots: [shot] })[0]!.contract;
       const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [shot], upstreamContext: upstream, maxFinalPromptChars: 3000 });
       expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
-      expect(repair).toHaveBeenCalledTimes(mode === "both" ? 1 : 0);
-      expect(review).toHaveBeenCalledTimes(mode === "both" ? 2 : 1);
+      const needsRepair = mode === "both" || mode === "entry-positive";
+      expect(repair).toHaveBeenCalledTimes(needsRepair ? 1 : 0);
+      expect(review).toHaveBeenCalledTimes(needsRepair ? 2 : 1);
       expect(result.shotContracts[0]!.contract.requestSha256).toBe(initial.requestSha256);
     });
 
