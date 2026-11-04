@@ -3,6 +3,7 @@ import {
   planDeepSeekWindow, type BudgetMessage,
 } from "../../../packages/base/model-router/token-budget.js";
 import { DEEPSEEK_CHAT_PATH, DEEPSEEK_RESPONSES_PATH } from "../../../packages/base/model-router/providers.js";
+import { isRiskResponsesJsonSchema, RISK_RESPONSES_SCHEMA_NAME } from "../../../packages/base/model-router/risk-responses-schema.js";
 import {
   EDIT_CANONICAL_CASE_BUDGET, verifyEditCanonicalLlmEnvelope,
 } from "../../acceptance/lib/live/edit-canonical-budget.mjs";
@@ -303,8 +304,15 @@ async function responsesClaim(body: JsonObject, scope: BudgetScope): Promise<Cla
   fields(body.text, ["format"]);
   const format = body.text.format;
   fields(format, ["type", "name", "schema"]);
-  check(format.type === "json_schema" && format.name === "workloom_scene_architect");
-  checkFrozenSceneScope(format.schema, scope);
+  check(format.type === "json_schema");
+  if (format.name === RISK_RESPONSES_SCHEMA_NAME) {
+    const { seconds, ratio, resolution } = scope.video;
+    check(seconds === 10 && ratio === "9:16" && resolution === "1080p"
+      && isRiskResponsesJsonSchema({ name: format.name, schema: format.schema }));
+  } else {
+    check(format.name === "workloom_scene_architect");
+    checkFrozenSceneScope(format.schema, scope);
+  }
   return textClaim(body.model, body.max_output_tokens, messages, format);
 }
 

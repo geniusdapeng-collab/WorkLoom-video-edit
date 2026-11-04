@@ -7,6 +7,7 @@ import { getModel } from "../../apps/server/src/video/gen/catalog.js";
 import { compileRenderRequest } from "../../apps/server/src/video/gen/compiled-request.js";
 import { ArkImageProvider, ArkVideoProvider } from "../../apps/server/src/video/gen/providers.js";
 import { OpenAiCompatibleProvider } from "../../packages/base/model-router/providers.js";
+import { riskResponsesJsonSchema } from "../../packages/base/model-router/risk-responses-schema.js";
 import { structuredSceneSchema } from "../../packages/video-studio/src/requirement-contract.js";
 import { startProviderBudgetGateway } from "./lib/provider-budget-gateway.js";
 import { BudgetJournal } from "./lib/provider-budget-journal.js";
@@ -86,6 +87,11 @@ const strictScene = (schema: Record<string, unknown>, input = "完整原始创�
   model: DEEPSEEK_MODEL, input, instructions: "私有完整系统指令。",
   reasoning: { effort: "high" }, max_output_tokens: 393_216, stream: false,
   text: { format: { type: "json_schema", name: "workloom_scene_architect", schema } },
+});
+const strictRisk = (input = "完整风险审查输入。") => ({
+  model: DEEPSEEK_MODEL, input, instructions: "私有完整系统指令。",
+  reasoning: { effort: "high" }, max_output_tokens: 393_216, stream: false,
+  text: { format: { type: "json_schema", ...riskResponsesJsonSchema } },
 });
 const responsesBody = (status = "completed") => ({
   id: "response-inert-fixture", object: "response", status, model: DEEPSEEK_MODEL,
@@ -523,6 +529,65 @@ describe("task-local provider budget gateway", () => {
     }
     expect(upstream).not.toHaveBeenCalled();
     expect((await call(server, responsesPath, strictScene(await responseSceneSchema(2)))).status).toBe(200);
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles exact closed-schema Risk Responses in the same v2 WAL without forwarding a duplicate", async () => {
+    const journalPath = location();
+    const wire = JSON.stringify(strictRisk("Original private risk fixture."));
+    const reply = responsesBody();
+    const upstream = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(url).toBe("https://api.deepseek.com/responses");
+      expect(init?.headers).toMatchObject({ authorization: `Bearer ${DEEPSEEK}` });
+      expect(Buffer.from(init!.body as Uint8Array).toString()).toBe(wire);
+      const journal = readFileSync(journalPath, "utf8");
+      expect(journal).toContain(digest(wire));
+      expect(journal).not.toContain("Original private risk fixture");
+      return Response.json(reply);
+    });
+    const { server } = await gate(upstream, { scope: videoScope, profile: "workflow-v2", journalPath });
+    expect(await call(server, responsesPath, wire)).toEqual({ status: 200, data: reply });
+    expect(code(await call(server, responsesPath, wire))).toBe("BUDGET_DUPLICATE_REQUEST");
+    expect(upstream).toHaveBeenCalledTimes(1);
+    expect((await call(server, "/budget/status")).data).toMatchObject({ state: "live", held: false,
+      usage: { llmCalls: 1, settledLlmGrossTokens: 50, imageCalls: 0, videoCalls: 0 },
+      settledLlmTokens: { input: 30, output: 20 } });
+  });
+
+  it("rejects Risk Responses outside their exact schema, v2 scope and stateless controls before reserving", async () => {
+    const upstream = vi.fn(async () => Response.json(responsesBody()));
+    const risk = strictRisk();
+    for (const profile of ["case", "workflow"]) {
+      const { server } = await gate(upstream, { profile, scope: videoScope });
+      expect((await call(server, responsesPath, risk)).status).toBe(404);
+    }
+    for (const scope of [{ seconds: 11 }, { ratio: "16:9" }, { resolution: "720p" }]) {
+      const { server } = await gate(upstream, { profile: "workflow-v2", scope: { video: { ...videoScope.video, ...scope } } });
+      expect((await call(server, responsesPath, risk)).status).toBe(400);
+    }
+    const { server, journalPath } = await gate(upstream, { profile: "workflow-v2", scope: videoScope });
+    const before = readFileSync(journalPath, "utf8");
+    const format = risk.text.format;
+    for (const patch of [
+      { tools: [] }, { previous_response_id: "other" }, { store: false }, { stream: true },
+      { reasoning: { effort: "low" } }, { model: "deepseek-v4-pro" },
+      { text: { format: { ...format, type: "json_object" } } },
+      { text: { format: { ...format, name: "unrelated" } } },
+      { text: { format: { ...format, schema: { ...format.schema, additionalProperties: true } } } },
+      { text: { format: { ...format, schema: await responseSceneSchema() } } },
+    ]) expect((await call(server, responsesPath, { ...risk, ...patch })).status).toBe(400);
+    expect(code(await call(server, responsesPath, { ...risk, max_output_tokens: 300_000 }))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
+    expect(readFileSync(journalPath, "utf8")).toBe(before);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("retains the Risk reservation and freezes on a prohibited upstream tool response", async () => {
+    const upstream = vi.fn(async () => Response.json({ ...responsesBody(), output: [{ type: "function_call" }] }));
+    const { server } = await gate(upstream, { profile: "workflow-v2", scope: videoScope });
+    expect(code(await call(server, responsesPath, strictRisk()))).toBe("BUDGET_OUTCOME_UNKNOWN");
+    expect((await call(server, "/budget/status")).data).toMatchObject({ state: "frozen", held: true,
+      reserved: { calls: 1 }, usage: { llmCalls: 1, imageCalls: 0, videoCalls: 0 } });
+    expect(code(await call(server, responsesPath, strictRisk("another request")))).toBe("BUDGET_FROZEN");
     expect(upstream).toHaveBeenCalledTimes(1);
   });
 
