@@ -439,11 +439,65 @@ describe("G6 同次修复的真实模型路由", () => {
 });
 
 describe("prompt semantic quality gate", () => {
+  it("continues a separate camera repair after omitting an unchanged description from a 3104-character opening", async () => {
+    const opening = shotAtFinalLength(3104, "opening");
+    const openingFields: Record<string, unknown> = opening.source.fields;
+    const originalLighting = String(openingFields.lighting);
+    const originalMood = String(openingFields.mood);
+    openingFields.lighting = originalLighting + "侧光细节".repeat(35);
+    opening.source.fields.color_palette = String(opening.source.fields.color_palette).slice(0, -140);
+    expect(compilePromptPackage({ shots: [opening] })[0]!.contract.prompt.length).toBe(3104);
+    const ending = { source: { ...source, shotId: "ending", fields: { ...fields } }, compile };
+    const camera = "固定机位，保留轻微呼吸感与原有落幅。";
+    const review = vi.fn<SemanticQualityReviewer["review"]>(async ({ contract, shot }) => {
+      const row = contract.shotId === "ending" && (shot.fields as Record<string, unknown>).camera_movement !== camera
+        ? failCameraReview() : passReview();
+      return { ...row, shotId: contract.shotId };
+    });
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async ({ contract }) => ({
+      changes: contract.shotId === "opening" ? [
+        { field: "mood", value: originalMood, reason: "沿用未改情绪" },
+        { field: "lighting", value: originalLighting, reason: "删除重复光线描写" },
+      ] : [{ field: "camera_movement", value: camera, reason: "按现有时间轴调整运镜" }],
+    }));
+    const before = compilePromptPackage({ shots: [opening, ending] }).map(item => item.contract);
+    const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [opening, ending], maxFinalPromptChars: 3000 });
+    expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+    expect(repair.mock.calls.map(([context]) => context.contract.shotId)).toEqual(["opening", "ending"]);
+    expect(repair.mock.calls[0]![0].finalPromptFieldBudget?.descriptiveFieldBudgets).toContainEqual({
+      field: "lighting", currentValueChars: originalLighting.length + 140, maxChangedValueChars: originalLighting.length + 139,
+    });
+    expect(result.repairAttempt?.changes.map(({ shotId, field }) => [shotId, field])).toEqual([
+      ["opening", "lighting"], ["ending", "camera_movement"],
+    ]);
+    expect(result.shotContracts.map(item => item.contract.requestSha256)).toEqual(before.map(contract => contract.requestSha256));
+    expect(result.shotContracts[0]!.contract.prompt.length).toBeLessThanOrEqual(3000);
+    expect(review).toHaveBeenCalledTimes(4);
+  });
+
   function currentG4(shotId = "S01") {
     return { approvedProductionPlan: { g4ArtifactSha256: "a".repeat(64), requirementContractHash: "b".repeat(64),
       scenes: [{ shotId, sceneId: shotId, approvedScene: { actions: [{ actorId: "lead", description: "走到栏杆旁" }] },
         verificationPlan: { visualRequirements: ["看清走近栏杆"] } }] } };
   }
+
+  it.each([true, false])("binds an explicitly approved covered silhouette to this shot only (%s)", async current => {
+    const upstream = currentG4(current ? "S01" : "unrelated");
+    upstream.approvedProductionPlan.scenes[0]!.verificationPlan.visualRequirements = [
+      "完整护具不变，以中景呈现自然胸线与臀部轮廓，不作孤立局部特写。",
+    ];
+    const review = vi.fn(async () => passReview());
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
+      expect(context.allowedFields).toEqual(["composition"]);
+      expect(context.findings).toContainEqual(expect.objectContaining({ field: "composition", failureCode: "APPROVED_PROTECTED_OUTLINE_MISSING" }));
+      return { changes: [{ field: "composition", value: "侧前中景呈现全覆护具下自然胸线和臀部轮廓。", reason: "落实已审构图" }] };
+    });
+    const result = await evaluatePromptPackage({ ...input({ review, repair }), upstreamContext: upstream, maxFinalPromptChars: 3000 });
+    expect(result.g6Eligible).toBe(true);
+    expect(repair).toHaveBeenCalledTimes(current ? 1 : 0);
+    expect(review).toHaveBeenCalledTimes(current ? 2 : 1);
+    expect(result.shotContracts[0]!.contract.prompt.includes("全覆护具下自然胸线和臀部轮廓")).toBe(current);
+  });
 
   function isolatedRedundancyShot() {
     const shaped: Record<string, string> = {
@@ -549,6 +603,7 @@ describe("prompt semantic quality gate", () => {
   it.each([
     { field: "action", value: "原地不动", reason: "REPAIR_CHANGE_INVALID:0" },
     { field: "color_palette", value: " ", reason: "FINAL_PROMPT_REPAIR_NOT_SHORTER" },
+    { field: "mood", value: "安静而克制，增加一层与原先不同的张力。", reason: "FINAL_PROMPT_REPAIR_NOT_SHORTER" },
     { field: "color_palette", value: "短", reason: "SAME_FAILURE_SIGNATURE_REPEATED" },
   ])("stops a failed final-length repair once ($reason)", async ({ field, value, reason }) => {
     const review = vi.fn(async () => passReview());
