@@ -284,6 +284,184 @@ console.log("RESULT " + JSON.stringify({ ...receipt, cleanup: { clearedTimers, h
     expect(result.cleanup.clearedTimers).toBeGreaterThanOrEqual(2);
   });
 
+  it("uses bounded native PRD recovery through the actual vendor constructor and worker redirect", () => {
+    const value = fixture("PRODUCTION-VENDOR-NATIVE"), script = `${value.workDir}/vendor-native-recovery.mts`;
+    const repo = fileURLToPath(new URL("../../../", import.meta.url));
+    const source = (name: string) => JSON.stringify(repo + "packages/video-studio/src/" + name + ".ts");
+    writeFileSync(script, `
+import assert from "node:assert/strict";
+import { createHook } from "node:async_hooks";
+import { createRequire } from "node:module";
+import { WorkloomLLMEngine, installVendorEngineBridge } from ${source("llm-adapter")};
+import { installPrdAuthorityBridge, withPrdAuthorityScope } from ${source("prd-authority-bridge")};
+import { frozenVisualPrdSegments, preparePrdAuthority } from ${source("prd-authority")};
+import { bindRequirementContract, requirementCast } from ${source("requirement-contract")};
+import { prdFixture, PRDGenerator, PRDSchema } from ${source("prd-authority.test-support")};
+import { OpenAiCompatibleProvider, resetCircuit } from ${JSON.stringify(repo + "packages/base/model-router/index.ts")};
+
+const { LLMEngine } = createRequire(${JSON.stringify(repo + "package.json")})(${JSON.stringify(repo + "vendor/supermickey/systems/llm-reasoning-engine.js")});
+const cases = ["normal", "character", "audio", "creative", "repeat-invalid", "duplicate-key", "same-id",
+  "unmeasured", "unmeasured-correction", "nonfrozen", "forged", "shadow", "proxy", "stale", "detached",
+  "uninstalled", "foreign", "late", "late-correction", "unknown"];
+globalThis.fetch = () => { throw new Error("Unexpected external network"); };
+const outcomes = [];
+for (const mode of cases) {
+  resetCircuit("preproduction");
+  const value = prdFixture("VENDOR-NATIVE-" + mode, [10, 10, 10]);
+  if (mode !== "nonfrozen") {
+    value.metadata.brief.productionRequirements.speechPolicy = "none";
+    value.metadata.brief.segmentContract = { count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+      intervals: [0, 10, 20].map(startSec => ({ startSec, endSec: startSec + 10, brief: "冻结原文 " + startSec })) };
+    value.list = bindRequirementContract({ keyPoints: [] }, value.discovery, value.discovery.upstreamFields,
+      structuredClone(value.metadata), requirementCast(value.metadata).hash, "原始年轻消费者");
+    value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
+    assert.equal(frozenVisualPrdSegments(value.authority)?.count, 3);
+  }
+  const invalid = structuredClone(value.production);
+  if (mode === "audio") invalid.audioSpecification.audioReferences = ["声音一", "声音二", "声音三", "声音四"];
+  else invalid.characterSystem.characters[0].consistencyRequirements_note = "SYNTHETIC_REJECTED_VALUE";
+  const generator = new PRDGenerator();
+  assert.equal(generator.agent2._llmEngine, null);
+  assert.equal(generator.agent3._llmEngine, null);
+  assert.equal(generator.agent3._llmEngineLoaded, false);
+  const calls = { creative: [], production: [] }, baseUrl = "https://vendor-native-fixture.invalid/v1";
+  const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl, apiKey: "test-only", fetchImpl: async (url, init) => {
+    assert.equal(String(url), baseUrl + "/chat/completions");
+    const { messages, ...controls } = JSON.parse(String(init.body));
+    const prompt = messages.find(message => message.role === "user").content;
+    const kind = prompt.includes("## 本次宿主 PRD creative 响应 JSON Schema") ? "creative" : "production";
+    calls[kind].push({ prompt, nonUser: messages.filter(message => message.role !== "user"), controls });
+    const count = calls[kind].length;
+    assert(count <= 2);
+    if (mode === "unknown" && kind === "production") return new Response("fixture HTTP 502", { status: 502 });
+    const firstInvalid = !["normal", "creative", "unknown"].includes(mode);
+    const payload = kind === "creative" ? value.creative
+      : (count === 1 && firstInvalid) || mode === "repeat-invalid" ? invalid : value.production;
+    let content = JSON.stringify(payload);
+    if (mode === "creative" && kind === "creative" && count === 1) content = '{"coreTheme":"SYNTHETIC_REJECTED_VALUE"';
+    if (mode === "duplicate-key" && kind === "production") content = '{"visualSpecification":null,' + content.slice(1);
+    const id = kind + "-" + (mode === "same-id" && kind === "production" ? 1 : count);
+    const unmeasured = kind === "production" && (mode === "unmeasured" || (mode === "unmeasured-correction" && count === 2));
+    return Response.json({ ...(unmeasured ? {} : { id }),
+      object: "chat.completion", model: "deepseek-flash",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }],
+      usage: { prompt_tokens: 51237, completion_tokens: 4876, total_tokens: 56113,
+        completion_tokens_details: { reasoning_tokens: 4500 } } });
+  } });
+  const disposers = [];
+  const start = performance.now.bind(performance);
+  const router = { scene: "preproduction", providers: new Map([[provider.modelId, provider]]), sink: {
+    recordModelTrace: async () => {
+      const count = calls.production.length;
+      if (mode === "stale" && count === 1) {
+        const current = Object.getOwnPropertyDescriptor(LLMEngine.prototype, "reasonStructured");
+        installVendorEngineBridge(adapter)();
+        assert.deepEqual(Object.getOwnPropertyDescriptor(LLMEngine.prototype, "reasonStructured"), current);
+      }
+      if ((mode === "late" && count === 1) || (mode === "late-correction" && count === 2)) {
+        Object.defineProperty(performance, "now", { configurable: true, value: () => start() + 200000 });
+      }
+    },
+    recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
+  } };
+  const makeAdapter = () => new WorkloomLLMEngine({ baseUrl, apiKey: "test-only", model: "deepseek-flash", router });
+  const adapter = makeAdapter();
+  class System {
+    prdGenerator = generator;
+    llmEngine = adapter;
+    async _confirmRequirementList(_markdown, list) { return { approved: true, requirementList: list }; }
+    _generateMinimalPRD() { throw new Error("Unexpected fallback"); }
+    async _confirmPRD(_markdown, prd) { return { approved: true, prd }; }
+  }
+  const timers = new Set();
+  const timerHook = createHook({ init(_id, type, _parent, resource) { if (type === "Timeout") timers.add(resource); } });
+  timerHook.enable();
+  let result, failure;
+  try {
+    disposers.push(installPrdAuthorityBridge(System.prototype, PRDGenerator.prototype, PRDSchema));
+    const original = LLMEngine.prototype.reasonStructured;
+    const uninstall = installVendorEngineBridge(adapter);
+    disposers.push(uninstall);
+    if (mode === "detached") {
+      const obsolete = LLMEngine.prototype.reasonStructured;
+      const uninstallNext = installVendorEngineBridge(makeAdapter());
+      uninstall();
+      uninstallNext();
+      assert.equal(LLMEngine.prototype.reasonStructured, original);
+      disposers.push(installVendorEngineBridge(adapter));
+      generator.agent3._llmEngineLoaded = true;
+      generator.agent3._llmEngine = { reasonStructured: obsolete };
+    }
+    if (["forged", "shadow", "proxy"].includes(mode)) {
+      generator.agent3._llmEngineLoaded = true;
+      const receiver = mode === "proxy" ? new Proxy(new LLMEngine(), {}) : mode === "shadow" ? new LLMEngine() : {};
+      if (mode !== "proxy") receiver.reasonStructured = LLMEngine.prototype.reasonStructured;
+      generator.agent3._llmEngine = receiver;
+    }
+    if (mode === "foreign") {
+      const getEngine = generator.agent3._getLLMEngine;
+      generator.agent3._getLLMEngine = function () {
+        disposers.push(installVendorEngineBridge(makeAdapter()));
+        return getEngine.call(this);
+      };
+    }
+    if (mode === "uninstalled") {
+      const getEngine = generator.agent3._getLLMEngine;
+      generator.agent3._getLLMEngine = function () {
+        uninstall();
+        assert.equal(LLMEngine.prototype.reasonStructured, original);
+        return getEngine.call(this);
+      };
+    }
+    const system = new System();
+    result = await withPrdAuthorityScope(value.authority, async () => {
+      await system._confirmRequirementList("G3 fixture", value.list);
+      const prd = await generator.generate(value.discovery);
+      await system._confirmPRD(generator.generateMarkdown(prd), prd);
+      return { success: true, stages: { prdGeneration: { data: prd } } };
+    });
+  } catch (error) { failure = error.message; }
+  finally {
+    for (const dispose of disposers.reverse()) dispose();
+    if (mode === "late" || mode === "late-correction") delete performance.now;
+    timerHook.disable();
+    for (const timer of timers) clearTimeout(timer);
+    value.cleanup();
+  }
+  const accepted = ["normal", "character", "audio", "creative"].includes(mode);
+  assert.equal(Boolean(result), accepted, mode + ": " + failure);
+  assert.equal(calls.creative.length, mode === "creative" ? 2 : 1, mode);
+  const shouldRepeat = ["character", "audio", "repeat-invalid", "same-id", "unmeasured-correction", "late-correction"].includes(mode);
+  const unsafeReceiver = ["forged", "shadow", "proxy", "detached", "uninstalled", "foreign"].includes(mode);
+  assert.equal(calls.production.length, unsafeReceiver ? 0 : shouldRepeat ? 2 : 1, mode);
+  if (unsafeReceiver || mode === "stale") assert.match(failure, /PRD_ENGINE_CHANGED/, mode);
+  for (const [kind, requests] of Object.entries(calls)) {
+    const [first, next] = requests;
+    if (!next) continue;
+    const heading = kind === "creative" ? "\\n\\n## 本次原生创意核心 JSON 格式修正\\n" : "\\n\\n## 上一次原生制作规格结构校验反馈\\n";
+    const start = next.prompt.lastIndexOf(heading);
+    const end = next.prompt.lastIndexOf("\\n\\n【硬性输出要求】");
+    assert(start > 0 && end > start, mode);
+    assert.equal(next.prompt.slice(0, start) + next.prompt.slice(end), first.prompt, mode);
+    assert.deepEqual(next.controls, first.controls, mode);
+    assert.deepEqual(next.nonUser, first.nonUser, mode);
+    assert(!next.prompt.includes("SYNTHETIC_REJECTED_VALUE") && !next.prompt.includes("consistencyRequirements_note"), mode);
+    assert.equal(first.controls.max_tokens, 393216, mode);
+    assert.equal(first.controls.reasoning_effort, "high", mode);
+  }
+  outcomes.push({ mode, accepted, creative: calls.creative.length, production: calls.production.length });
+}
+console.log("RESULT " + JSON.stringify(outcomes));
+`, "utf8");
+    const stdout = execFileSync(process.execPath, [`${repo}node_modules/tsx/dist/cli.mjs`, script], {
+      cwd: repo, timeout: 40_000, encoding: "utf8", maxBuffer: 2 * 1024 * 1024,
+    });
+    const outcomes = JSON.parse(stdout.split("\n").find(line => line.startsWith("RESULT "))!.slice(7));
+    expect(outcomes).toHaveLength(20);
+    expect(outcomes.filter((row: RequirementRecord) => row.accepted).map((row: RequirementRecord) => row.mode))
+      .toEqual(["normal", "character", "audio", "creative"]);
+  });
+
   it("the direct HTTP path carries the same private context and returns the exact raw response", async () => {
     const value = fixture("PRODUCTION-DIRECT"), h = harness(), run = h.make(value), bodies: RequirementRecord[] = [];
     const raw = '{"unchanged":"原始返回"}'; expectedFetchCalls = 1;

@@ -19,6 +19,7 @@ import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { parseStrictSceneJsonObject } from "./scene-json-comma-recovery.js";
 import { splitShotAssertions } from "./shot-intent.js";
 import {
+  attestVendorStructuredRedirect,
   nativeBlankJsonCorrected, nativeBlankJsonObjectCorrected, nativeBlankJsonRouteCurrent,
   nativeChatJsonObjectCorrected, nativeChatJsonObjectRouteCurrent,
   nativeChatJsonSyntaxCorrected, nativeChatJsonSyntaxRouteCurrent,
@@ -669,7 +670,8 @@ export function installPrdAuthorityBridge(
           method(agent, "fallback");
           const kind = number === 2 ? "creative" : "production";
           const scopedCreative = kind === "creative" && visualSegments !== undefined;
-          const scopedAudio = kind === "production" && visualSegments !== undefined && scope.authority.profile.nativeAudio === true;
+          const scopedProduction = kind === "production" && visualSegments !== undefined;
+          const scopedAudio = scopedProduction && scope.authority.profile.nativeAudio === true;
           const effectiveSchema = effectivePrdModelSchema(kind, schema, contract);
           const audioBounds = kind === "production" ? prdAudioReferenceBounds(effectiveSchema) : undefined;
           const schemaHeading = `\n\n## 本次宿主 PRD ${kind} 响应 JSON Schema（${requirementHash(effectiveSchema)}）\n`;
@@ -689,15 +691,21 @@ export function installPrdAuthorityBridge(
           let modelAttempts = 0;
           let nativeCallActive = false;
           let correction: { prompt: string; argsHash: string; dispatched: boolean;
-            firstCreativeSyntax?: LLMReasonResult; audioOverflow?: { first: LLMReasonResult; deadline: number } } | undefined;
+            creativeSyntax?: { first: LLMReasonResult; inTime: () => boolean };
+            productionShape?: { first: LLMReasonResult; inTime: () => boolean; subject: "角色对象" | "音频参考" } } | undefined;
           agentView._getLLMEngine = function (this: RequirementRecord, ...args: unknown[]) {
             return guard(scope, () => {
               check(scope);
               const value = Reflect.apply(getEngine, this, args);
               if (value === null || value === undefined) return value;
               const engine = requirementRecord(value, "PRD 原始模型引擎"), reason = method(engine, "reasonStructured");
-              const nativeEngine = engine instanceof WorkloomLLMEngine
-                && WorkloomLLMEngine.supportsStructuredReviewProof(engine) ? engine : undefined;
+              const ownerEngine = scope.system?.llmEngine;
+              const host = ownerEngine instanceof WorkloomLLMEngine ? ownerEngine : undefined;
+              const vendorCurrent = scopedCreative || scopedProduction
+                ? attestVendorStructuredRedirect(engine, reason, host) : undefined;
+              if (vendorCurrent === false) prdFail("PRD_ENGINE_CHANGED", "本次原生 PRD 引擎桥未绑定当前制作会话");
+              const nativeEngine = engine instanceof WorkloomLLMEngine && WorkloomLLMEngine.supportsStructuredReviewProof(engine)
+                ? engine : vendorCurrent ? host : undefined;
               const creativeEngine = scopedCreative ? nativeEngine : undefined;
               const enginePrototype = Object.getPrototypeOf(engine);
               let methodOwner: object | null = engine;
@@ -706,7 +714,8 @@ export function installPrdAuthorityBridge(
               if (!methodOwner || !reasonDescriptor || reasonDescriptor.value !== reason) prdFail("PRD_VENDOR_UNAVAILABLE", "原始模型方法不是固定的数据属性");
               const checkEngine = () => {
                 if (Object.getPrototypeOf(engine) !== enginePrototype || engine.reasonStructured !== reason
-                  || !descriptorEqual(Object.getOwnPropertyDescriptor(methodOwner!, "reasonStructured"), reasonDescriptor)) {
+                  || !descriptorEqual(Object.getOwnPropertyDescriptor(methodOwner!, "reasonStructured"), reasonDescriptor)
+                  || (vendorCurrent && (scope.system?.llmEngine !== host || !vendorCurrent()))) {
                   prdFail("PRD_ENGINE_CHANGED", "本次模型引擎方法或属性身份已经变化");
                 }
               };
@@ -718,7 +727,7 @@ export function installPrdAuthorityBridge(
                   if (creativeEngine && (!nativeCallActive || (modelAttempts > 0 && !correction))) {
                     prdFail("PRD_MODEL_UNVERIFIED", "Agent2 没有可证明的已完成语法失败，不允许再次发出请求");
                   }
-                  if (scopedAudio && nativeEngine && (!nativeCallActive || (modelAttempts > 0 && !correction))) {
+                  if (scopedProduction && nativeEngine && (!nativeCallActive || (modelAttempts > 0 && !correction))) {
                     prdFail("PRD_MODEL_UNVERIFIED", "Agent3 没有可证明的已完成结构失败，不允许再次发出请求");
                   }
                   if (typeof prompt !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "实际模型调用 prompt 不是文本");
@@ -733,14 +742,13 @@ export function installPrdAuthorityBridge(
                     if (correction.dispatched || requirementHash(callArgs) !== correction.argsHash) {
                       prdFail("PRD_MODEL_UNVERIFIED", "本次修正次数或原生请求参数已变化");
                     }
-                    if (correction.firstCreativeSyntax && (!creativeEngine
-                      || !nativeChatJsonSyntaxRouteCurrent(creativeEngine, correction.firstCreativeSyntax))) {
+                    if (correction.creativeSyntax && (!creativeEngine || !correction.creativeSyntax.inTime()
+                      || !nativeChatJsonSyntaxRouteCurrent(creativeEngine, correction.creativeSyntax.first))) {
                       prdFail("PRD_MODEL_UNVERIFIED", "Agent2 格式修正的原生路径已变化");
                     }
-                    if (correction.audioOverflow && (!nativeCallActive || !nativeEngine
-                      || performance.now() >= correction.audioOverflow.deadline
-                      || !nativeChatJsonObjectRouteCurrent(nativeEngine, correction.audioOverflow.first))) {
-                      prdFail("PRD_MODEL_UNVERIFIED", "Agent3 音频参考结构修正的原生路径或原时限已变化");
+                    if (correction.productionShape && (!nativeEngine || !correction.productionShape.inTime()
+                      || !nativeChatJsonObjectRouteCurrent(nativeEngine, correction.productionShape.first))) {
+                      prdFail("PRD_MODEL_UNVERIFIED", `Agent3 ${correction.productionShape.subject}结构修正的原生路径或原时限已变化`);
                     }
                     correction.dispatched = true;
                     return correction.prompt;
@@ -761,10 +769,12 @@ export function installPrdAuthorityBridge(
                 });
                 const attempt = ++modelAttempts;
                 const options = nativeEngine ? requirementRecord(callArgs[1] ?? {}, "PRD 原生模型选项") : undefined;
-                const timeoutMs = options?.timeoutMs;
+                const timeoutMs = options?.timeoutMs, wallDeadline = options?.deadlineMs, signal = options?.signal;
                 const startedAt = performance.now();
                 const nativeDeadline = typeof timeoutMs === "number" && Number.isFinite(timeoutMs) ? startedAt + timeoutMs : 0;
-                const withinNativeTimeout = () => nativeCallActive && performance.now() < nativeDeadline;
+                const withinNativeTimeout = () => nativeCallActive && performance.now() < nativeDeadline
+                  && (typeof wallDeadline !== "number" || Date.now() < wallDeadline)
+                  && (!(signal instanceof AbortSignal) || !signal.aborted);
                 let result: unknown;
                 try { result = await Reflect.apply(reason, engine, [complete, ...callArgs]); }
                 catch (error) {
@@ -776,9 +786,10 @@ export function installPrdAuthorityBridge(
                 guard(scope, () => { check(scope); checkEngine(); });
                 if (creativeEngine) {
                   const response = result as LLMReasonResult;
-                  if (correction?.firstCreativeSyntax && correction.dispatched) {
+                  if (correction?.creativeSyntax && correction.dispatched) {
+                    const { first, inTime } = correction.creativeSyntax;
                     guard(scope, () => {
-                      if (!nativeCallActive || !nativeChatJsonSyntaxCorrected(correction!.firstCreativeSyntax!, response)) {
+                      if (!withinNativeTimeout() || !inTime() || !nativeChatJsonSyntaxCorrected(first, response)) {
                         prdFail("PRD_MODEL_UNVERIFIED", "Agent2 格式修正未取得同一路径的新完整响应");
                       }
                       validatePrdModelPayload(response.data, kind, schema, contract, scope.authority.profile);
@@ -787,7 +798,7 @@ export function installPrdAuthorityBridge(
                     if (attempt === 1 && modelAttempts === 1 && nativeAttemptLimit >= 2 && withinNativeTimeout()
                       && nativeChatJsonSyntaxRouteCurrent(creativeEngine, response)) {
                       correction = { prompt: complete + prdCreativeJsonCorrection, argsHash: requirementHash(callArgs),
-                        dispatched: false, firstCreativeSyntax: response };
+                        dispatched: false, creativeSyntax: { first: response, inTime: withinNativeTimeout } };
                       // Use the pinned BaseAgent's own PARSE retry slot. Its
                       // shortened draft is replaced by the original complete prompt.
                       throw new Error("Agent2 JSON 结构校验失败，进入一次原生格式修正");
@@ -798,12 +809,11 @@ export function installPrdAuthorityBridge(
                 }
                 if (kind === "production") {
                   const response = result as LLMReasonResult;
-                  const audioOverflow = correction?.dispatched && correction.audioOverflow;
-                  if (audioOverflow) {
+                  const productionShape = correction?.dispatched && correction.productionShape;
+                  if (productionShape) {
                     guard(scope, () => {
-                      if (!withinNativeTimeout() || performance.now() >= audioOverflow.deadline
-                        || !nativeChatJsonObjectCorrected(audioOverflow.first, response)) {
-                        prdFail("PRD_MODEL_UNVERIFIED", "Agent3 音频参考结构修正未取得同一路径的新完整响应");
+                      if (!withinNativeTimeout() || !productionShape.inTime() || !nativeChatJsonObjectCorrected(productionShape.first, response)) {
+                        prdFail("PRD_MODEL_UNVERIFIED", `Agent3 ${productionShape.subject}结构修正未取得同一路径的新完整响应`);
                       }
                       validatePrdModelPayload(response.data, kind, schema, contract, scope.authority.profile);
                     });
@@ -817,20 +827,22 @@ export function installPrdAuthorityBridge(
                     try { validatePrdModelPayload(response.data, kind, schema, contract, scope.authority.profile); }
                     catch (error) {
                       const feedback = prdCharacterShapeFeedback(error, effectiveSchema);
-                      if (feedback) {
-                        correction = { prompt: complete + feedback, argsHash: requirementHash(callArgs), dispatched: false };
+                      const strictCompletion = scopedProduction && nativeEngine && withinNativeTimeout()
+                        && nativeChatJsonObjectRouteCurrent(nativeEngine, response);
+                      if (feedback && (!scopedProduction || strictCompletion)) {
+                        correction = { prompt: complete + feedback, argsHash: requirementHash(callArgs), dispatched: false,
+                          ...(scopedProduction ? { productionShape: { first: response, inTime: withinNativeTimeout, subject: "角色对象" } } : {}) };
                         // The pinned BaseAgent routes JSON failures through its
                         // existing second attempt and unchanged timeout budget.
                         throw new Error("Agent3 JSON 结构校验失败，进入一次原生结构修正");
                       }
                       const overflow = prdAudioReferencesOverflow(error);
-                      if (scopedAudio && overflow && audioBounds?.max === overflow.limit && nativeEngine && withinNativeTimeout()
-                        && nativeChatJsonObjectRouteCurrent(nativeEngine, response)) {
+                      if (scopedAudio && overflow && audioBounds?.max === overflow.limit && strictCompletion) {
                         const audioFeedback = `\n\n## 上一次原生制作规格结构校验反馈\n${JSON.stringify(overflow)}\n`
                           + "按同一 schema 和完整原始任务重新生成完整四模块 JSON。音频参考保持在已声明数量内，"
                           + "保留原生声音和已审制作要求；不得引用、截取或补填上次回复。";
                         correction = { prompt: complete + audioFeedback, argsHash: requirementHash(callArgs), dispatched: false,
-                          audioOverflow: { first: response, deadline: nativeDeadline } };
+                          productionShape: { first: response, inTime: withinNativeTimeout, subject: "音频参考" } };
                         throw new Error("Agent3 JSON 结构校验失败，进入一次原生结构修正");
                       }
                       // The ordinary parser retains responsibility for all
