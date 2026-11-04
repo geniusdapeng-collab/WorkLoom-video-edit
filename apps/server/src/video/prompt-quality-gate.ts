@@ -450,6 +450,39 @@ function semanticQuestions(upstream: Record<string, unknown> | undefined, shotId
   };
 }
 
+/** Current frozen interval is issued only by the G4 readback for hard-cut segmented production. */
+function approvedExecutionChecks(
+  upstream: Record<string, unknown> | undefined, contract: PromptContract, source: Record<string, unknown>,
+): SemanticQualityCheck[] {
+  const shotId = contract.shotId;
+  const outline = missingProtectedOutline(upstream, shotId, source);
+  const findings = outline ? [outline] : [];
+  if (!hasCurrentG4Shot(upstream, shotId)) return findings;
+  const plan = upstream!.approvedProductionPlan as { scenes: Array<{
+    shotId: string; interval?: { startSec?: unknown; endSec?: unknown };
+  }> };
+  const interval = plan.scenes.find(scene => scene?.shotId === shotId)?.interval;
+  if (!interval || typeof interval.startSec !== "number" || typeof interval.endSec !== "number"
+    || !Number.isFinite(interval.startSec) || !Number.isFinite(interval.endSec) || interval.startSec < 0
+    || interval.endSec - interval.startSec !== Number(contract.request.parameters.duration_sec)) return findings;
+
+  const transition = fieldValueFromSource(source, "transition");
+  const explicit = typeof transition === "string"
+    ? [...transition.matchAll(/(?:^|[，；。])\s*硬切\s*(?:[，、,:：]\s*|(?:过渡|持续|耗时|用时|时长)\s*(?:为|[:：])?\s*)(\d+(?:\.\d+)?)\s*(?:秒|帧)/gu)] : [];
+  if (explicit.some(([, duration]) => Number(duration) > 0)) {
+    findings.push({ id: "SQ5_PURPOSE", field: "transition", pass: false, failureCode: "TRANSITION_DURATION_BREAKS_HARDCUT",
+      evidence: "转场字段把已审硬切写成正时长过渡。", repair: "保留已审切点、落幅和相邻位置，写成无过渡时长的直接硬切。" });
+  }
+
+  const camera = fieldValueFromSource(source, "camera_movement");
+  if (typeof camera === "string" && /(?<!对手)(?<subject>车身|主车|主体|人物|角色)\s*始终\s*(?:在画面)?\s*(?:保持)?居中[^。]{0,240}(?:落幅|收镜|结束)(?:时)?\s*(?:画面(?:中|内|里)的?)?\s*\k<subject>[^。；]{0,15}(?:左侧|右侧)(?:的)?三分线/u.test(camera)) {
+    findings.push({ id: "SQ3_CAMERA_FEASIBLE", field: "camera_movement", pass: false, failureCode: "CAMERA_FRAMING_SELF_CONTRADICTION",
+      evidence: "同一运镜既要求同一主体始终居中，又明确指定该主体在偏侧三分线结束。",
+      repair: "以已审切点和本镜动作、构图为准，写清起幅、运动和落幅；不能同时声明全程居中和偏侧落幅。" });
+  }
+  return findings;
+}
+
 export function parseSemanticQualityReview(
   value: unknown,
   contract: PromptContract,
@@ -1066,8 +1099,11 @@ async function evaluateCompiledShots(
       if (check.pass) continue;
       findings.push(semanticFinding(item.source, item.compiled.contract, check));
     }
-    const visible = missingProtectedOutline(input.upstreamContext, item.shotId, item.source);
-    if (visible) findings.push(semanticFinding(item.source, item.compiled.contract, visible));
+    const explicit = approvedExecutionChecks(input.upstreamContext, item.compiled.contract, item.source);
+    for (const check of explicit) if (!findings.some(finding => finding.shotId === item.shotId
+      && finding.code === check.failureCode && finding.field === check.field)) {
+      findings.push(semanticFinding(item.source, item.compiled.contract, check));
+    }
   }
   return { compiled, reports, findings };
 }
@@ -1156,15 +1192,16 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
         const changes: Array<{ shotId: string; field: string; value: unknown; reason: string }> = [];
         for (const { firstShot, fields: shotAllowedFields, finalPromptLength, fieldBudget, semanticFields } of repairs) {
           const shotId = firstShot.shotId;
-          const visible = missingProtectedOutline(input.upstreamContext, shotId, firstShot.source);
+          const actualFindings = finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [];
+          const scopedFindings = approvedExecutionChecks(input.upstreamContext, firstShot.compiled.contract, firstShot.source)
+            .filter(check => !actualFindings.some(actual => actual.field === check.field && actual.failureCode === check.failureCode));
           const changesRaw = await reviewer.repair({
             projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
             shot: finalPromptLength ? structuredClone(firstShot.source) : firstShot.source,
             contract: finalPromptLength ? structuredClone(firstShot.compiled.contract) : firstShot.compiled.contract,
             attempt: 1,
             upstreamContext: input.upstreamContext,
-            findings: [...(finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? []),
-              ...(visible ? [visible] : [])],
+            findings: [...actualFindings, ...scopedFindings],
             allowedFields: [...shotAllowedFields],
             ...(finalPromptLength ? { finalPromptLength: { ...finalPromptLength } } : {}),
             ...(fieldBudget ? { finalPromptFieldBudget: structuredClone(fieldBudget) } : {}),

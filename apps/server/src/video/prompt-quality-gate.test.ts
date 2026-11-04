@@ -481,6 +481,44 @@ describe("prompt semantic quality gate", () => {
         verificationPlan: { visualRequirements: ["看清走近栏杆"] } }] } };
   }
 
+  it.each(["both", "consistent", "foreign", "wrong-duration"] as const)(
+    "binds explicit camera framing and hard-cut duration conflicts to the current frozen shot (%s)", async mode => {
+      const checked = currentG4(mode === "foreign" ? "another-shot" : "S01");
+      const upstream = { approvedProductionPlan: { ...checked.approvedProductionPlan, scenes: checked.approvedProductionPlan.scenes.map(row => ({
+        ...row, interval: { startSec: 0, endSec: mode === "wrong-duration" ? 6 : 5 },
+      })) } };
+      const camera = "长焦贴地跟拍，车身始终居中而背景高速掠过，落幅时车身完整留在右侧三分线上。";
+      const transition = "硬切，0.2秒，由本镜落幅直接切入下一镜。";
+      const fixedCamera = "长焦贴地跟拍，落幅时车身完整留在右侧三分线上。";
+      const fixedTransition = "硬切后保留0.2秒原生环境底声，直接切入下一镜。";
+      const shot = { source: { ...source, fields: { ...fields,
+        camera_movement: mode === "consistent" ? camera.replace("落幅时车身", "落幅时对手车身") : camera,
+        transition: mode === "consistent" ? fixedTransition : transition,
+      } }, compile };
+      const review = vi.fn<SemanticQualityReviewer["review"]>(async ({ shot: current }) => {
+        const actual = (current.fields as Record<string, string>).camera_movement;
+        const row = passReview();
+        row.checks[2] = { ...row.checks[2]!, evidence: `camera_movement：${actual}` };
+        return row;
+      });
+      const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
+        expect(new Set(context.allowedFields)).toEqual(new Set(["camera_movement", "transition"]));
+        expect(context.findings.map(finding => finding.failureCode).sort()).toEqual([
+          "CAMERA_FRAMING_SELF_CONTRADICTION", "TRANSITION_DURATION_BREAKS_HARDCUT",
+        ]);
+        return { changes: [
+          { field: "camera_movement", value: fixedCamera, reason: "保留实际落幅" },
+          { field: "transition", value: fixedTransition, reason: "去掉错误过渡时长" },
+        ] };
+      });
+      const initial = compilePromptPackage({ shots: [shot] })[0]!.contract;
+      const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [shot], upstreamContext: upstream, maxFinalPromptChars: 3000 });
+      expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+      expect(repair).toHaveBeenCalledTimes(mode === "both" ? 1 : 0);
+      expect(review).toHaveBeenCalledTimes(mode === "both" ? 2 : 1);
+      expect(result.shotContracts[0]!.contract.requestSha256).toBe(initial.requestSha256);
+    });
+
   it.each([true, false])("binds an explicitly approved covered silhouette to this shot only (%s)", async current => {
     const upstream = currentG4(current ? "S01" : "unrelated");
     upstream.approvedProductionPlan.scenes[0]!.verificationPlan.visualRequirements = [
