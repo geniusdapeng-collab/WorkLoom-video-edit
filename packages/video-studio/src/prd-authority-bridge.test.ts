@@ -317,7 +317,7 @@ for (const mode of cases) {
   }
   const invalidCreative = { ...value.creative,
     coreTheme: "以两次超越收束冲线，另声称22度前倾角与24.6度转向。SYNTHETIC_REJECTED_VALUE" };
-  const cleanCreative = { ...value.creative, coreTheme: "30秒里以机位22度前倾角跟住两次超越，镜头转向45度；不要使用实车前倾角24.6度做卖点。" };
+  const cleanCreative = { ...value.creative, coreTheme: "30秒里以机位22度前倾角跟住两次超越，实车旁镜头转向45度；不使用实车前倾角24.6度做卖点。" };
   if (mode === "facts-bad-shape") invalidCreative.unknownFixtureKey = true;
   if (mode === "facts-key-message") {
     invalidCreative.coreTheme = cleanCreative.coreTheme;
@@ -357,7 +357,7 @@ for (const mode of cases) {
       : (count === 1 && firstInvalid) || mode === "repeat-invalid" ? invalid : value.production;
     let content = JSON.stringify(payload);
     if (mode === "facts-repeat" && kind === "creative" && count === 2) {
-      content = JSON.stringify({ ...value.creative, coreTheme: "用实车２４．６度转向来解释赛道获胜。" });
+      content = JSON.stringify({ ...value.creative, coreTheme: "把实车优势归于２４．６度转向之间的机械几何。" });
     }
     if (mode === "creative" && kind === "creative" && count === 1) content = '{"coreTheme":"SYNTHETIC_REJECTED_VALUE"';
     if (kind === "creative" && ((mode === "facts-then-syntax" && count === 2) || (mode === "facts-after-syntax" && count === 1))) {
