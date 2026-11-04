@@ -40,6 +40,36 @@ function localWindows(value: string) {
   }));
 }
 
+const RIVAL_ORDINAL = /第([一二])辆(?:对手|对方)车?/gu;
+const NOSE_ENDS_PASS = /(?:车头|前轮)[^。；\n]{0,18}(?:越过|超过|领先于)[^。；\n]{0,12}(?:对手|对方)(?:的|车)?(?:车头|前轮)\s*(?:(?:后|；\s*(?:随后|随即))\s*回正|；?\s*(?:就|即|形成|取得|标志|完成)[^。；\n]{0,24}?(?:领先|超越|超车))/gu;
+const WHOLE_PASS = /(?:^|[。；，,:：]|随后|之后|才|并)\s*(?:(?:她|主车|主体)的?)?(?:(?:整车|全车|车尾)[^。；，,\n]{0,12}(?:越过|超过|脱离)|(?:拉开|领先)(?:了)?(?:一个|一整个)车身)/u;
+
+/** A nose crossing that concludes one named rival's pass cannot borrow a different rival's clearance. */
+export function distinctRivalPassEndsAtNose(
+  frozenBrief: unknown, value: string, field: "action" | "timeline", duration: number,
+): boolean | undefined {
+  const approved = affirmativeMotion(frozenBrief);
+  if (!/(?:两|二|2)次超(?:车|越)[^。；]{0,20}(?:两|二|2)辆不同(?:的)?对手车/u.test(approved)
+    || !/(?:每次|均)(?:由|从)(?:对手)?车后(?:方)?(?:到|至)完全领先/u.test(approved)) return undefined;
+  const windows = field === "timeline"
+    ? localWindows(value).filter(({ from, to }) => from >= 0 && to > from && to <= duration).map(window => window.text)
+    : [value];
+  return windows.some((window) => {
+    // The shared assertion splitter normalizes commas to semicolons. Preserve
+    // original sentence boundaries so an implied rival stays within its event.
+    const text = window.split(/[。；\n]/u).map(affirmativeMotion).join("。");
+    return [...text.matchAll(NOSE_ENDS_PASS)].some((nose) => {
+      const end = nose.index + nose[0].length;
+      const context = text.slice(0, end).split("。").at(-1)!;
+      const rival = [...context.matchAll(RIVAL_ORDINAL)].at(-1)?.[1];
+      if (!rival) return false;
+      const after = text.slice(end);
+      const nextRival = [...after.matchAll(RIVAL_ORDINAL)].find((match) => match[1] !== rival);
+      return !WHOLE_PASS.test(after.slice(0, nextRival?.index));
+    });
+  });
+}
+
 function handoff(value: unknown): "held" | "free" | undefined {
   const text = affirmativeMotion(value);
   const trophy = BOTH_HANDS_ON_TROPHY.exec(text);
