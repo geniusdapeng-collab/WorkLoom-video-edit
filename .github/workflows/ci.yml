@@ -145,6 +145,7 @@ jobs:
           apps/server/src/video/studio-worker.test.ts
           apps/server/src/video/prompt-quality-gate.test.ts
           apps/server/src/video/g6-motion-obligations.test.ts
+          apps/server/src/video/g6-rival-pass.test.ts
           apps/server/src/video/production-authority.test.ts
           apps/server/src/video/production-authority.pg.test.ts
           apps/server/src/video/production-router.test.ts

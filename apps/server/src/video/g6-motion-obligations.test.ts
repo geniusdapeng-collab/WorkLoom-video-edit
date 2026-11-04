@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
-import type { PromptCompileOptions } from "@hyperreality/video-studio";
-import { compilePromptPackage, evaluatePromptPackage, SEMANTIC_QUALITY_CHECK_IDS, type SemanticQualityReviewer } from "./prompt-quality-gate.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { WorkloomLLMEngine, type PromptCompileOptions } from "@hyperreality/video-studio";
+import { OpenAiCompatibleProvider, resetCircuit } from "@workloom/base/model-router";
+import { modelPolicyFor } from "../service/llm.js";
+import { compilePromptPackage, createLlmSemanticQualityReviewer, evaluatePromptPackage, SEMANTIC_QUALITY_CHECK_IDS, type SemanticQualityReviewer } from "./prompt-quality-gate.js";
 
 const ownerBrief = "双手抬盔后黑色长发完整落肩；完全下车，再转身登紧邻停车点的领奖台最高一级，自取预置奖杯举杯。";
 const oldAction = "停稳后双脚落地，双手抬起全盔，右手把盔夹在腋下；甩头长发落到肩背，她跨下车、转身，两步半登上最高一级，弯腰取起台面上预置的奖杯，双手托底举到胸前高度。";
@@ -10,6 +12,8 @@ const fixedAction = "停稳双脚落地，双手抬盔并甩头落发，把头�
 const fixedTimeline = `${start}T00:04–T00:05 甩头落发，把头盔放稳在相邻矮台。T00:05–T00:06 完全下车。T00:06–T00:08 转身登上最高一级。T00:08–T00:10 自取预置奖杯、双手举杯，末段自然微动。`;
 const attempt38Action = "停稳双脚落地撑车；双手抬起全盔向上脱出，顺势甩头一次，黑色长发从盔内完整落到肩背；完全下车，转身两步登上领奖台最高一级，自己拿起预置奖杯举起，末两秒保持自然呼吸与轻微重心变化。";
 const attempt38Timeline = "T00:00–T00:02.5：收油滑入维修区，前轮定点停稳，双脚落地撑车。T00:02.5–T00:04.5：停稳后的绝对静止，视线落向地面。T00:04.5–T00:06.5：双手抬盔上脱，盔离头，顺势甩头一次，黑色长发完整落到肩背。T00:06.5–T00:08.5：完全下车，转身两步登上最高一级，自取预置奖杯举起，动作幅度克制，目的是完成登台；T00:08.5–T00:10：保持自然呼吸与轻微重心变化，原生声场自然减弱。";
+const attempt39Action = "双脚落地撑住车身；双手抬起全盔离开头顶，黑色长发完整落到肩背；把盔收在左臂弯，抬右腿跨过车座完全下车，双脚站定后侧身转向领奖台，抬右脚踩上最高一级、左脚跟上，屈膝取起预置奖杯，双手举过肩。";
+const attempt39Timeline = "T00:00–T00:02.5 赛车滑入停车点减速停稳，人物双脚落地撑车。T00:02.5–T00:05 双手抬盔离头，黑色长发完整落到肩背。T00:05–T00:08 完全下车，侧身转身两步到领奖台，抬右脚踩最高一级、左脚跟上，屈膝取起预置奖杯。T00:08–T00:10 双手举杯，保持自然微动不冻结。";
 
 const compile: PromptCompileOptions = {
   delivery: { aspectRatio: "9:16", resolution: "1080p", fps: 30, format: "mp4", generateAudio: true },
@@ -51,7 +55,90 @@ function scenario({ action = oldAction, timeline = oldTimeline, brief = ownerBri
     maxFinalPromptChars: 3000 } };
 }
 
+afterEach(() => resetCircuit("preproduction"));
+
+function nativeScenario(timeline: string, { helmet = true, foreign = false } = {}) {
+  const fixture = scenario({ action: attempt39Action.replace("踩上最高一级", "迈到台阶最顶层"), timeline, foreign });
+  const calls: string[] = [];
+  const repairs: Array<Array<{ field: string }>> = [];
+  const model = "deepseek-flash", baseUrl = "http://g6-motion-fixture.invalid/v1", apiKey = "fixture-only";
+  const provider = new OpenAiCompatibleProvider(model, { baseUrl, apiKey, fetchImpl: async (url, init) => {
+    expect(String(url)).toBe(`${baseUrl}/chat/completions`);
+    const { messages } = JSON.parse(String(init?.body));
+    const prompt = String(messages.at(-1).content).split("\n\n【硬性输出要求】", 1)[0]!;
+    const repairing = prompt.startsWith("你是字段级定点修复器。");
+    const context = JSON.parse(prompt.slice(repairing ? prompt.indexOf("镜头：{") + 3 : prompt.indexOf("\n{\n") + 1));
+    const shotId = context.shotId as string;
+    const seen = calls.includes(`review:${shotId}`);
+    calls.push(`${repairing ? "repair" : "review"}:${shotId}`);
+    let payload: unknown;
+    if (repairing) {
+      const fields: Array<{ field: string }> = context.allowedFields;
+      repairs.push(fields);
+      payload = { changes: fields.map(({ field }) => ({ field, value: field === "action" ? fixedAction : fixedTimeline, reason: "落实本镜已审动作" })) };
+    } else {
+      const rows = new Map<string, string>(context.fields.map(({ field, value }: { field: string; value: string }) => [field, value]));
+      const checks = SEMANTIC_QUALITY_CHECK_IDS.map(id => {
+        const field = id === "SQ3_CAMERA_FEASIBLE" ? "camera_movement" : id === "SQ4_LIGHT_COLOR" ? "lighting" : "scene";
+        return { id, pass: true, field, evidence: rows.get(field)! };
+      });
+      if (shotId === "ending" && !seen) {
+        Object.assign(checks[1]!, { id: "SQ2_SCENE_PROPS", field: "action", pass: false, failureCode: helmet ? "PROP_HANDOFF_UNCLEAR" : "TROPHY_PROP_POSITION",
+          evidence: helmet ? "把盔收在左臂弯" : "屈膝取起预置奖杯", repair: helmet ? "明确头盔放置及双手腾出" : "明确奖杯位置" });
+      }
+      payload = { shotId, checks };
+    }
+    return Response.json({ id: `g6-motion-${calls.length}`, model, object: "chat.completion",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(payload) } }],
+      usage: { prompt_tokens: 300, completion_tokens: 100, total_tokens: 400 } });
+  } });
+  const engine = new WorkloomLLMEngine({ model, baseUrl, apiKey, router: { providers: new Map([[model, provider]]),
+    policy: structuredClone(modelPolicyFor("ai-video")!), scene: "preproduction", forceModel: model,
+    sink: { recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined } } });
+  const ending = fixture.input.shots[0]!;
+  const opening = { ...ending, source: { ...ending.source, shotId: "opening" } };
+  return { calls, repairs, input: { ...fixture.input, shots: [opening, ending], reviewer: createLlmSemanticQualityReviewer(engine) } };
+}
+
 describe("G6 approved physical motion", () => {
+  it("recognizes actual #39 same-shot 踩上 and 踩 variants before the sole repair", async () => {
+    const fixture = scenario({ action: attempt39Action, timeline: attempt39Timeline });
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(fixture.repair).toHaveBeenCalledTimes(1);
+    expect(fixture.repair.mock.calls[0]![0].allowedFields).toEqual(["action", "timeline"]);
+    expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+  });
+
+  it.each([
+    ["same native helmet finding, unresolved timeline custody", attempt39Timeline.replace("踩最高一级", "迈到台阶最顶层"), {}, ["action", "timeline"]],
+    ["same native helmet finding, unusable timeline clock", fixedTimeline.replace("T00:04–T00:05", "T00:04.5–T00:05"), {}, ["action", "timeline"]],
+    ["already clocked and securely placed timeline", fixedTimeline, {}, ["action"]],
+    ["different native prop finding", attempt39Timeline.replace("踩最高一级", "迈到台阶最顶层"), { helmet: false }, ["action"]],
+    ["unbound G4 scene", attempt39Timeline.replace("踩最高一级", "迈到台阶最顶层"), { foreign: true }, ["action"]],
+  ] as const)("uses one existing native field repair for %s", async (_label, timeline, override, allowed) => {
+    const fixture = nativeScenario(timeline, override);
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(fixture.calls).toEqual(["review:opening", "review:ending", "repair:ending", "review:ending"]);
+    expect(fixture.repairs.map(fields => fields.map(field => field.field))).toEqual([allowed]);
+    expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+    expect(result.semanticReports[0]?.proofReuse).toBeDefined();
+  });
+
+  it("cannot open companion authority with only a custom action review", async () => {
+    const fixture = scenario({ action: attempt39Action.replace("踩上最高一级", "迈到台阶最顶层"),
+      timeline: attempt39Timeline.replace("踩最高一级", "迈到台阶最顶层") });
+    const pass = fixture.review.getMockImplementation()!;
+    fixture.review.mockImplementationOnce(async context => {
+      const result = await pass(context) as { shotId: string; checks: unknown[] };
+      result.checks[1] = { id: "SQ2_SCENE_PROPS", field: "action", pass: false,
+        failureCode: "PROP_HANDOFF_UNCLEAR", evidence: "把盔收在左臂弯", repair: "明确头盔放置及双手腾出" };
+      return result;
+    });
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(fixture.repair.mock.calls[0]![0].allowedFields).toEqual(["action"]);
+    expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+  });
+
   it("authorizes the actual #38 timing and missing helmet cue together on the first action-only model diagnosis", async () => {
     const fixture = scenario({ action: attempt38Action, timeline: attempt38Timeline });
     const pass = fixture.review.getMockImplementation()!;
