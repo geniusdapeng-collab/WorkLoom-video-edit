@@ -22,6 +22,8 @@ const { extractJson } = nativeRequire("../../../vendor/supermickey/hyperreality-
 const PromptFusionAgent = load("engines/production-engine/agents/prompt-fusion-agent.js", "PromptFusionAgent");
 const RuleChecker = load("engines/field-quality/field-check-agent.js", "RuleChecker");
 const LLMRepairer = load("engines/field-quality/field-repair-agent.js", "LLMRepairer");
+const FieldQualityPipeline = load("engines/field-quality/field-quality-pipeline.js", "FieldQualityPipeline");
+const NativePRD = load("engines/field-quality/field-repair-agent.js", "PRD");
 const { FIELD_REQUIREMENTS } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-check-agent.js") as {
   FIELD_REQUIREMENTS: Record<string, string>;
 };
@@ -84,6 +86,7 @@ function nativeHarness(value: ReturnType<typeof prdFixture>) {
     qualityGatePrototype: load("engines/production-engine/utils/quality-gate.js", "QualityGate").prototype,
     deliveryGuardPrototype: load("engines/production-engine/agents/prompt-delivery-guard.js", "PromptDeliveryGuard").prototype,
     semanticPrototype: load("engines/production-engine/agents/semantic-refinement-pass.js", "SemanticRefinementPass").prototype,
+    fieldQualityPrototype: FieldQualityPipeline.prototype,
     fieldConsistencyPrototype: load("engines/field-consistency-checker.js", "FieldConsistencyChecker").prototype,
     ruleCheckPrototype: RuleChecker.prototype,
     ruleRepairPrototype: load("engines/field-quality/field-repair-agent.js", "RuleRepairer").prototype,
@@ -111,6 +114,67 @@ function shot(value: ReturnType<typeof prdFixture>, index = 0): RequirementRecor
     character_constraint: "命名主角仅合成人物，其他为全盔匿名成年对手骑手；禁止主角分身克隆。" };
 }
 
+function fieldQualityShot(value: ReturnType<typeof prdFixture>, index = 0): RequirementRecord {
+  const detail = "，保留本镜已审的场地与动作细节";
+  const complete = (prefix: string, minimum: number) => prefix
+    + detail.repeat(Math.max(0, Math.ceil((minimum - prefix.length) / detail.length)));
+  const fields = {
+    director_instruction: complete("电影写实质感，真实自然光，紧张氛围，所有动作由实体人物完成", 80),
+    constraint: "9:16画幅，1080p分辨率，30fps，MP4格式",
+    baseline: complete("真实皮肤与服装材质，画面锐利清楚，保持电影级写实摄影", 30),
+    scene: complete("虚构封闭赛道、路肩与远处看台可见，午后日光照亮沥青和真实轮胎痕迹", 120),
+    lighting: complete("主光从右前方照入，色温5600K柔光漫射，左侧反光板补光保留脸部和护具层次", 150),
+    camera_movement: complete("跟拍机位缓慢平移，速度0.5m/s，0至10秒由中全景起幅并保持完整车辆关系", 100),
+    character: complete("合成人物为同一成年命名主角，面部和体型沿用本次档案，全盔下保持原有发型", 50),
+    action: complete("合成人物驾驶摩托车从对手车后追近并完成完整超越，保持本次已审的动作与方向", 120),
+    portraits: "/characters/fixture/portrait_v2.png",
+    dialogue: "无台词。",
+    negative: complete("no text, no watermark，禁止多余肢体与变形，车辆与防护服保持完整真实结构", 40),
+    consistency: complete("合成人物面部、黑色长发和同一赛车防护服跨镜头保持一致", 30),
+    composition: complete("中景居中构图，主体位置清楚，画面保留必要车辆与人物的空间关系", 100),
+    color_palette: complete("主色为中性灰，辅助色来自现场环境，肤色自然，饱和度与对比度适中", 80),
+    depth_of_field: complete("焦点落在主角与当前对手车，光圈f/5.6，前景与背景保留真实可见细节", 80),
+    timeline: complete("T00:00-00:03 从后方接近对手车；T00:03-00:07 并排后完成整车领先；T00:07-00:10 保持当前方向与前后车位", 200),
+    mood: "紧张专注，沉着克制，保持清晰动作",
+    bright_constraint: "明亮光线充足，画面清晰可见，面部明亮无阴影",
+    character_constraint: "只出现合成人物一人，禁止分身或克隆，保持命名身份一致",
+    costume: "黑色赛车外套、灰色内搭、同色长裤与黑色赛车鞋，护肩护肘护膝完整，服装材质与护具保持一致",
+    props: complete("无标识赛道摩托车、全盔与必要对手车辆，实体外观和位置连续", 25),
+    pacing: complete("整体节奏清晰，开头接近，中段并排，高潮超越，结尾保持相对车位", 40),
+    audio: complete("只保留原生引擎、轮胎摩擦和环境声，现场声场连续，无对白或配乐", 100),
+    makeup: "同一黑色长发收在全盔内，面部妆容自然，真实皮肤纹理清楚",
+    transition: "切镜过渡采用直接硬切，保留相同的行驶方向和车辆位置",
+  };
+  return { ...fields, fields: structuredClone(fields), shotId: value.contract.scenes[index]!.id,
+    sceneType: index === 0 ? "opening" : index === 2 ? "ending" : "content", duration: 10, prompt: "synthetic native field-quality input" };
+}
+
+interface FieldQualityCapture { kind: "check" | "repair"; scoped: boolean; source: string; fields?: string[] }
+
+function nativeFieldQualityCapture(captures: FieldQualityCapture[]) {
+  const pipeline = new FieldQualityPipeline({ maxRounds: 2, checkerTimeout: 1000, repairerTimeout: 1000 });
+  const checker = requirementRecord(requirementRecord(pipeline.checker, "checker").llmChecker, "native LLM checker");
+  let checks = 0;
+  checker.llm = { reason: async (prompt: string) => {
+    const input = productionModelInput(prompt); input.verify();
+    captures.push({ kind: "check", scoped: input.prompt.includes("只使用合同内命名人物身份"), source: input.prompt });
+    return { success: true, content: JSON.stringify({ issues: ++checks === 1 ? [{ field_en: "costume", field_cn: "服装",
+      severity: "major", issue_type: "inconsistent", description: "本镜服装细节需要单独修复", suggestion: "只修服装字段" }] : [] }) };
+  } };
+  const repairer = requirementRecord(pipeline.repairer, "repairer");
+  repairer.prd = new NativePRD({});
+  requirementRecord(repairer.llmRepairer, "native LLM repairer").llm = { reason: async (prompt: string) => {
+    const input = productionModelInput(prompt); input.verify();
+    const snapshot = prompt.split("\n\n【需要修复的字段当前内容】\n")[1]!.split("\n\n【字符数预算限制】")[0]!;
+    captures.push({ kind: "repair", scoped: input.prompt.includes("只使用合同内命名人物身份"), source: input.prompt,
+      fields: Object.keys(JSON.parse(snapshot) as RequirementRecord) });
+    return { success: true, content: JSON.stringify({ repaired_fields: {
+      costume: "同一黑色赛车外套、灰色内搭、同色长裤与黑色赛车鞋，护肩护肘护膝完整，护具固定牢靠且保持连续",
+    } }) };
+  } };
+  return pipeline;
+}
+
 afterEach(() => {
   for (const dispose of disposers.splice(0).reverse()) dispose();
   for (const value of fixtures.splice(0)) value.cleanup();
@@ -118,6 +182,23 @@ afterEach(() => {
 });
 
 describe("current reviewed moving rivals keep the unique lead identity", () => {
+  it("the actual native FieldQuality run carries one reviewed rider identity through checking and costume-only repair", async () => {
+    const value = raceFixture("RIVAL-NATIVE-FIELD-QUALITY"), accepted = nativeHarness(value);
+    const captured: FieldQualityCapture[] = [];
+    const pipeline = nativeFieldQualityCapture(captured), source = fieldQualityShot(value), before = structuredClone(source);
+    const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async () => { throw new Error("OFFLINE_NETWORK_FORBIDDEN"); });
+    await accepted(async () => {
+      const result = requirementRecord(await invoke(pipeline, "run", source, String(source.shotId)), "native field-quality result");
+      expect((result.reports as RequirementRecord[]).at(-1)!.passed).toBe(true);
+    });
+    expect(captured.map(row => row.kind)).toEqual(["check", "repair", "check"]);
+    expect(captured.find(row => row.kind === "repair")!.fields).toEqual(["costume"]);
+    expect(captured.map(row => row.scoped)).toEqual([true, true, true]);
+    for (const row of captured) expect(row.source).toContain(JSON.stringify(value.metadata.brief));
+    expect(source).toEqual(before);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("the actual native per-shot Fusion system template distinguishes required anonymous riders", async () => {
     const value = raceFixture("RIVAL-FUSION"), accepted = nativeHarness(value);
     const fusion = new PromptFusionAgent({ semanticRefinement: false });
