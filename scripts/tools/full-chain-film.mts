@@ -16,6 +16,7 @@
  *     [--subtitle-mode sidecar|burn|both]   # 缺省 burn：字幕直接烧进单交付母版 \
  *     [--subtitle-persistent-text "持续文字"] # 须 --no-title-card；可与静音封面片头共存；完整ASS保留此层 \
  *     [--subtitle-persistent-anchor bottom-center] # 竖幅无对白和弹幕时可启用底部持续层 \
+ *     [--subtitle-persistent-style-json '{"outlinePx":2,"sideMarginPx":65}'] # 顶部持续层的描边和侧边距 \
  *     [--danmaku <items.json> | --auto-danmaku | --no-danmaku] \
  *     [--aspect 9:16|16:9|1:1|4:5] [--resolution 720p|1080p|2160p] [--quality hd|uhd] \
  *     [--enhance-kind live-action|animation] [--enhance-engine-dir <本地引擎目录>] \
@@ -115,7 +116,7 @@ import { reviewPlausibility, applyPromptPatches, PLAUSIBILITY_POLICY_VERSION } f
 import { createGenerationQuality } from "./generation-quality.mjs";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
 import { FullChainFilmWorker } from "../../packages/video-studio/src/film-worker-runtime.js";
-import { validatePersistentSubtitleAnchor, validatePersistentSubtitleText, escapePersistentSubtitleText, persistentSubtitleClock, parseAssEvents, styleLine, STABLE_JSON } from "../../bundles/ai-video/connectors/subtitle-bridge/core.mjs";
+import { validatePersistentSubtitleAnchor, validatePersistentSubtitleStyle, validatePersistentSubtitleText, escapePersistentSubtitleText, persistentSubtitleClock, parseAssEvents, styleLine, STABLE_JSON } from "../../bundles/ai-video/connectors/subtitle-bridge/core.mjs";
 import { probeMedia as probeSubtitleMedia } from "../../bundles/ai-video/connectors/subtitle-bridge/measure.mjs";
 import {
   AI_PRODUCTION_DEFAULT_STAGES,
@@ -144,6 +145,15 @@ if (persistentAnchorIndex >= 0 && (!persistentAnchorValue || persistentAnchorVal
   throw new Error("PERSISTENT_SUBTITLE_ANCHOR_REQUIRED");
 }
 const PERSISTENT_SUBTITLE_ANCHOR = validatePersistentSubtitleAnchor(persistentAnchorValue, PERSISTENT_SUBTITLE_TEXT);
+const persistentStyleOption = "--subtitle-persistent-style-json";
+const persistentStyleIndex = process.argv.indexOf(persistentStyleOption);
+if (process.argv.some(value => value.startsWith(`${persistentStyleOption}=`))) throw new Error("PERSISTENT_SUBTITLE_STYLE_REQUIRED");
+if (process.argv.filter(value => value === persistentStyleOption).length > 1) throw new Error("PERSISTENT_SUBTITLE_STYLE_DUPLICATE");
+const persistentStyleValue = persistentStyleIndex < 0 ? null : process.argv[persistentStyleIndex + 1];
+if (persistentStyleIndex >= 0 && (!persistentStyleValue || persistentStyleValue.startsWith("--"))) {
+  throw new Error("PERSISTENT_SUBTITLE_STYLE_REQUIRED");
+}
+const PERSISTENT_SUBTITLE_STYLE = validatePersistentSubtitleStyle(persistentStyleValue, PERSISTENT_SUBTITLE_TEXT, PERSISTENT_SUBTITLE_ANCHOR);
 if (PERSISTENT_SUBTITLE_TEXT && !process.argv.includes("--no-title-card")) throw new Error("PERSISTENT_SUBTITLE_TITLE_CONFLICT: add --no-title-card; Title is a single text layer");
 if (PERSISTENT_SUBTITLE_TEXT && process.argv.includes("--opening-title")) throw new Error("PERSISTENT_SUBTITLE_TITLE_CONFLICT: decorative --opening-title cannot share the persistent Title layer");
 /** GUI 启动时 PATH 常不含工位 kit；只选经过仓内 pin 摘要核验的本机二进制。 */
@@ -542,6 +552,10 @@ if (PERSISTENT_SUBTITLE_TEXT && !STAGES.has("subtitle")) throw new Error("PERSIS
 if (PERSISTENT_SUBTITLE_ANCHOR === "bottom-center" && (SOURCE_SIZE.width >= SOURCE_SIZE.height || DANMAKU_ENABLED
   || sourceDocument.shots?.some(shot => dialogueText(shot as ShotCard).trim()))) {
   throw new Error("PERSISTENT_BOTTOM_ANCHOR_REQUIRES_PERSISTENT_ONLY: 需要竖幅且不与对白字幕或弹幕共用");
+}
+if (PERSISTENT_SUBTITLE_STYLE && (SOURCE_SIZE.width >= SOURCE_SIZE.height || DANMAKU_ENABLED
+  || sourceDocument.shots?.some(shot => dialogueText(shot as ShotCard).trim()))) {
+  throw new Error("PERSISTENT_SUBTITLE_STYLE_REQUIRES_PERSISTENT_ONLY: 需要竖幅且不与对白字幕或弹幕共用");
 }
 /**
  * 字幕落地方式：
@@ -4997,6 +5011,13 @@ async function readPersistentSubtitleProof(reportFile: string | undefined, input
     if (PERSISTENT_SUBTITLE_ANCHOR === "top-center" && proof.style?.alignment !== 8) {
       throw new Error("persistent top anchor differs");
     }
+    if (PERSISTENT_SUBTITLE_STYLE && (proof.style?.alignment !== 8 || proof.style?.borderStyle !== 1
+      || proof.style?.outline !== PERSISTENT_SUBTITLE_STYLE.outlinePx
+      || proof.style?.marginL !== PERSISTENT_SUBTITLE_STYLE.sideMarginPx || proof.style?.marginR !== PERSISTENT_SUBTITLE_STYLE.sideMarginPx
+      || proof.layout?.anchor !== "top-center" || proof.layout?.safeArea !== "top-center-platform-safe"
+      || !Array.isArray(proof.layout.occlusionHits) || proof.layout.occlusionHits.length !== 0)) {
+      throw new Error("persistent top style or measured safe area differs");
+    }
     const clock = persistentSubtitleClock(await probeSubtitleMedia(input, { bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } }));
     const videoSeconds = clock.videoDuration;
     if (proof.startSeconds !== 0 || proof.videoDuration !== videoSeconds
@@ -5025,7 +5046,8 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
   const briefFile = BRIEF_FILE ? abs(BRIEF_FILE) : null;
   const platform = arg("--platform", "抖音/快手");
   const persistentArgs = PERSISTENT_SUBTITLE_TEXT ? ["--persistent-text", PERSISTENT_SUBTITLE_TEXT,
-    ...(PERSISTENT_SUBTITLE_ANCHOR ? ["--persistent-anchor", PERSISTENT_SUBTITLE_ANCHOR] : [])] : [];
+    ...(PERSISTENT_SUBTITLE_ANCHOR ? ["--persistent-anchor", PERSISTENT_SUBTITLE_ANCHOR] : []),
+    ...(PERSISTENT_SUBTITLE_STYLE ? ["--persistent-style-json", JSON.stringify(PERSISTENT_SUBTITLE_STYLE)] : [])] : [];
 
   if (SUBTITLE_MODE !== "burn") {
     // Persistent-only output has no dialogue files; isolate it from earlier sidecars.
@@ -5102,9 +5124,10 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
     ]);
     const info = existsSync(out) ? probe(out) : {};
     const persistentCheck = await readPersistentSubtitleProof(result.reportFile, colored);
+    const exactPersistentAss = PERSISTENT_SUBTITLE_ANCHOR === "bottom-center" || PERSISTENT_SUBTITLE_STYLE !== null;
     const persistentMatchesSidecar = !persistentSubtitleProof
       || (persistentCheck.proof?.compositionSha256 === persistentSubtitleProof.compositionSha256
-        && (PERSISTENT_SUBTITLE_ANCHOR !== "bottom-center" || persistentCheck.proof?.assSha256 === persistentSubtitleProof.assSha256));
+        && (!exactPersistentAss || persistentCheck.proof?.assSha256 === persistentSubtitleProof.assSha256));
     const verdict = await reviewStage({
       // 阶段名统一为 `subtitle`（历史裁决按阶段名检索：burn/sidecar 只是同一步的两种落地方式，
       // 命名分开会让"历史日志里有 subtitle 的放行裁决"这条链路完整性检查在本模式下误判缺失）
