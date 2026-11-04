@@ -22,6 +22,18 @@ function movingRivals(text: string): boolean {
     && /超车|超越|连超|追击|追近|追逐|竞速|高速|行驶|并行|并排/u.test(clause));
 }
 
+function hasDriverlessRivalAuthority(text: string): boolean {
+  const marker = "__WORKLOOM_DRIVERLESS_RIVAL__";
+  return text.split(/[。；;，,\n]/u).some(clause => {
+    if (!/(?:对手|对方)(?:摩托)?车/u.test(clause) || !/无人(?:驾驶|空车)?|无驾驶员|空车/u.test(clause)) return false;
+    // Here “无人” is the vehicle's description, so preserve the surrounding
+    // actual prohibitions while making that description visible to the splitter.
+    const masked = clause.replace(/无人(?:驾驶|空车)?|无驾驶员|空车/gu, marker)
+      .replace(/不可|不应|并非|不是|拒绝|防止|不允许/gu, "禁止").replace(/并且|而且|且/gu, "；");
+    return splitShotAssertions(masked).positive.includes(marker);
+  });
+}
+
 /** The caller supplies its verified current G4 snapshot, never generated shot prose. */
 export function reviewedRivalIdentity(input: {
   contract: RequirementContract;
@@ -54,6 +66,8 @@ export function reviewedRivalIdentity(input: {
   const planText = [plan.purpose, ...(Array.isArray(plan.visualRequirements) ? plan.visualRequirements : [])]
     .filter((value): value is string => typeof value === "string").join("；");
   const actorActions = scene.actions.filter(action => action.actorId === actor.id).map(action => action.description).join("；");
+  if (hasDriverlessRivalAuthority(cuts.intervals.map(item => item.brief).join("；"))
+    || hasDriverlessRivalAuthority(actorActions) || hasDriverlessRivalAuthority(planText)) return undefined;
   return movingRivals(actorActions) && movingRivals(planText) ? { leadId: actor.id, leadName: actor.name } : undefined;
 }
 
