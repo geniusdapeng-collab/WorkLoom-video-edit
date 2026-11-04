@@ -1463,6 +1463,106 @@ describe("PRD failures remain fatal through native catches", () => {
     expect(first.characterSystem.characters[0]).toHaveProperty("privateUnexpectedKey");
   });
 
+  it.each([
+    "corrected", "at-limit", "still-invalid", "unmeasured-first", "same-response-id", "wrong-item-type",
+    "late-first", "late-before-retry", "late-retry", "nonfrozen", "transport-error", "duplicate-first",
+  ] as const)(
+    "bounds Agent3 audio references and admits one measured native structural retry only when warranted: %s", async mode => {
+      vi.useRealTimers();
+      const value = fixture(`PRD-AUDIO-REFERENCES-${mode}`, [10, 10, 10]);
+      if (mode !== "nonfrozen") requirementRecord(value.metadata.brief, "brief").segmentContract = {
+        count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+        intervals: [0, 1, 2].map(index => ({ startSec: index * 10, endSec: (index + 1) * 10, brief: "原生声音与连续动作" })),
+      };
+      declareDelivery(value, { speechPolicy: "none", nativeAudio: true });
+      value.discovery._originalStoryText = "完整原始制作要求【目标JSON结构示例】后续动作和原生声音不可截断";
+      const h = harness(), run = h.make(value);
+      const first = structuredClone(value.production), corrected = structuredClone(value.production);
+      const firstAudio = requirementRecord(first.audioSpecification, "first audio"),
+        correctedAudio = requirementRecord(corrected.audioSpecification, "corrected audio");
+      const actualSchema = effectivePrdModelSchema("production", PRDSchema, value.contract) as {
+        properties: { audioSpecification: { properties: { audioReferences: { maxItems: number } } } };
+      };
+      const { maxItems } = actualSchema.properties.audioSpecification.properties.audioReferences;
+      firstAudio.audioReferences = mode === "wrong-item-type" ? [42]
+        : Array.from({ length: maxItems + (mode === "at-limit" ? 0 : 1) }, (_, index) => `PRIVATE_PREVIOUS_AUDIO_REFERENCE_${index}`);
+      correctedAudio.audioReferences = ["原速保留轮胎擦地和换挡声", "看台环境声从冲线到维修区自然收敛"];
+      const before = structuredClone(firstAudio.audioReferences);
+      const baseUrl = "https://prd-audio-shape.invalid/v1";
+      const requests: Array<{ url: string; messages: ChatMessage[]; options: RequirementRecord }> = [];
+      let elapsed = 0;
+      const fetchImpl: typeof fetch = async (url, init) => {
+        const { messages, ...options } = JSON.parse(String(init?.body));
+        requests.push({ url: String(url), messages, options });
+        const ordinal = requests.length;
+        if (mode === "transport-error") return new Response("fixture upstream unavailable", { status: 503 });
+        if ((mode === "late-first" && ordinal === 1) || (mode === "late-retry" && ordinal === 2)) elapsed = 180_001;
+        if (mode === "late-before-retry" && ordinal === 1) setTimeout(() => { elapsed = 180_001; }, 0);
+        const content = JSON.stringify(ordinal === 1 || mode === "still-invalid" ? first : corrected);
+        return Response.json({
+          ...(mode === "unmeasured-first" && ordinal === 1 ? {}
+            : { id: `native-prd-audio-${mode === "same-response-id" ? 1 : ordinal}` }),
+          object: "chat.completion", model: "deepseek-flash",
+          choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant",
+            content: mode === "duplicate-first" ? '{"\\u0061udioSpecification":{},' + content.slice(1) : content } }],
+          usage: { prompt_tokens: 300, completion_tokens: 100, total_tokens: 400, completion_tokens_details: { reasoning_tokens: 1 } },
+        });
+      };
+      const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl, apiKey: "test-only", fetchImpl });
+      requirementRecord(run.generator.agent3, "agent3")._llmEngine = new WorkloomLLMEngine({
+        baseUrl, apiKey: "test-only", model: "deepseek-flash", scene: "preproduction",
+        router: { providers: new Map([[provider.modelId, provider]]), sink: {
+          recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
+        } },
+      });
+      const currentTime = performance.now.bind(performance);
+      const clock = vi.spyOn(performance, "now").mockImplementation(() => currentTime() + elapsed);
+      const { result, error } = await withPrdAuthorityScope(value.authority, async () => {
+        const prd = await h.generate(run);
+        await h.review(run, prd);
+        return h.success(prd);
+      }).then(result => ({ result, error: "" }), (error: Error) => ({ result: null, error: error.message }))
+        .finally(() => clock.mockRestore());
+      expect(requests).toHaveLength(["corrected", "still-invalid", "same-response-id", "late-retry"].includes(mode) ? 2 : 1);
+      const original = requests[0]!;
+      const firstPrompt = original.messages.find(message => message.role === "user")!.content as string;
+      expectCompletePrompt(firstPrompt, "production", value);
+      expect(firstPrompt).toContain(`audioSpecification.audioReferences 必须是 0–${maxItems} 项`);
+      expect(firstPrompt).toContain("占位配乐");
+      expect(firstPrompt).toContain("可辨识人声");
+      expect(original.options).toMatchObject({ model: "deepseek-flash", max_tokens: 393_216, response_format: { type: "json_object" } });
+      if (requests.length === 2) {
+        const retry = requests[1]!;
+        expect(retry.url).toBe(original.url);
+        expect(retry.options).toEqual(original.options);
+        expect(retry.messages.filter(message => message.role !== "user")).toEqual(original.messages.filter(message => message.role !== "user"));
+        const secondPrompt = retry.messages.find(message => message.role === "user")!.content as string;
+        const [unchanged, feedback] = secondPrompt.split("\n\n## 上一次原生制作规格结构校验反馈\n");
+        const adapterSuffix = firstPrompt.slice(firstPrompt.lastIndexOf("\n\n【硬性输出要求】"));
+        expect(unchanged + adapterSuffix).toBe(firstPrompt);
+        expect(secondPrompt.endsWith(adapterSuffix)).toBe(true);
+        expect(feedback).toContain(JSON.stringify({ path: "/audioSpecification/audioReferences", keyword: "maxItems",
+          observed: maxItems + 1, limit: maxItems }));
+        expect(secondPrompt).not.toContain("PRIVATE_PREVIOUS_AUDIO_REFERENCE_");
+        expectCompletePrompt(secondPrompt, "production", value);
+      }
+      if (mode === "corrected" || mode === "at-limit") {
+        expect(error).toBe("");
+        expect(result?.stages.prdGeneration.data).toMatchObject({ audioSpecification: mode === "corrected"
+          ? corrected.audioSpecification : first.audioSpecification });
+      } else {
+        expect(result).toBeNull();
+        const diagnostic = mode === "transport-error" ? "PRD_MODEL_UNVERIFIED"
+          : mode === "late-before-retry" ? "Agent3 音频参考结构修正的原生路径或原时限已变化"
+          : ["same-response-id", "late-retry"].includes(mode)
+          ? "Agent3 音频参考结构修正未取得同一路径的新完整响应" : "/audioSpecification/audioReferences";
+        expect(error).toContain(diagnostic);
+      }
+      expect(run.system.minimalCalls).toBe(0);
+      expect(firstAudio.audioReferences).toEqual(before);
+    },
+  );
+
   it("refuses an unmeasured character shape failure without spending a structural retry", async () => {
     const value = fixture("PRD-CHAR-UNATTESTED"), h = harness();
     Object.assign(value.production.characterSystem.characters[0]!, { needsPortrait: true });
