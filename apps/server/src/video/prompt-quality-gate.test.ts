@@ -439,6 +439,93 @@ describe("G6 同次修复的真实模型路由", () => {
 });
 
 describe("prompt semantic quality gate", () => {
+  function currentG4(shotId = "S01") {
+    return { approvedProductionPlan: { g4ArtifactSha256: "a".repeat(64), requirementContractHash: "b".repeat(64),
+      scenes: [{ shotId, sceneId: shotId, approvedScene: { actions: [{ actorId: "lead", description: "走到栏杆旁" }] },
+        verificationPlan: { visualRequirements: ["看清走近栏杆"] } }] } };
+  }
+
+  function isolatedRedundancyShot() {
+    const shaped: Record<string, string> = {
+      lighting: "柔和侧光保留面部细节。", composition: "中景保留栏杆与人物的位置关系。", color_palette: "暖灰与浅木色。",
+      depth_of_field: "中景清晰。", mood: "安静。", director_instruction: "纪录摄影，观察动作。",
+      scene: "清晨临水回廊，薄雾贴着水面。", pacing: "先快后稳。", makeup: "自然裸妆。",
+    };
+    const sizes = [178, 145, 123, 83, 5, 184, 202, 98, 46];
+    const draftFields: Record<string, unknown> = { ...fields, ...Object.fromEntries(Object.entries(shaped).map(([key, value], index) =>
+      [key, value.repeat(sizes[index]!).slice(0, sizes[index])])) };
+    const draft = { source: { ...source, fields: draftFields }, compile };
+    const length = compilePromptPackage({ shots: [draft] })[0]!.contract.prompt.length;
+    expect(length).toBeLessThan(3619);
+    draftFields.costume = String(draftFields.costume) + "织".repeat(3619 - length);
+    expect(compilePromptPackage({ shots: [draft] })[0]!.contract.prompt.length).toBe(3619);
+    return { draft, shaped };
+  }
+
+  it("reaches independent review and uses one bounded repair when the measured five-field budget alone is impossible", async () => {
+    const { draft, shaped } = isolatedRedundancyShot();
+    const review = vi.fn(async () => {
+      const result = passReview();
+      result.checks[3] = { ...result.checks[3]!, evidence: shaped.lighting! };
+      return result;
+    });
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
+      expect([...context.allowedFields].sort()).toEqual(Object.keys(shaped).sort());
+      expect(context.finalPromptFieldBudget).toMatchObject({ actualChars: 3619, maxFinalPromptChars: 3000, semanticFields: [] });
+      for (const field of ["action", "timeline", "negative", "portraits", "audio", "transition", "costume"]) {
+        expect(context.allowedFields).not.toContain(field);
+      }
+      return { changes: Object.entries(shaped).filter(([field, value]) => value.length < String(draft.source.fields[field]).length)
+        .map(([field, value]) => ({ field, value, reason: "精简重复描述" })) };
+    });
+    const before = compilePromptPackage({ shots: [draft] })[0]!.contract;
+    const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [draft],
+      maxFinalPromptChars: 3000, upstreamContext: currentG4() });
+    const after = result.shotContracts[0]!.contract;
+    expect(result.g6Eligible, JSON.stringify({ findings: result.findings, reports: result.semanticReports,
+      repairReason: result.repairAttempt?.reason })).toBe(true);
+    expect(after.prompt.length).toBeLessThanOrEqual(3000);
+    expect(after.requestSha256).toBe(before.requestSha256);
+    expect(review).toHaveBeenCalledTimes(2);
+    expect(repair).toHaveBeenCalledTimes(1);
+    for (const field of ["action", "timeline", "negative", "portraits", "audio", "transition", "costume"]) {
+      expect(after.bindings.find(row => row.field === field)?.valueSha256).toBe(before.bindings.find(row => row.field === field)?.valueSha256);
+    }
+  });
+
+  it.each(["missing", "wrong-shot", "shadow"] as const)("never opens broader write scope for %s", async boundary => {
+    const { draft } = isolatedRedundancyShot();
+    const review = vi.fn(async () => passReview()), repair = vi.fn();
+    const result = await evaluatePromptPackage({ ...input({ review, repair }, boundary === "shadow" ? "shadow" : "enforce"),
+      shots: [draft], maxFinalPromptChars: 3000,
+      ...(boundary !== "missing" ? { upstreamContext: currentG4(boundary === "wrong-shot" ? "foreign-shot" : "S01") } : {}) });
+    expect(result.g6Eligible).toBe(false);
+    expect(result.findings).toContainEqual(expect.objectContaining({ code: "HARD_FINAL_PROMPT_TOO_LONG", repairClass: "deterministic" }));
+    expect(review).not.toHaveBeenCalled();
+    expect(repair).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("only permits a current G4 diagnosed transition repair that retains the hard cut (drift=%s)", async drift => {
+    const shot = { source: { ...source, fields: { ...fields, transition: "硬切入镜，末秒冻结画面。" } }, compile };
+    const first = passReview();
+    first.checks[4] = { id: "SQ5_PURPOSE", pass: false, field: "transition", evidence: "末秒冻结画面",
+      failureCode: "REQUIRED_END_MOTION_MISSING", repair: "保留硬切，末态保留自然动作" };
+    const review = vi.fn<SemanticQualityReviewer["review"]>().mockResolvedValueOnce(first).mockResolvedValueOnce(passReview());
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
+      expect(context.allowedFields).toEqual(["transition"]);
+      return { changes: [{ field: "transition", value: drift ? "叠化入镜，末态保留微动。" : "硬切入镜，末态保留微动。", reason: "去掉冻结" }] };
+    });
+    const prior = compilePromptPackage({ shots: [shot] })[0]!.contract;
+    expect(parseSemanticQualityReview(first, prior, shot.source).errors).toContain("SEMANTIC_REVIEW_FIELD_INVALID:SQ5_PURPOSE");
+    const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [shot], maxFinalPromptChars: 3000,
+      upstreamContext: currentG4() });
+    expect(result.g6Eligible).toBe(!drift);
+    expect(result.shotContracts[0]!.contract.requestSha256).toBe(prior.requestSha256);
+    expect(repair).toHaveBeenCalledTimes(1);
+    if (drift) expect(result.repairAttempt?.reason).toBe("APPROVED_TRANSITION_REPAIR_DRIFT");
+    else expect(result.shotContracts[0]!.contract.prompt).toContain("硬切入镜，末态保留微动。");
+  });
+
   it("G6 and G7 enforce the same inclusive UTF-16 final limit even when an oversized contract summary matches", async () => {
     const review = vi.fn(async () => passReview());
     const exact = shotAtFinalLength(3000);

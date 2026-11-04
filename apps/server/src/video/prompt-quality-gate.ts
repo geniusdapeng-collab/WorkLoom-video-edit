@@ -377,10 +377,32 @@ function fieldValueFromSource(source: Record<string, unknown>, field: string): u
   return fields[field] ?? source[field];
 }
 
+/** This plan comes from the worker's current, approved G4 archive readback. */
+function hasCurrentG4Shot(upstream: Record<string, unknown> | undefined, shotId: string): boolean {
+  const value = upstream?.approvedProductionPlan;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const plan = value as Record<string, unknown>;
+  const hash = (value: unknown) => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
+  if (!hash(plan.g4ArtifactSha256) || !hash(plan.requirementContractHash) || !Array.isArray(plan.scenes)) return false;
+  const bound = plan.scenes.filter(item => item && typeof item === "object" && item.shotId === shotId);
+  return bound.length === 1 && bound[0].sceneId === shotId && Array.isArray(bound[0].approvedScene?.actions)
+    && bound[0].approvedScene.actions.length > 0 && Array.isArray(bound[0].verificationPlan?.visualRequirements);
+}
+
+function semanticQuestions(upstream: Record<string, unknown> | undefined, shotId: string) {
+  if (!hasCurrentG4Shot(upstream, shotId)) return SEMANTIC_QUALITY_QUESTION;
+  return {
+    ...SEMANTIC_QUALITY_QUESTION,
+    SQ5_PURPOSE: { question: "这一镜是否有明确叙事作用，且转场不违背本镜已审切点和末态动作？",
+      fields: [...SEMANTIC_QUALITY_QUESTION.SQ5_PURPOSE.fields, "transition"] },
+  };
+}
+
 export function parseSemanticQualityReview(
   value: unknown,
   contract: PromptContract,
   source?: Record<string, unknown>,
+  upstreamContext?: Record<string, unknown>,
 ): { valid: boolean; errors: string[]; review?: SemanticQualityReview } {
   let parsed = value;
   if (typeof parsed === "string") {
@@ -396,6 +418,7 @@ export function parseSemanticQualityReview(
   const definitions = new Map(contract.bindings.map((binding) => [binding.field, binding]));
   const labels = new Map(promptFieldPolicy(contract.fieldSchema, contract.fieldCount === 30)
     .fields.map((field) => [field.key, field]));
+  const questions = semanticQuestions(upstreamContext, contract.shotId);
   const errors: string[] = [];
   if (record.shotId !== undefined && record.shotId !== contract.shotId) errors.push("SEMANTIC_REVIEW_SHOT_MISMATCH");
   const seen = new Set<string>();
@@ -420,7 +443,7 @@ export function parseSemanticQualityReview(
     const evidence = typeof item.evidence === "string" ? item.evidence.trim() : "";
     if (!evidence) errors.push(`SEMANTIC_REVIEW_EVIDENCE_MISSING:${id}`);
     const field = typeof item.field === "string" ? item.field.trim() : undefined;
-    const requiredFields = SEMANTIC_QUALITY_QUESTION[id as SemanticQualityCheckId].fields;
+    const requiredFields = questions[id as SemanticQualityCheckId].fields;
     if (field !== undefined && (!requiredFields.includes(field) || !definitions.has(field))) {
       errors.push(`SEMANTIC_REVIEW_FIELD_INVALID:${id}`);
     }
@@ -487,10 +510,14 @@ function semanticPrompt(
       "SQ1 必须核对本镜每个必做动作在画面中可见。只写动作已经完成、跳过关键前后状态、用结果代替过程或把动作移到另一镜，都判失败。缺动作指向 action；身份或姿态不符指向 character。",
       "SQ2 必须检查时间轴是否逐项呈现本镜的动作和道具交接，按要求顺序发生。与 action 缺项或冲突时指向 timeline。SQ3 运镜各时间窗和镜位须对齐同一实际动作与时间轴。",
       "SQ4 核对构图是否实际能看到 G4 明确要求的部位、护具、动作或可见细节；不能用无关特写、遮挡或通用形容词代替。SQ5 关键目的与相邻镜头交接必须有本镜的字段证据。",
+      ...(hasCurrentG4Shot(upstreamContext, contract.shotId) ? [
+        "SQ2 角色占用双手的道具必须实际放稳、交接或有明确可行的后续动作，不能从仍握住道具直接跳到双手使用另一道具。",
+        "SQ5 仅当本镜转场文字确有冲突时可指向 transition。按实际已审切点和末态复核：自然微动不能改成冻结或定格；稳定机位、自然微动和冻结画面是不同的制作行为。",
+      ] : []),
       "用本镜真实字段片段作证据；缺项时摘录跳过该动作、只呈现完成状态或明确遮挡的原文，不得用 G4 文字冒充本镜证据。",
     ] : []),
     JSON.stringify({ shotId: contract.shotId, fieldSchema: contract.fieldSchema, fields, upstreamContext: upstreamContext ?? null,
-      questions: SEMANTIC_QUALITY_QUESTION }, null, 2),
+      questions: semanticQuestions(upstreamContext, contract.shotId) }, null, 2),
   ].join("\n");
 }
 
@@ -503,6 +530,9 @@ function repairSchema(context: SemanticRepairContext): Record<string, unknown> {
       ...(descriptive ? [{ field: descriptive, value: "保留原意的简洁表述", reason: "缩短完整提示词" }] : []),
     ] };
   }
+  if (context.allowedFields.includes("transition")) return {
+    changes: [{ field: "transition", value: "保留原硬切与已审自然末态的完整描述", reason: "修复已诊断的转场与末态冲突" }],
+  };
   return {
     changes: [{ field: "camera_movement", value: "只包含在目标时长内可完成的一个主动作", reason: "修复 SQ3" }],
   };
@@ -525,8 +555,9 @@ function repairPrompt(
     "不得修改事实、授权、时长、画幅、模型能力、gate threshold 或任何其它字段。",
     ...(finalPromptLength ? [
       `本镜完整编译提示词实测 ${finalPromptLength.actualChars} 字符，最终上限 ${finalPromptLength.maxFinalPromptChars} 字符（UTF-16 计数）；字段合计至少需缩短 ${finalPromptLength.actualChars - finalPromptLength.maxFinalPromptChars} 字符。`,
-      "没有语义缺陷的可写美术字段只精简同义重复，保留原有光向、色彩、构图、景深和情绪。不得截断、清空或把内容移到其他字段。",
+      "没有语义缺陷的可写描述字段只精简同义重复，保留原有光向、色彩、构图、景深、情绪、可见环境、导演目的、节奏变化和妆容特征。不得截断、清空或把内容移到其他字段。",
     ] : []),
+    ...(allowedFields.includes("transition") ? ["仅按独立评审指向的具体矛盾修复转场文字，保留原硬切、切点、原生末态与自然动作；不得增加过渡、延长时长或冻结画面。"] : []),
     ...(finalPromptFieldBudget ? [
       `实际编译中固定部分已占 ${finalPromptFieldBudget.fixedChars} 字；所有可写字段修复后的值总长（含未改可写字段）最多 ${finalPromptFieldBudget.maxEditableValueChars} 字，建议不超过 ${finalPromptFieldBudget.targetEditableValueChars} 字。请在本次响应内核算全部可写字段的总长，留出安全余量。`,
       `必须同时解决正式评审指出的语义缺陷。仅以下字段可按对应 findings 补齐或调整制作语义：${JSON.stringify(finalPromptFieldBudget.semanticFields)}；其余可写字段只能缩写。保持演员身份、资产、服装、声场、技术规格和每镜总时长；不得省略已审动作或增加段落。`,
@@ -598,6 +629,7 @@ function hardFinding(error: { code: string; field: string | null; detail: string
 
 const FINAL_PROMPT_LENGTH_CODE = "HARD_FINAL_PROMPT_TOO_LONG";
 const FINAL_LENGTH_EDITABLE_FIELDS = new Set(["lighting", "composition", "color_palette", "depth_of_field", "mood"]);
+const FINAL_LENGTH_G4_DESCRIPTION_FIELDS = new Set(["director_instruction", "scene", "pacing", "makeup"]);
 const FINAL_COMBINED_SEMANTIC_FIELDS = new Set([
   ...FINAL_LENGTH_EDITABLE_FIELDS, "director_instruction", "scene", "character", "action", "props", "timeline", "camera_movement",
 ]);
@@ -641,17 +673,22 @@ function finalPromptOverflow(contract: PromptContract, limit: number | undefined
   }
 }
 
-function finalLengthEditableFields(contract: PromptContract, source: Record<string, unknown>, length: FinalPromptLength): string[] {
+function finalLengthEditableFields(contract: PromptContract, source: Record<string, unknown>, length: FinalPromptLength,
+  upstream?: Record<string, unknown>): string[] {
   const candidates = contract.bindings.flatMap(binding => {
-    if (!FINAL_LENGTH_EDITABLE_FIELDS.has(binding.field) || !binding.promptSpan
-      || binding.channels.length !== 1 || binding.channels[0] !== "prompt") return [];
+    const span = binding.promptSpan;
+    if (!span || binding.channels.length !== 1 || binding.channels[0] !== "prompt") return [];
     const value = fieldValueFromSource(source, binding.field);
-    return typeof value === "string" && value.trim().length > 1
+    return typeof value === "string" && value.trim().length > 1 && contract.prompt.slice(span.start, span.end).endsWith(value.trim())
       ? [{ field: binding.field, removableChars: value.trim().length - 1 }] : [];
   });
   const excess = length.actualChars - length.maxFinalPromptChars;
-  if (candidates.reduce((total, candidate) => total + candidate.removableChars, 0) < excess) return [];
-  return candidates.map(candidate => candidate.field);
+  const capacity = (items: typeof candidates) => items.reduce((total, candidate) => total + candidate.removableChars, 0);
+  const primary = candidates.filter(item => FINAL_LENGTH_EDITABLE_FIELDS.has(item.field));
+  if (capacity(primary) >= excess) return primary.map(item => item.field);
+  if (!hasCurrentG4Shot(upstream, contract.shotId)) return [];
+  const extended = candidates.filter(item => FINAL_LENGTH_EDITABLE_FIELDS.has(item.field) || FINAL_LENGTH_G4_DESCRIPTION_FIELDS.has(item.field));
+  return capacity(extended) >= excess ? extended.map(item => item.field) : [];
 }
 
 function asGateFinding(finding: PromptQualityFinding): GateFinding {
@@ -826,7 +863,7 @@ async function reviewWithTechnicalRetry(
       const current = { ...context, attempt: attempt + 1 };
       const native = captureProof || prior ? proofReviewer(reviewer) : undefined;
       if (attempt === 0 && native && prior?.dispatch.matchesCurrent(...semanticReviewRequest(current))) {
-        const parsed = parseSemanticQualityReview(prior.review, current.contract, current.shot);
+        const parsed = parseSemanticQualityReview(prior.review, current.contract, current.shot, current.upstreamContext);
         if (parsed.valid && parsed.review?.checks.every((check) => check.pass)) {
           const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = prior.dispatch;
           return {
@@ -846,7 +883,7 @@ async function reviewWithTechnicalRetry(
       } else {
         value = await reviewer.review(current);
       }
-      const parsed = parseSemanticQualityReview(value, current.contract, current.shot);
+      const parsed = parseSemanticQualityReview(value, current.contract, current.shot, current.upstreamContext);
       if (parsed.valid && parsed.review) return { review: parsed.review, errors: [], retries: attempt, dispatchProof };
       lastError = parsed.errors.join(",");
     } catch (error) {
@@ -912,7 +949,7 @@ async function evaluateCompiledShots(
     const length = finalPromptOverflow(item.compiled.contract, input.maxFinalPromptChars);
     if (!length) continue;
     const repairable = allowLengthRepair && structureValid && reviewer?.repair
-      && finalLengthEditableFields(item.compiled.contract, item.source, length).length > 0;
+      && finalLengthEditableFields(item.compiled.contract, item.source, length, input.upstreamContext).length > 0;
     findings.push({ code: FINAL_PROMPT_LENGTH_CODE, field: null, shotId: item.shotId, blocking: true,
       detail: `完整提示词 ${length.actualChars} 字符超过最终原生上限 ${length.maxFinalPromptChars}（UTF-16）`,
       repairClass: repairable ? "semantic" : "deterministic" });
@@ -1003,9 +1040,10 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
       const finalPromptLength = finalPromptOverflow(firstShot.compiled.contract, input.maxFinalPromptChars);
       const diagnosed = [...new Set(semanticFindings.filter(finding => finding.shotId === shotId)
         .flatMap(finding => finding.field ? [finding.field] : []))];
-      const semanticFields = finalPromptLength ? diagnosed.filter(field => FINAL_COMBINED_SEMANTIC_FIELDS.has(field)) : diagnosed;
+      const semanticFields = finalPromptLength ? diagnosed.filter(field => FINAL_COMBINED_SEMANTIC_FIELDS.has(field)
+        || (field === "transition" && hasCurrentG4Shot(input.upstreamContext, shotId))) : diagnosed;
       const fields = finalPromptLength ? [...new Set([
-        ...finalLengthEditableFields(firstShot.compiled.contract, firstShot.source, finalPromptLength), ...semanticFields,
+        ...finalLengthEditableFields(firstShot.compiled.contract, firstShot.source, finalPromptLength, input.upstreamContext), ...semanticFields,
       ])] : diagnosed;
       const fieldBudget = promptFieldBudget(firstShot.compiled.contract, firstShot.source, fields, semanticFields, input.maxFinalPromptChars);
       return { firstShot, fields, semanticFields, finalPromptLength, fieldBudget, allDiagnosesWritable: semanticFields.length === diagnosed.length };
@@ -1068,6 +1106,15 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           });
           const shotChanges = validateRepairChanges(changesRaw, shotAllowedFields);
           if (new Set(shotChanges.map((change) => change.field)).size !== shotChanges.length) throw new Error("REPAIR_CHANGE_DUPLICATE");
+          const reviewedTransition = shotChanges.find(change => change.field === "transition");
+          if (reviewedTransition) {
+            const prior = fieldValueFromSource(firstShot.source, "transition");
+            if (!semanticFields.includes("transition") || !hasCurrentG4Shot(input.upstreamContext, shotId)
+              || typeof reviewedTransition.value !== "string" || !reviewedTransition.value.trim()
+              || (typeof prior === "string" && prior.includes("硬切") && !reviewedTransition.value.includes("硬切"))) {
+              throw new Error("APPROVED_TRANSITION_REPAIR_DRIFT");
+            }
+          }
           if (finalPromptLength) {
             for (const change of shotChanges) {
               const prior = fieldValueFromSource(firstShot.source, change.field);
@@ -1084,7 +1131,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           const patched = patchSource(firstShot.source, shotChanges);
           const allowReviewedTimeline = semanticFields.includes("timeline") && shotChanges.some(change => change.field === "timeline");
           patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,
-            ...(finalPromptLength ? { expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
+            ...(finalPromptLength || reviewedTransition ? { expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
               allowReviewedTimeline } : {}) });
           changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
         }
