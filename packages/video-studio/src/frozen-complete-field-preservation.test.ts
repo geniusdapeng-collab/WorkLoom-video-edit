@@ -196,11 +196,54 @@ const nativeModule = nativeRequire("../../../vendor/supermickey/hyperreality-sys
 };
 const authoredFields = Object.keys(nativeModule.SPEC_MAP);
 const finiteFields = authoredFields.filter(field => nativeModule.SPEC_MAP[field]!.charMax < 9999);
+const aliasedRepairCases = finiteFields.filter(field => field.includes("_")).flatMap(field => {
+  const camel = field.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+  return [{ field, camel, requested: camel, returned: field }, { field, camel, requested: field, returned: camel }];
+});
 function completeValue(field: string) {
   return `${field}的完整作者正文，` + "主体与动作保持可核验的完整描述。".repeat(30) + `最后一项${field}完整要求。`;
 }
 
 describe("complete authored frozen fields at the installed native production seam", () => {
+  it.each(aliasedRepairCases)("preserves the native $returned response for an allowed $requested batch", async ({ field, camel, requested, returned }) => {
+    const { harness, run, shot } = frozenRun();
+    const authored = completeValue(field), raw = JSON.stringify({ repaired_fields: { [returned]: authored } });
+    const source = { ...shot, [field]: "此前完整内容。", [camel]: "此前完整内容。",
+      fields: { [field]: "此前完整内容。", [camel]: "此前完整内容。" } };
+    const before = structuredClone(source);
+    const response = vi.fn(async () => ({ success: true, content: raw }));
+    const repairer = Reflect.construct(LLMRepairer, [{ reason: response }, 500]) as RequirementRecord;
+    await harness.accepted(run, async () => {
+      const result = requirementRecord(await invoke(repairer, "_repairBatch", source,
+        [{ fieldEn: requested, issueType: "conflict", severity: "major", description: "当前字段需要完整修复", suggestion: "保留完整正文" }],
+        [requested], new PRD({}), 500, 1, 1), "native aliased repair");
+      const repaired = requirementRecord(result.repaired, "native repaired shot");
+      const nested = requirementRecord(repaired.fields, "native repaired fields");
+      expect((result.actions as RequirementRecord[])[0]!.after).toBe(authored);
+      expect([repaired[field], repaired[camel], nested[field], nested[camel]]).toEqual(Array(4).fill(authored));
+      expect(source).toEqual(before);
+      expect(response).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(raw).repaired_fields[returned]).toBe(authored);
+    });
+  });
+
+  it("keeps identical allowed reply aliases complete before native action synchronization", async () => {
+    const { harness, run, shot } = frozenRun();
+    const authored = completeValue("character_constraint"), values = { character_constraint: authored, characterConstraint: authored };
+    const source = { ...shot, character_constraint: "此前完整内容。", characterConstraint: "此前完整内容。",
+      fields: { character_constraint: "此前完整内容。", characterConstraint: "此前完整内容。" } };
+    const repairer = Reflect.construct(LLMRepairer, [{ reason: async () => ({ success: true,
+      content: JSON.stringify({ repaired_fields: values }) }) }, 500]) as RequirementRecord;
+    await harness.accepted(run, async () => {
+      const result = requirementRecord(await invoke(repairer, "_repairBatch", source, [], ["characterConstraint"],
+        new PRD({}), 500, 1, 1), "same native alias values");
+      const repaired = requirementRecord(result.repaired, "native repaired shot");
+      expect(repaired.character_constraint).toBe(authored);
+      expect(requirementRecord(repaired.fields, "native repaired fields").characterConstraint).toBe(authored);
+      expect((result.actions as RequirementRecord[]).every(action => action.after === authored)).toBe(true);
+    });
+  });
+
   it.each(finiteFields)("preserves complete native LLM replacement for %s", async field => {
     const { harness, run, shot } = frozenRun();
     const authored = completeValue(field);
@@ -336,6 +379,12 @@ describe("complete authored frozen fields at the installed native production sea
       expect(display).not.toContain("最后一项costume完整要求");
       expect(Object.hasOwn(native, "_truncateStandardPrompt")).toBe(false);
       expect(Object.hasOwn(refiner, "_ensureClosure")).toBe(false);
+      const constraint = completeValue("character_constraint");
+      const repairer = Reflect.construct(LLMRepairer, [{ reason: async () => ({ success: true,
+        content: JSON.stringify({ repaired_fields: { character_constraint: constraint } }) }) }, 500]) as RequirementRecord;
+      const legacy = requirementRecord(await invoke(repairer, "_repairBatch", { ...shot, characterConstraint: "此前完整内容。" }, [],
+        ["characterConstraint"], new PRD({}), 500, 1, 1), "legacy aliased repair");
+      expect(String((legacy.actions as RequirementRecord[])[0]!.after).length).toBeLessThan(constraint.length);
     });
   });
 
