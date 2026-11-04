@@ -286,7 +286,7 @@ describe("complete authored frozen fields at the installed native production sea
       });
       expect.soft(compiled.fieldValues.costume).toContain("最后一项costume完整要求");
       expect(compiled.prompt.length).toBeGreaterThan(500);
-      expect(compiled.hardErrors.some(error => error.code === "HARD_PROMPT_LENGTH_OVER_LIMIT")).toBe(true);
+      expect(compiled.hardErrors.some(error => error.code === "HARD_PROMPT_TOO_LONG")).toBe(true);
     });
   });
 
