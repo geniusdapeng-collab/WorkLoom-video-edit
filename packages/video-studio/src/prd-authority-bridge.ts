@@ -1419,10 +1419,11 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     const identity = scope && Array.isArray(requestedFields) && requestedFields.includes("character_constraint")
       ? rivalIdentity(scope, shot as RequirementRecord) : undefined;
     if (!scope) return Reflect.apply(original, this, [shot, issues, requestedFields, ...args]);
+    if (!Array.isArray(requestedFields)) prdFail("PRD_FIELD_REPAIR_SCOPE", "原生字段修复缺少本批字段列表");
     return awaited(scope, async () => {
+      check(scope);
       const synchronize = nativeFieldRepairSynchronizer(shot, requestedFields,
         [...fieldGroups.p0, ...fieldGroups.p1, ...fieldGroups.p2, ...fieldGroups.p3]);
-      if (!Array.isArray(requestedFields)) prdFail("PRD_FIELD_REPAIR_SCOPE", "原生字段修复缺少本批字段列表");
       const engine = requirementRecord(this.llm, "原生字段修复模型");
       const reason = method(engine, "reason"), truncate = method(this, "_smartTruncate");
       const engineView = Object.create(engine) as RequirementRecord, receiver = Object.create(this) as RequirementRecord;
@@ -1444,6 +1445,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         if (parsed.ok !== true || !parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) return reply;
         const data = (parsed.data as RequirementRecord).repaired_fields;
         if (!data || typeof data !== "object" || Array.isArray(data)) return reply;
+        guard(scope, () => synchronize.observeNativeFields(data));
         const entries = Object.entries(data);
         for (const [field, text] of entries) {
           if (authoredField(field) && requestedFields.includes(field) && typeof text === "string" && text.trim()) {
@@ -1456,7 +1458,9 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       receiver._smartTruncate = (text: unknown, limit: unknown) => {
         return typeof text === "string" && preservedValues.has(text) ? text : Reflect.apply(truncate, receiver, [text, limit]);
       };
-      return synchronize(await Reflect.apply(original, receiver, [shot, issues, requestedFields, ...args]));
+      const result = await Reflect.apply(original, receiver, [shot, issues, requestedFields, ...args]);
+      check(scope);
+      return synchronize.finish(result);
     });
   });
   if (deps.ruleRepairPrototype) {

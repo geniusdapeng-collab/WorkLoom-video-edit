@@ -7,6 +7,12 @@ const record = (value: unknown): RecordValue =>
 const same = isDeepStrictEqual;
 const camel = (field: string): string => field.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 
+export interface NativeFieldRepairSynchronizer {
+  /** Only the current native parser's successful repaired_fields object is observed. */
+  observeNativeFields(value: unknown): void;
+  finish(resultValue: unknown): unknown;
+}
+
 /**
  * The native batch owns its authored values and action log. Synchronize only
  * proven applied actions, after the native parser and before another consumer
@@ -14,7 +20,7 @@ const camel = (field: string): string => field.replace(/_([a-z])/g, (_, letter: 
  */
 export function nativeFieldRepairSynchronizer(
   sourceValue: unknown, requestedFields: unknown, fieldNames: readonly string[],
-): (resultValue: unknown) => unknown {
+): NativeFieldRepairSynchronizer {
   const source = record(sourceValue), sourceFields = source.fields === undefined ? {} : record(source.fields);
   const aliases = new Map<string, string>();
   for (const field of fieldNames) {
@@ -31,7 +37,19 @@ export function nativeFieldRepairSynchronizer(
   const identity = structuredClone({ shotId: source.shotId, shot_id: source.shot_id, duration: source.duration });
   const values = (shot: RecordValue, fields: RecordValue, key: string) => [shot[key], shot[camel(key)], fields[key], fields[camel(key)]];
   const original = new Map(fieldNames.map(key => [key, structuredClone(values(source, sourceFields, key))]));
-  return resultValue => {
+  let observed: Map<string, unknown> | undefined;
+  const observeNativeFields = (value: unknown): void => {
+    if (observed) fail();
+    const returned = record(value), fields = new Map<string, unknown>();
+    for (const [key, body] of Object.entries(returned)) {
+      const canonical = aliases.get(key);
+      if (!canonical || !allowed.has(canonical)) fail();
+      if (fields.has(canonical) && !same(fields.get(canonical), body)) fail();
+      fields.set(canonical, structuredClone(body));
+    }
+    observed = fields;
+  };
+  const finish = (resultValue: unknown): unknown => {
     const result = record(resultValue);
     if (!Array.isArray(result.actions)) fail();
     const actions = result.actions as unknown[];
@@ -53,6 +71,7 @@ export function nativeFieldRepairSynchronizer(
       const action = record(value);
       const canonical = typeof action.fieldEn === "string" ? aliases.get(action.fieldEn) : undefined;
       if (action.method !== "llm" || !canonical || !allowed.has(canonical)
+        || !observed?.has(canonical)
         || action.after === undefined || action.after === null
         || (typeof action.after === "string" && !action.after.trim())) fail();
       if (applied.has(canonical) && !same(applied.get(canonical), action.after)) fail();
@@ -68,6 +87,12 @@ export function nativeFieldRepairSynchronizer(
       // The pinned native function clones rather than edits its input. Refuse
       // an asynchronous mutation or an undeclared write before synchronizing.
       if (!applied.has(field) && !same(original.get(field), values(repaired, repairedFields ?? {}, field))) fail();
+      if (allowed.has(field) && !applied.has(field)) {
+        const present = original.get(field)!.filter(value => value !== undefined);
+        // Native equality against one preferred alias is not evidence that the
+        // other current copies were accepted. Never invent an applied action.
+        if (present.some(value => !same(value, present[0]))) fail();
+      }
     }
     if (!applied.size) return resultValue;
     for (const [field, value] of applied) {
@@ -79,4 +104,5 @@ export function nativeFieldRepairSynchronizer(
     }
     return resultValue;
   };
+  return { observeNativeFields, finish };
 }
