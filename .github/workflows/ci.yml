@@ -72,6 +72,9 @@ jobs:
       - name: Codex 正式视频入口与接入指南回归
         run: node --import tsx --test scripts/tools/codex-video-workflow.test.mjs scripts/tools/lib/codex-video-film.test.mjs scripts/ai-video-workbench-guide.test.mjs
 
+      - name: 行业包及已登记资产完整性
+        run: node --import tsx scripts/bundle-governance.mts
+
       - name: typecheck 全包
         run: pnpm -r --if-present typecheck
 
