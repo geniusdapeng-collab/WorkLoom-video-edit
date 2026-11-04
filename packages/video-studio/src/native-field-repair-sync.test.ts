@@ -187,6 +187,20 @@ describe("native successful field repair synchronization", () => {
     await expect(h.accepted(async () => { await batch(native.repairer, shot(), ["character_constraint"]); })).rejects.toThrow(/PRD_FIELD_REPAIR_SCOPE/);
   });
 
+  it("rejects a requested native no-op when current aliases already disagree", async () => {
+    const h = harness(), source = shot(), native = repairer([{ character_constraint: repairedText }]);
+    source.characterConstraint = repairedText;
+    await expect(h.accepted(async () => { await batch(native.repairer, source, ["character_constraint"]); }))
+      .rejects.toThrow(/PRD_FIELD_REPAIR_SCOPE/);
+  });
+
+  it("rejects conflicting response aliases even when the native parser drops one as a no-op", async () => {
+    const h = harness(), source = shot();
+    const native = repairer([{ character_constraint: source.character_constraint, characterConstraint: repairedText }]);
+    await expect(h.accepted(async () => { await batch(native.repairer, source, ["character_constraint"]); }))
+      .rejects.toThrow(/PRD_FIELD_REPAIR_SCOPE/);
+  });
+
   it("rejects a nested source replacement while the native model response is pending", async () => {
     const h = harness(), source = shot();
     const native = new LLMRepairer({ reason: async () => {
