@@ -5011,7 +5011,12 @@ async function readPersistentSubtitleProof(reportFile: string | undefined, input
     if (PERSISTENT_SUBTITLE_ANCHOR === "top-center" && proof.style?.alignment !== 8) {
       throw new Error("persistent top anchor differs");
     }
-    if (PERSISTENT_SUBTITLE_STYLE && (proof.style?.alignment !== 8 || proof.style?.borderStyle !== 1
+    if (PERSISTENT_SUBTITLE_STYLE && PERSISTENT_SUBTITLE_ANCHOR === "bottom-center" && (proof.style?.fontSize !== PERSISTENT_SUBTITLE_STYLE.fontSizePx
+      || proof.style?.borderStyle !== 3 || proof.style?.primaryColour !== "&H00FFFFFF" || proof.style?.outlineColour !== "&H80000000"
+      || proof.style?.backColour !== "&H80000000" || proof.layout?.contrast !== "white-on-translucent-black-backdrop")) {
+      throw new Error("persistent lower font or translucent backdrop differs");
+    }
+    if (PERSISTENT_SUBTITLE_STYLE && PERSISTENT_SUBTITLE_ANCHOR !== "bottom-center" && (proof.style?.alignment !== 8 || proof.style?.borderStyle !== 1
       || proof.style?.outline !== PERSISTENT_SUBTITLE_STYLE.outlinePx
       || proof.style?.marginL !== PERSISTENT_SUBTITLE_STYLE.sideMarginPx || proof.style?.marginR !== PERSISTENT_SUBTITLE_STYLE.sideMarginPx
       || proof.layout?.anchor !== "top-center" || proof.layout?.safeArea !== "top-center-platform-safe"

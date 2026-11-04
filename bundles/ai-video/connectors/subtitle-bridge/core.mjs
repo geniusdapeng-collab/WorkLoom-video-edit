@@ -58,6 +58,11 @@ export function validatePersistentSubtitleStyle(value, persistentText, anchor) {
     try { value = JSON.parse(value); }
     catch { throw new SubtitleError("持续字幕样式必须是有效 JSON 对象", "bad_request", false); }
   }
+  if (persistentText && anchor === "bottom-center" && value && typeof value === "object" && !Array.isArray(value)
+    && Object.keys(value).length === 1 && Object.hasOwn(value, "fontSizePx")
+    && Number.isInteger(value.fontSizePx) && value.fontSizePx >= 12 && value.fontSizePx <= 256) {
+    return { fontSizePx: value.fontSizePx };
+  }
   if (!persistentText || anchor === "bottom-center" || !value || typeof value !== "object" || Array.isArray(value)
     || Object.keys(value).length !== 2 || !Object.hasOwn(value, "outlinePx") || !Object.hasOwn(value, "sideMarginPx")
     || !Number.isInteger(value.outlinePx) || value.outlinePx < 1 || value.outlinePx > 12
@@ -1165,9 +1170,13 @@ export async function plan({
     || targetResolution[1] !== (probe?.displayHeight ?? probe?.height))) {
     throw new SubtitleError(persistentBottom ? "底部持续字幕需要与实际竖幅视频分辨率一致" : "指定顶部持续字幕样式需要与实际竖幅视频分辨率一致", "bad_style", false);
   }
-  if (persistentStyle && (persistentStyle.sideMarginPx < Math.ceil(targetResolution[0] * 0.04)
+  if (persistentStyle && !persistentBottom && (persistentStyle.sideMarginPx < Math.ceil(targetResolution[0] * 0.04)
     || persistentStyle.sideMarginPx > Math.floor(targetResolution[0] * 0.16))) {
     throw new SubtitleError("持续字幕侧边距须处于实际画宽的 4%–16%", "bad_style", false);
+  }
+  if (persistentBottom && persistentStyle && (persistentStyle.fontSizePx < Math.ceil(targetResolution[1] * 0.02)
+    || persistentStyle.fontSizePx > Math.floor(targetResolution[1] * 0.06))) {
+    throw new SubtitleError("底部持续字幕字号须处于实际画高的 2%–6%", "bad_style", false);
   }
   const targets = loadRecipes().targets;
   const fonts = scanFonts({ catalog, root: fontsDir });
@@ -1277,15 +1286,16 @@ export async function plan({
       marginV: Math.round(targetResolution[1] * Math.max(0.13, Number(titleLayout.top_margin_ratio ?? 0.13))),
     });
     if (persistentBottom) {
-      const fontSize = Math.max(size, Math.ceil(targetResolution[0] * 0.04));
+      const fontSize = persistentStyle?.fontSizePx ?? Math.max(size, Math.ceil(targetResolution[0] * 0.04));
       const sideMargin = Math.ceil(targetResolution[0] * 0.08);
       Object.assign(titleStyle.style, {
         fontSize, outline: Math.ceil(fontSize * 0.12), borderStyle: 1, alignment: 2,
         marginL: sideMargin, marginR: sideMargin,
         marginV: Math.round(targetResolution[1] * Math.max(0.18, Number(subLayout.bottom_margin_ratio ?? 0.18))),
+        ...(persistentStyle ? { borderStyle: 3, outlineColour: "&H80000000", backColour: "&H80000000" } : {}),
       });
     }
-    if (persistentStyle) {
+    if (persistentStyle && !persistentBottom) {
       Object.assign(titleStyle.style, { outline: persistentStyle.outlinePx, borderStyle: 1,
         marginL: persistentStyle.sideMarginPx, marginR: persistentStyle.sideMarginPx });
     }
@@ -1467,7 +1477,8 @@ export async function plan({
         : "持续字幕完整文字未能以工位字体放入顶部安全区，请缩短文本或核对字体与平台版式", "bad_style", false);
     }
     persistent.layout = { safeArea: persistentBottom ? "bottom-center-platform-safe" : persistentStyle ? "top-center-platform-safe" : "top-12-to-40-percent",
-      ink, rect, occlusionHits: [], contrast: boundedPersistentLayout ? "white-with-dark-outline" : "opaque-white-on-dark-backdrop",
+      ink, rect, occlusionHits: [], contrast: persistentBottom && persistentStyle ? "white-on-translucent-black-backdrop"
+        : boundedPersistentLayout ? "white-with-dark-outline" : "opaque-white-on-dark-backdrop",
       sourcePictureReadability: "unreviewed", ...(boundedPersistentLayout ? { anchor: persistentAnchor ?? "top-center", platform: platformKey } : {}) };
     checks.push({ kind: "persistent_text_layout", ok: true, hard: true, detail: persistent.layout });
   }
