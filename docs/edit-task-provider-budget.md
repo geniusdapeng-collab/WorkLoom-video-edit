@@ -25,4 +25,6 @@
 
 对已单独授权、需要预留逐镜语义复核和渲染资格审核的正式 Studio 作业，在新任务号和新账本上显式使用 `--profile workflow-v2`。该策略允许 64 次文本请求，单请求仍使用同一完整原生窗口。理论合计上界为 67,108,864 token，峰值文本估算上界为 ¥285.212672。媒体规格、限额、任务窗口和正式审批沿用上述要求。第 65 个不同的有效文本请求在本地返回 HTTP 429 `BUDGET_LLM_CALLS_EXCEEDED`，响应的 `error.limit` 包含策略、资源、已用和上限。已有账本只能用最初启用的策略恢复；默认 `case` 和原 `workflow` 均保持 40 次。Film 的正式接续沿用 `workflow`。
 
-仅 `workflow-v2` 的正式 Studio 场景节点可使用 `POST /responses`。网关接收冻结分段的 `workloom_scene_architect` JSON Schema、完整输入和 `deepseek-flash` 高档思考，按完整原生窗口核验 `max_output_tokens`。该请求为非流式，不传工具、图片或跨轮状态。网关持久化预占后原样转发，按供应商返回的输入、输出和总 token 对账。同一账本同时计算 Chat Completions 和 Responses 调用。计量完整的失败或未完成响应仍结算真实用量，Studio 独立核验场景是否可用。无法核实用量时保留预占并关闭新增提交。参见 [DeepSeek Responses API](https://api-docs.deepseek.com/api/create-response/)。
+仅 `workflow-v2` 的正式 Studio 冻结分段作业可使用受控的 `POST /responses`。场景使用 `workloom_scene_architect` JSON Schema。对采用该场景格式、明确冻结分段且无对白的作业，可以在本次 Studio 进程显式设置 `WORKLOOM_VIDEO_RISK_RESPONSE_FORMAT=json_schema`，使风险工位使用 `workloom_risk_assessor` 的固定 JSON Schema。未设置时风险工位沿用原有 Chat 输出。风险工位仍读取同一次已校验场景全文和客户原始材料；本地校验完整正文，后续 G3 独立判断内容是否可执行。仅完整且已计量的无效结果可以使用原有一次纠正机会；未知回执不会触发新的请求。
+
+两种受控 Schema 请求均使用完整输入和 `deepseek-flash` 高档思考，按完整原生窗口核验 `max_output_tokens`。请求为非流式，不传工具、图片或跨轮状态。网关持久化预占后原样转发，按供应商返回的输入、输出和总 token 对账。同一账本同时计算 Chat Completions 和 Responses 调用。计量完整的失败或未完成响应仍结算真实用量。无法核实用量时保留预占并关闭新增提交。参见 [DeepSeek Responses API](https://api-docs.deepseek.com/api/create-response/)。
