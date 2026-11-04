@@ -172,6 +172,11 @@ export function isApprovedMotionFinding(check: SemanticQualityCheck): boolean {
     || (check.failureCode !== undefined && HELMET_FINDINGS.has(check.failureCode));
 }
 
+export function approvedHelmetCustodyFields(findings: readonly SemanticQualityCheck[]): Array<"action" | "timeline"> {
+  return (["action", "timeline"] as const).filter(field =>
+    findings.some(check => check.field === field && check.failureCode !== undefined && HELMET_FINDINGS.has(check.failureCode)));
+}
+
 function nativeHelmetCustodyFinding(check: SemanticQualityCheck): boolean {
   if (check.id !== "SQ2_SCENE_PROPS" || check.pass || check.field !== "action") return false;
   const text = [check.failureCode, check.evidence, check.repair].join("\n");

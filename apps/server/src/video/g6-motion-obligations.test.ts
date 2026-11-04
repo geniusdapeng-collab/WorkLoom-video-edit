@@ -60,9 +60,11 @@ function scenario({ action = oldAction, timeline = oldTimeline, cameraMovement =
 
 afterEach(() => resetCircuit("preproduction"));
 
-function nativeScenario(timeline: string, { helmet = true, foreign = false } = {}) {
-  const fixture = scenario({ action: attempt39Action.replace("踩上最高一级", "迈到台阶最顶层"), timeline, foreign });
+function nativeScenario(timeline: string, { helmet = true, foreign = false, action, revisedTimeline = fixedTimeline,
+  cameraRepair = false }: { helmet?: boolean; foreign?: boolean; action?: string; revisedTimeline?: string; cameraRepair?: boolean } = {}) {
+  const fixture = scenario({ action: action ?? attempt39Action.replace("踩上最高一级", "迈到台阶最顶层"), timeline, foreign });
   const calls: string[] = [];
+  const repairPrompts: string[] = [];
   const repairs: Array<Array<{ field: string }>> = [];
   const model = "deepseek-flash", baseUrl = "http://g6-motion-fixture.invalid/v1", apiKey = "fixture-only";
   const provider = new OpenAiCompatibleProvider(model, { baseUrl, apiKey, fetchImpl: async (url, init) => {
@@ -78,7 +80,11 @@ function nativeScenario(timeline: string, { helmet = true, foreign = false } = {
     if (repairing) {
       const fields: Array<{ field: string }> = context.allowedFields;
       repairs.push(fields);
-      payload = { changes: fields.map(({ field }) => ({ field, value: field === "action" ? fixedAction : fixedTimeline, reason: "落实本镜已审动作" })) };
+      repairPrompts.push(prompt);
+      const replacements = { action: fixedAction, timeline: revisedTimeline, camera_movement: "侧前中景随同已审动作转入领奖台。" };
+      payload = { changes: fields.map(({ field }) => ({
+        field, value: replacements[field as keyof typeof replacements], reason: "落实本镜已审动作",
+      })) };
     } else {
       const rows = new Map<string, string>(context.fields.map(({ field, value }: { field: string; value: string }) => [field, value]));
       const checks = SEMANTIC_QUALITY_CHECK_IDS.map(id => {
@@ -86,7 +92,9 @@ function nativeScenario(timeline: string, { helmet = true, foreign = false } = {
         return { id, pass: true, field, evidence: rows.get(field)! };
       });
       if (shotId === "ending" && !seen) {
-        Object.assign(checks[1]!, { id: "SQ2_SCENE_PROPS", field: "action", pass: false, failureCode: helmet ? "PROP_HANDOFF_UNCLEAR" : "TROPHY_PROP_POSITION",
+        if (cameraRepair) Object.assign(checks[2]!, { field: "camera_movement", pass: false, failureCode: "CAMERA_PULL_START_WINDOW_MISALIGNED",
+          evidence: rows.get("camera_movement"), repair: "对齐时间轴上已审动作窗口" });
+        else Object.assign(checks[1]!, { id: "SQ2_SCENE_PROPS", field: "action", pass: false, failureCode: helmet ? "PROP_HANDOFF_UNCLEAR" : "TROPHY_PROP_POSITION",
           evidence: helmet ? "把盔收在左臂弯" : "屈膝取起预置奖杯", repair: helmet ? "明确头盔放置及双手腾出" : "明确奖杯位置" });
       }
       payload = { shotId, checks };
@@ -100,7 +108,7 @@ function nativeScenario(timeline: string, { helmet = true, foreign = false } = {
     sink: { recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined } } });
   const ending = fixture.input.shots[0]!;
   const opening = { ...ending, source: { ...ending.source, shotId: "opening" } };
-  return { calls, repairs, input: { ...fixture.input, shots: [opening, ending], reviewer: createLlmSemanticQualityReviewer(engine) } };
+  return { calls, repairs, repairPrompts, input: { ...fixture.input, shots: [opening, ending], reviewer: createLlmSemanticQualityReviewer(engine) } };
 }
 
 describe("G6 approved physical motion", () => {
@@ -209,6 +217,43 @@ describe("G6 approved physical motion", () => {
     expect(fixture.repairs.map(fields => fields.map(field => field.field))).toEqual([allowed]);
     expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
     expect(result.semanticReports[0]?.proofReuse).toBeDefined();
+  });
+
+  it.each([
+    ["a visible settled placement", "头盔放稳在领奖台较低的空阶上，空出双手，", true],
+    ["no custody before the cup", "", false],
+    ["unresolved placements", "头盔放稳在领奖台较低的空阶上或者夹在右臂，", false],
+  ])("asks the native repair for same-field custody and checks %s", async (_label, placement, accepted) => {
+    const action = "停稳双脚落地，双手向上把头盔脱出，甩头落发，把头盔抱在身侧；跨下车转身登上最高一级，弯腰拿起预置奖杯举到胸前。";
+    const originalTimeline = "T00:00–T00:03 停稳，双脚落地。T00:03–T00:06 双手抬起头盔，甩头落发。"
+      + "T00:06–T00:09 抱盔跨下车，转身登上最高一级，拿起预置奖杯举到胸前。T00:09–T00:10 自然微动。";
+    const fixture = nativeScenario(originalTimeline, { action, cameraRepair: true,
+      revisedTimeline: originalTimeline.replace("，拿起预置奖杯", `，${placement}拿起预置奖杯`) });
+    const prior = compilePromptPackage(fixture.input)[1]!.contract;
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(fixture.calls).toEqual(["review:opening", "review:ending", "repair:ending", ...(accepted ? ["review:ending"] : [])]);
+    expect(fixture.repairs.map(rows => rows.map(row => row.field))).toEqual([["camera_movement", "timeline"]]);
+    const prompt = fixture.repairPrompts[0]!;
+    expect(prompt).toContain('本次必须在每个指定字段内补全头盔交接：["timeline"]');
+    expect(prompt).toContain("摘盔之后、取杯之前");
+    expect(prompt).toContain("头盔放稳在");
+    expect(prompt).toContain("左手提着头盔，右手举起奖杯");
+    expect(result.g6Eligible, result.repairAttempt?.reason).toBe(accepted);
+    expect(result.renderEligible).toBe(false);
+    expect(result.repairAttempt?.reason).toBe(accepted ? undefined : "APPROVED_MOTION_HELMET_REPAIR_DRIFT");
+    const current = result.shotContracts[1]!.contract;
+    const { timeline: _before, ...beforeTechnical } = prior.request.technical;
+    const { timeline: _after, ...afterTechnical } = current.request.technical;
+    expect({ ...current.request, technical: afterTechnical }).toEqual({ ...prior.request, technical: beforeTechnical });
+    expect(result.shotContracts[1]!.source.fields).toHaveProperty("action", action);
+  });
+
+  it("does not issue a host custody directive for a native diagnosis alone on an unbound shot", async () => {
+    const fixture = nativeScenario(attempt39Timeline, { foreign: true });
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(result.g6Eligible).toBe(true);
+    expect(fixture.repairs.map(rows => rows.map(row => row.field))).toEqual([["action"]]);
+    expect(fixture.repairPrompts[0]).not.toContain("本次必须在每个指定字段内补全头盔交接");
   });
 
   it("cannot open companion authority with only a custom action review", async () => {
