@@ -24,6 +24,7 @@ const UNUSABLE_TIMELINE_CLOCK = "APPROVED_MOTION_TIMELINE_CLOCK_UNUSABLE";
 const HELMET_FINDINGS = new Set([HELMET_HANDOFF, MISSING_ACTION_HANDOFF, MISSING_TIMELINE_HANDOFF]);
 const ENDING_CAMERA_CHEST = "APPROVED_ENDING_CAMERA_CHEST_BEFORE_ACTION";
 const ENDING_CAMERA_HELMET = "APPROVED_ENDING_CAMERA_HELMET_WINDOW_SPILLS";
+const ENDING_CAMERA_PODIUM = "APPROVED_ENDING_CAMERA_PODIUM_BEFORE_ACTION";
 
 function affirmativeMotion(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -53,11 +54,29 @@ function completeLocalClock(ranges: ReturnType<typeof localWindows>, duration: n
 }
 
 type LocalWindow = ReturnType<typeof localWindows>[number];
+
+// Only the camera field also admits segment-local seconds in prose. A relative
+// tail cannot manufacture a clock: the earlier explicit ranges and the tail
+// together must form one complete, contiguous local schedule.
+function endingCameraWindows(value: string): LocalWindow[] {
+  const native = localWindows(value);
+  if (native.length) return native;
+  const markers = [...value.matchAll(/(?:^|[：:；;。\n])\s*(?:(\d{1,2}(?:\.\d+)?)\s*(?:[-–—~～]|至|到)\s*(\d{1,2}(?:\.\d+)?)\s*秒|最后\s*(\d{1,2}(?:\.\d+)?)\s*秒)(?![\d.])/gu)];
+  if (markers.some((marker, index) => marker[3] !== undefined && (index === 0 || index !== markers.length - 1))) return [];
+  const windows = markers.map((marker, index) => {
+    const relative = marker[3] !== undefined;
+    const from = Number(relative ? markers[index - 1]?.[2] : marker[1]);
+    return { from, to: relative ? from + Number(marker[3]) : Number(marker[2]),
+      text: value.slice(marker.index + marker[0].length, markers[index + 1]?.index).split(/(?:目的|意图)\s*(?:[:：]|是)/u, 1)[0]! };
+  });
+  return windows.every(window => window.text.trim()) ? windows : [];
+}
 const ARRIVE_CHEST_FRAME = /(?:推(?:近|进)?|移|切)(?:至|到)[^；。]{0,6}胸(?:线|部)中景/u;
 const ARRIVE_FEET_FRAME = /(?:推(?:近|进)?|移|切)(?:至|到)[^；。]{0,6}(?:腿脚|双脚|脚部)/u;
 const FOLLOW_HELMET_AND_HAIR = /(?:跟住|跟随|随(?:着)?|配合)[^；。]{0,12}抬(?:起)?(?:全|头)?盔[^；。]{0,10}甩(?:头|发)/u;
 const FOLLOW_HELMET = /(?:跟住|跟随|随(?:着)?|配合)[^；。]{0,12}(?:抬(?:起)?|摘(?:下)?)(?:全|头)?盔/u;
 const FOLLOW_HAIR = /(?:跟住|跟随|随(?:着)?|配合)[^；。]{0,12}(?:甩(?:头|发)|长发落肩)/u;
+const FOLLOW_DISMOUNT_OR_PODIUM = /(?:跟住|跟随|随(?:着)?|配合)(?:她|人物|角色|主体|赛车手)?(?:的)?(?:跨下(?:车|摩托)|(?:完整|完全)?下车|离开车座|转身(?:登台|登上?领奖台))/u;
 const REMOVE_HELMET_IN_FRAME = /(?:全盔|头盔)[^；。]{0,12}(?:摘下|抬离)/u;
 const HAIR_TOSS = /甩(?:头|发)/u;
 const ENDING_CAMERA_CHAIN = [/停稳/u, /双脚落地/u, REMOVE_HELMET, HAIR_TOSS, DISMOUNT];
@@ -69,7 +88,7 @@ function uniqueWindow(ranges: readonly LocalWindow[], matches: (text: string) =>
 
 function endingCameraEvents(cameraMovement: unknown, timeline: unknown, duration: number) {
   if (typeof cameraMovement !== "string" || typeof timeline !== "string") return undefined;
-  const camera = localWindows(cameraMovement), action = localWindows(timeline);
+  const camera = endingCameraWindows(cameraMovement), action = localWindows(timeline);
   if (!completeLocalClock(camera, duration) || !completeLocalClock(action, duration)) return undefined;
   return {
     cameraChest: uniqueWindow(camera, text => ARRIVE_CHEST_FRAME.test(text)),
@@ -81,6 +100,7 @@ function endingCameraEvents(cameraMovement: unknown, timeline: unknown, duration
     timelineHelmet: uniqueWindow(action, text => HAIR_TOSS.test(text)
       && (REMOVE_HELMET.test(text) || REMOVE_HELMET_IN_FRAME.test(text))),
     dismount: uniqueWindow(action, text => DISMOUNT.test(text) && TURN.test(text)),
+    cameraPodium: camera.filter(window => FOLLOW_DISMOUNT_OR_PODIUM.test(affirmativeMotion(window.text))),
   };
 }
 
@@ -101,6 +121,14 @@ function endingCameraFindings(cameraMovement: unknown, timeline: unknown, durati
     findings.push({ id: "SQ3_CAMERA_FEASIBLE", pass: false, field: "camera_movement", failureCode: ENDING_CAMERA_HELMET,
       evidence: `运镜在 ${clock(cameraHelmet)} 跟随同一次抬盔甩发；时间轴该动作是 ${clock(timelineHelmet)}，之后的 ${clock(dismount)} 已在下车转身。`,
       repair: "把跟随抬盔与甩发的运镜限制在同一事件实际窗口，随后才跟随完整下车和转身，保留已审切点与末段微动。" });
+  }
+  const earlyPodium = events.cameraPodium.find(window => window.from === cameraHelmet?.to);
+  if (cameraHelmet && timelineHelmet && dismount && earlyPodium
+    && cameraHelmet.from >= timelineHelmet.from && earlyPodium.from > timelineHelmet.from
+    && earlyPodium.from < timelineHelmet.to && timelineHelmet.to === dismount.from) {
+    findings.push({ id: "SQ3_CAMERA_FEASIBLE", pass: false, field: "camera_movement", failureCode: ENDING_CAMERA_PODIUM,
+      evidence: `运镜在 ${clock(earlyPodium)} 已跟随下车或转身登台；时间轴 ${clock(timelineHelmet)} 仍在抬盔甩发，${clock(dismount)} 才开始下车转身。`,
+      repair: "保留停车起幅和抬盔甩发的跟随。按当前时间轴，在下车转身开始后才跟随登台，保持相应动作、切点、总时长和末段微动。" });
   }
   return findings;
 }
@@ -169,6 +197,7 @@ function trophyHandWithHelmetSupport(value: unknown): "左" | "右" | undefined 
 export function isApprovedMotionFinding(check: SemanticQualityCheck): boolean {
   return check.failureCode === TIMELINE_DENSITY || check.failureCode === UNUSABLE_TIMELINE_CLOCK
     || check.failureCode === ENDING_CAMERA_CHEST || check.failureCode === ENDING_CAMERA_HELMET
+    || check.failureCode === ENDING_CAMERA_PODIUM
     || (check.failureCode !== undefined && HELMET_FINDINGS.has(check.failureCode));
 }
 
@@ -249,16 +278,20 @@ export function approvedMotionRepairDrift(input: {
   if (input.revisedAction && !orderedMotion(affirmativeMotion(input.action), MOTION_CHAIN)) return "APPROVED_MOTION_ACTION_REPAIR_DRIFT";
   const chestRepair = input.findings.some(check => check.failureCode === ENDING_CAMERA_CHEST);
   const helmetRepair = input.findings.some(check => check.failureCode === ENDING_CAMERA_HELMET);
-  if (chestRepair || helmetRepair) {
+  const podiumRepair = input.findings.some(check => check.failureCode === ENDING_CAMERA_PODIUM);
+  if (chestRepair || helmetRepair || podiumRepair) {
     const events = endingCameraEvents(input.cameraMovement, input.timeline, input.duration);
     if (!events) return "APPROVED_ENDING_CAMERA_REPAIR_DRIFT";
-    const { cameraChest, timelineChest, cameraHelmet, cameraHelmetOnly, cameraHairOnly, timelineHelmet } = events;
+    const { cameraChest, timelineChest, cameraHelmet, cameraHelmetOnly, cameraHairOnly, timelineHelmet, dismount, cameraPodium } = events;
     const withinHelmetEvent = (window?: LocalWindow) => !!window && !!timelineHelmet
       && window.from >= timelineHelmet.from && window.to <= timelineHelmet.to;
     const tracksInOrder = cameraHelmetOnly && cameraHairOnly && cameraHelmetOnly.to <= cameraHairOnly.from
       && withinHelmetEvent(cameraHelmetOnly) && withinHelmetEvent(cameraHairOnly);
+    const tracksDismount = dismount && cameraPodium.every(window => window.from >= dismount.from)
+      && cameraPodium.some(window => window.from < dismount.to);
     if ((chestRepair && (!cameraChest || !timelineChest || cameraChest.to <= timelineChest.from || cameraChest.to > timelineChest.to))
-      || (helmetRepair && !withinHelmetEvent(cameraHelmet) && !tracksInOrder)) {
+      || ((helmetRepair || podiumRepair) && !withinHelmetEvent(cameraHelmet) && !tracksInOrder)
+      || (podiumRepair && !tracksDismount)) {
       return "APPROVED_ENDING_CAMERA_REPAIR_DRIFT";
     }
   }
