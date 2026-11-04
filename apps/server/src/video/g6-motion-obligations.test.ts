@@ -14,6 +14,9 @@ const attempt38Action = "停稳双脚落地撑车；双手抬起全盔向上脱�
 const attempt38Timeline = "T00:00–T00:02.5：收油滑入维修区，前轮定点停稳，双脚落地撑车。T00:02.5–T00:04.5：停稳后的绝对静止，视线落向地面。T00:04.5–T00:06.5：双手抬盔上脱，盔离头，顺势甩头一次，黑色长发完整落到肩背。T00:06.5–T00:08.5：完全下车，转身两步登上最高一级，自取预置奖杯举起，动作幅度克制，目的是完成登台；T00:08.5–T00:10：保持自然呼吸与轻微重心变化，原生声场自然减弱。";
 const attempt39Action = "双脚落地撑住车身；双手抬起全盔离开头顶，黑色长发完整落到肩背；把盔收在左臂弯，抬右腿跨过车座完全下车，双脚站定后侧身转向领奖台，抬右脚踩上最高一级、左脚跟上，屈膝取起预置奖杯，双手举过肩。";
 const attempt39Timeline = "T00:00–T00:02.5 赛车滑入停车点减速停稳，人物双脚落地撑车。T00:02.5–T00:05 双手抬盔离头，黑色长发完整落到肩背。T00:05–T00:08 完全下车，侧身转身两步到领奖台，抬右脚踩最高一级、左脚跟上，屈膝取起预置奖杯。T00:08–T00:10 双手举杯，保持自然微动不冻结。";
+const attempt42EndingCamera = "T00:00-00:02.5 稳定器由赛车车头与她的双脚起幅，匀速小幅推近至胸线中景，速度克制不抢动作；T00:02.5-00:05.5 跟住抬盔与甩头的节奏做一次约半步的轻微横移，机位高度不变，让黑发落肩的轨迹完整留在画面内；T00:05.5-00:08 随她转身下车向领奖台方向做平顺的侧向跟随，落到领奖台正面偏侧的中景位置；T00:08-00:10 运镜完全停稳，只在原地保留极小幅度的手持呼吸感，不推不拉，让末段画面自然微动而不冻结。";
+const attempt42EndingTimeline = "T00:00-00:02.5 赛车驶入维修区减速停稳，她双脚落地撑住车身，身体重心由车上传回地面，画面从车头边缘推近到腿脚；T00:02.5-00:05 双手抬到盔沿，把全盔从头顶摘下，顺势低头甩发一次，黑色长发整片落到肩背，镜头推至胸线中景；T00:05-00:07.5 单手持盔跨下车，转身正对领奖台，一步一级踏上三级台阶，机位随之轻微横移；T00:07.5-00:09 在最高一级站定，右手拿起预置奖杯抬至胸前，眼睑缓慢闭合半秒再睁开，视线由低位抬起；T00:09-00:10 保持肩背打开的站姿，随呼吸与手臂微动，画面留自然微动不冻结。";
+const correctedEndingCamera = "T00:00-00:02.5 低位跟随车头到落地双脚；T00:02.5-00:05 镜头推至胸线中景，跟住抬盔与甩头作轻微横移；T00:05-00:08 侧向跟随完全下车、登上最高一级及取杯起势；T00:08-00:10 运镜收稳，保留自然呼吸微动。";
 
 const compile: PromptCompileOptions = {
   delivery: { aspectRatio: "9:16", resolution: "1080p", fps: 30, format: "mp4", generateAudio: true },
@@ -24,13 +27,13 @@ const compile: PromptCompileOptions = {
     bytes: 100, mediaType: "image/png", sourceRef: `characters/project/lead-${angle}.png` })),
 };
 
-function scenario({ action = oldAction, timeline = oldTimeline, brief = ownerBrief, shotId = "ending",
+function scenario({ action = oldAction, timeline = oldTimeline, cameraMovement = "侧前中景机位跟随实际动作。", brief = ownerBrief, shotId = "ending",
   wrongDuration = false, foreign = false, approved = ["维修区停稳双脚落地后双手抬起全盔。", "完全下车，转身登上最高一级，自己拿起预置奖杯举杯。"],
-}: { action?: string; timeline?: string; brief?: string; shotId?: string; wrongDuration?: boolean; foreign?: boolean; approved?: readonly string[] } = {}) {
+}: { action?: string; timeline?: string; cameraMovement?: string; brief?: string; shotId?: string; wrongDuration?: boolean; foreign?: boolean; approved?: readonly string[] } = {}) {
   const fields = {
     director_instruction: "商业写实，完整呈现维修区领奖动作。", constraint: "9:16画幅，1080x1920，30fps，MP4格式。",
     baseline: "保留真实赛道质感。", scene: "封闭赛道维修区的三级领奖台。", lighting: "维修区柔和侧前光。",
-    camera_movement: "侧前中景机位跟随实际动作。", character: "全覆护具赛车手李英子。", action,
+    camera_movement: cameraMovement, character: "全覆护具赛车手李英子。", action,
     portraits: "李英子：image://characters/project/lead-front.png, image://characters/project/lead-closeup.png", dialogue: "无台词。",
     negative: "禁止画面文字和水印。", consistency: "全片保持同一套护具。", composition: "中景同时保留人物与领奖台。",
     color_palette: "赛道灰色与白色路缘。", depth_of_field: "中景主体与台阶清晰。", timeline, mood: "镇定自信。",
@@ -101,6 +104,90 @@ function nativeScenario(timeline: string, { helmet = true, foreign = false } = {
 }
 
 describe("G6 approved physical motion", () => {
+  function endingCameraScenario(override: Parameters<typeof scenario>[0] = {}) {
+    const fixture = scenario({ action: fixedAction, timeline: attempt42EndingTimeline, cameraMovement: attempt42EndingCamera,
+      brief: "进入维修区停稳并双脚落地；同一侧前中景双手抬盔、顺势甩头一次，黑色长发完整落到肩背；完全下车，再转身登紧邻停车点的领奖台最高一级，自取预置奖杯举杯。",
+      approved: ["驶入维修区后减速停稳，双脚落地撑住车身，双手抬盔从头顶摘下并顺势甩头一次，黑色长发完整落到肩背；随后完全下车，转身走到紧邻停车点的领奖台最高一级，自己拿起预置奖杯举起"],
+      ...override });
+    fixture.review.mockImplementation(async ({ contract }) => ({
+      shotId: contract.shotId,
+      checks: SEMANTIC_QUALITY_CHECK_IDS.map(id => ({ id, pass: true,
+        field: id === "SQ3_CAMERA_FEASIBLE" ? "constraint" : id === "SQ4_LIGHT_COLOR" ? "lighting" : "scene",
+        evidence: id === "SQ3_CAMERA_FEASIBLE" ? "1080x1920" : id === "SQ4_LIGHT_COLOR" ? "维修区柔和侧前光" : "封闭赛道维修区的三级领奖台",
+      })),
+    }));
+    fixture.repair.mockImplementation(async ({ allowedFields }) => ({
+      changes: allowedFields.filter(field => field === "camera_movement" || field === "composition").map(field => ({
+        field, value: field === "camera_movement" ? correctedEndingCamera : "中景完整保留人物与相邻领奖台。",
+        reason: "保留已审动作与构图，只调整同一事件的运镜窗口",
+      })),
+    }));
+    return fixture;
+  }
+
+  it("adds both actual #42 ending camera conflicts to the one existing length and description repair", async () => {
+    const fixture = endingCameraScenario();
+    fixture.input.shots[0]!.source.fields.composition = "保留人物与相邻领奖台，删去这段重复描述。".repeat(110);
+    const original = compilePromptPackage(fixture.input)[0]!.contract;
+    expect(original.prompt.length).toBeGreaterThan(3000);
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(fixture.repair).toHaveBeenCalledTimes(1);
+    expect(fixture.review).toHaveBeenCalledTimes(2);
+    const repair = fixture.repair.mock.calls[0]![0];
+    expect(repair.allowedFields.filter(field => field === "camera_movement")).toHaveLength(1);
+    expect(repair.allowedFields).toContain("composition");
+    expect(repair.findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "camera_movement", failureCode: "APPROVED_ENDING_CAMERA_CHEST_BEFORE_ACTION",
+        evidence: expect.stringMatching(/0–2\.5.*2\.5–5/u) }),
+      expect.objectContaining({ field: "camera_movement", failureCode: "APPROVED_ENDING_CAMERA_HELMET_WINDOW_SPILLS",
+        evidence: expect.stringMatching(/2\.5–5\.5.*2\.5–5.*5–7\.5/u) }),
+    ]));
+    expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+    expect(result.shotContracts[0]!.contract.request).toEqual(original.request);
+    expect(result.shotContracts[0]!.contract.prompt).toContain(attempt42EndingTimeline);
+  });
+
+  it.each([
+    ["shorter matching camera events", { cameraMovement: correctedEndingCamera
+      .replace("T00:02.5-00:05 镜头", "T00:02.5-00:03 跟住长发。T00:03-00:04.8 镜头")
+      .replace("作轻微横移；T00:05", "作轻微横移；T00:04.8-00:05 轻稳构图；T00:05") }],
+    ["different camera events at unequal boundaries", { cameraMovement: attempt42EndingCamera
+      .replace("推近至胸线中景", "推近至赛车侧面").replace("跟住抬盔与甩头的节奏", "跟随背景光影") }],
+    ["negated early chest push and helmet following", { cameraMovement: attempt42EndingCamera
+      .replace("匀速小幅推近至胸线中景", "不要推近至胸线中景").replace("跟住抬盔与甩头", "不跟住抬盔与甩头") }],
+    ["unbound G4 shot", { foreign: true }],
+    ["different approved interval length", { wrongDuration: true }],
+    ["G4 did not approve the ending sequence", { approved: ["停车停稳，仅展示奖杯。"] }],
+    ["different shot id", { shotId: "opening" }],
+  ] as const)("keeps camera locked when there is no scoped event contradiction for %s", async (_label, overrides) => {
+    const fixture = endingCameraScenario(overrides);
+    expect((await evaluatePromptPackage(fixture.input)).g6Eligible).toBe(true);
+    expect(fixture.repair).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["erased timing", "侧前中景自然跟随演员完整动作。"],
+    ["mismatched but complete clock", correctedEndingCamera.replace("T00:02.5-00:05", "T00:02.5-00:05.4")
+      .replace("T00:05-00:08", "T00:05.4-00:08")],
+  ])("rejects the one ending camera repair with %s", async (_label, value) => {
+    const fixture = endingCameraScenario();
+    fixture.repair.mockResolvedValueOnce({ changes: [{ field: "camera_movement", value, reason: "尝试调整运镜" }] });
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(fixture.repair).toHaveBeenCalledTimes(1);
+    expect(result.g6Eligible).toBe(false);
+    expect(result.repairAttempt?.reason).toBe("APPROVED_ENDING_CAMERA_REPAIR_DRIFT");
+  });
+
+  it("accepts an ending repair that tracks helmet removal and hair in separate subwindows", async () => {
+    const fixture = endingCameraScenario();
+    const value = correctedEndingCamera.replace("T00:02.5-00:05 镜头推至胸线中景，跟住抬盔与甩头作轻微横移",
+      "T00:02.5-00:03.5 跟住抬盔，镜头推至胸线中景；T00:03.5-00:05 跟住甩头作轻微横移");
+    fixture.repair.mockResolvedValueOnce({ changes: [{ field: "camera_movement", value, reason: "分别跟随同一事件中的两个连续动作" }] });
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(fixture.repair).toHaveBeenCalledTimes(1);
+    expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+  });
+
   it("recognizes actual #39 same-shot 踩上 and 踩 variants before the sole repair", async () => {
     const fixture = scenario({ action: attempt39Action, timeline: attempt39Timeline });
     const result = await evaluatePromptPackage(fixture.input);

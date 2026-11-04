@@ -33,6 +33,7 @@ import {
 import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
 import { approvedMotionObligations, approvedMotionRepairDrift, distinctRivalPassEndsAtNose, isApprovedMotionFinding } from "./g6-motion-obligations.js";
 import { approvedSecondPassEndsHalfway } from "./g6-rival-pass.js";
+import { approvedRaceCameraChecks, isApprovedRaceFinding } from "./g6-race-camera.js";
 import type { readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 
 export const SEMANTIC_QUALITY_POLICY_VERSION = "workloom.video-prompt-quality/v2" as const;
@@ -499,7 +500,11 @@ function approvedExecutionChecks(
     || interval.endSec - interval.startSec !== Number(contract.request.parameters.duration_sec)) return findings;
   findings.push(...approvedMotionObligations({ frozenBrief: interval.brief, approvedActions: scene.approvedScene.actions.filter(action => action !== null),
     action: fieldValueFromSource(source, "action"), timeline: fieldValueFromSource(source, "timeline"),
+    cameraMovement: shotId === "ending" ? fieldValueFromSource(source, "camera_movement") : undefined,
     duration: interval.endSec - interval.startSec, nativeChecks }));
+  findings.push(...approvedRaceCameraChecks({ frozenBrief: interval.brief, purpose: scene.approvedScene.purpose,
+    visualRequirements: scene.verificationPlan.visualRequirements, camera: fieldValueFromSource(source, "camera_movement"),
+    action: fieldValueFromSource(source, "action"), timeline: fieldValueFromSource(source, "timeline") }));
 
   const overtaking = [scene.approvedScene.purpose, interval.brief].filter((value): value is string => typeof value === "string")
     .flatMap(value => splitShotAssertions(value).positive.split("；"));
@@ -1353,12 +1358,14 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           const motionFindings = executionFindings.filter(isApprovedMotionFinding);
           if (motionFindings.length) {
             const drift = approvedMotionRepairDrift({ findings: motionFindings, action: fieldValueFromSource(patched, "action"),
-              timeline: fieldValueFromSource(patched, "timeline"), duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
+              timeline: fieldValueFromSource(patched, "timeline"), cameraMovement: fieldValueFromSource(patched, "camera_movement"),
+              duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
               revisedTimeline: allowReviewedTimeline, revisedAction: shotChanges.some(change => change.field === "action") });
             if (drift) throw new Error(drift);
           }
           patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,
-            ...(finalPromptLength || reviewedTransition || motionFindings.length ? { expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
+            ...(finalPromptLength || reviewedTransition || motionFindings.length || executionFindings.some(isApprovedRaceFinding) ? {
+              expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
               allowReviewedTimeline } : {}) });
           changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
         }
