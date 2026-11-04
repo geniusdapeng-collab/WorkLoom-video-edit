@@ -8,6 +8,8 @@ const start = "T00:00–T00:02 驶入维修区并停稳。T00:02–T00:04 双脚
 const oldTimeline = `${start}T00:04–T00:06 头盔落到右手，视线低垂。T00:06–T00:07 甩头长发落肩。T00:07–T00:08.5 跨下车、转身、两步半登上最高一级，弯腰取杯；目的：用连续动作代替剪接。T00:08.5–T00:10 双手托底把奖杯举到胸前，站直，末段自然微动。`;
 const fixedAction = "停稳双脚落地，双手抬盔并甩头落发，把头盔放稳在相邻矮台，空出双手；她跨下车，转身登上最高一级，取起预置奖杯，双手举杯，末段自然微动。";
 const fixedTimeline = `${start}T00:04–T00:05 甩头落发，把头盔放稳在相邻矮台。T00:05–T00:06 完全下车。T00:06–T00:08 转身登上最高一级。T00:08–T00:10 自取预置奖杯、双手举杯，末段自然微动。`;
+const attempt38Action = "停稳双脚落地撑车；双手抬起全盔向上脱出，顺势甩头一次，黑色长发从盔内完整落到肩背；完全下车，转身两步登上领奖台最高一级，自己拿起预置奖杯举起，末两秒保持自然呼吸与轻微重心变化。";
+const attempt38Timeline = "T00:00–T00:02.5：收油滑入维修区，前轮定点停稳，双脚落地撑车。T00:02.5–T00:04.5：停稳后的绝对静止，视线落向地面。T00:04.5–T00:06.5：双手抬盔上脱，盔离头，顺势甩头一次，黑色长发完整落到肩背。T00:06.5–T00:08.5：完全下车，转身两步登上最高一级，自取预置奖杯举起，动作幅度克制，目的是完成登台；T00:08.5–T00:10：保持自然呼吸与轻微重心变化，原生声场自然减弱。";
 
 const compile: PromptCompileOptions = {
   delivery: { aspectRatio: "9:16", resolution: "1080p", fps: 30, format: "mp4", generateAudio: true },
@@ -50,6 +52,34 @@ function scenario({ action = oldAction, timeline = oldTimeline, brief = ownerBri
 }
 
 describe("G6 approved physical motion", () => {
+  it("authorizes the actual #38 timing and missing helmet cue together on the first action-only model diagnosis", async () => {
+    const fixture = scenario({ action: attempt38Action, timeline: attempt38Timeline });
+    const pass = fixture.review.getMockImplementation()!;
+    fixture.review.mockImplementationOnce(async context => {
+      const result = await pass(context) as { shotId: string; checks: unknown[] };
+      result.checks[1] = { id: "SQ2_SCENE_PROPS", field: "action", pass: false,
+        failureCode: "PROP_HANDOFF_UNCLEAR", evidence: "双手抬起全盔向上脱出", repair: "写清取杯前的头盔安置" };
+      return result;
+    });
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(fixture.repair).toHaveBeenCalledTimes(1);
+    expect(fixture.review).toHaveBeenCalledTimes(2);
+    expect(new Set(fixture.repair.mock.calls[0]![0].allowedFields)).toEqual(new Set(["action", "timeline"]));
+    expect(fixture.repair.mock.calls[0]![0].findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "timeline", failureCode: "TIMELINE_PROP_HANDOFF_MISSING" }),
+      expect.objectContaining({ field: "timeline", failureCode: "TIMELINE_ACTION_DENSITY_EXCEEDS_DURATION" }),
+    ]));
+    expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+  });
+
+  it("requires missing helmet custody on the timeline even when the action already safely places the helmet", async () => {
+    const fixture = scenario({ action: attempt38Action.replace("完全下车", "将全盔放稳在车座上，再完全下车"), timeline: attempt38Timeline });
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(fixture.repair).toHaveBeenCalledTimes(1);
+    expect(fixture.repair.mock.calls[0]![0].allowedFields).toEqual(["timeline"]);
+    expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+  });
+
   it("finds both #37 physical failures before spending the sole field repair", async () => {
     const fixture = scenario();
     const original = compilePromptPackage(fixture.input)[0]!.contract;
@@ -72,7 +102,7 @@ describe("G6 approved physical motion", () => {
     ["two-second boundary with released helmet", { action: fixedAction, timeline: fixedTimeline.replace("T00:05–T00:06 完全下车。T00:06–T00:08 转身登上最高一级。T00:08–T00:10 自取预置奖杯、双手举杯，末段自然微动。", "T00:05–T00:07 跨下车、转身登上最高一级，弯腰取杯。T00:07–T00:10 双手举杯，末段自然微动。") }],
     ["stable elbow support with explicitly freed hands", { action: fixedAction.replace("把头盔放稳在相邻矮台，空出双手", "头盔夹稳在左臂弯内，腾出双手"), timeline: fixedTimeline }],
     ["helmet removal by both hands is not continued holding", { action: fixedAction.replace("双手抬盔并甩头落发，把头盔放稳在相邻矮台，空出双手", "双手托着全盔向上摘，甩头落发"),
-      timeline: fixedTimeline.replace("，把头盔放稳在相邻矮台", "") }],
+      timeline: fixedTimeline }],
     ["negated apparent motions", { action: fixedAction, timeline: `${start}T00:04–T00:06 甩头落发。T00:06–T00:07 不安排跨下车、转身、两步登上最高一级、弯腰取杯。T00:07–T00:10 连续保留已审动作与原声。` }],
     ["not current G4 shot", { foreign: true }],
     ["interval mismatch", { wrongDuration: true }],
@@ -131,7 +161,9 @@ describe("G6 approved physical motion", () => {
   });
 
   it("does not let a released helmet in the action erase explicitly held helmet in the timeline", async () => {
-    const fixture = scenario({ action: fixedAction, timeline: oldTimeline.replace("T00:07–T00:08.5", "T00:07–T00:09").replace("T00:08.5–T00:10", "T00:09–T00:10") });
+    const timeline = oldTimeline.replace("T00:06–T00:07", "T00:06–T00:06.5")
+      .replace("T00:07–T00:08.5", "T00:06.5–T00:09").replace("T00:08.5–T00:10", "T00:09–T00:10");
+    const fixture = scenario({ action: fixedAction, timeline });
     const result = await evaluatePromptPackage(fixture.input);
     expect(fixture.repair.mock.calls[0]![0].allowedFields).toEqual(["timeline"]);
     expect(fixture.repair.mock.calls[0]![0].findings).toEqual([

@@ -581,6 +581,42 @@ describe("prompt semantic quality gate", () => {
     expect(result.shotContracts[0]!.contract.request.parameters).toEqual(initial.request.parameters);
   });
 
+  it.each(["nose-reset", "nose-claimed-complete", "nose-ordinal", "same-window-clearance", "finish", "foreign", "unapproved", "wrong-duration"] as const)(
+    "keeps clearance local to the same rival in the approved cut (%s)", async mode => {
+      const checked = currentG4();
+      const row = checked.approvedProductionPlan.scenes[0]!;
+      const purpose = mode === "unapproved" ? "观察赛道" : "从两辆对手车后追至完全领先";
+      const brief = mode === "unapproved" ? "保持赛道车位。" : "两次超车针对两辆不同对手车，每次从车后到完全领先。";
+      const upstreamContext = { approvedProductionPlan: { ...checked.approvedProductionPlan, scenes: [{ ...row,
+        sceneId: mode === "foreign" ? "other" : row.sceneId,
+        interval: { startSec: 10, endSec: mode === "wrong-duration" ? 19 : 20, brief },
+        approvedScene: { ...row.approvedScene, purpose },
+      }] } };
+      const first = "第一辆对手车被整车越过，主车拉开一个车身。";
+      const second = mode === "nose-ordinal" ? "追到第二辆后方，对方封内线，改外线并排，" : "追到第二辆对手车后方，从外线并排，";
+      const clear = "随后主车车尾完全越过第二辆对手车前轮。";
+      const finish = "主车前轮先压过终点线，再收油减速。";
+      const nose = mode === "nose-claimed-complete" ? "前轮先越过对手车头，完成第二次超越。" : "车头完全越过对手前轮后回正。";
+      const cleanAction = first + second + "车头先超过对手前轮。" + clear + finish;
+      const cleanTimeline = "T00:00–T00:04：" + first + "T00:04–T00:08：" + second + "车头先超过对手前轮。" + clear + "T00:08–T00:10：" + finish;
+      const localClear = mode === "same-window-clearance" ? clear : "";
+      const action = mode === "finish" ? finish : first + second + nose + localClear + finish;
+      const timeline = mode === "finish" ? "T00:00–T00:10：" + finish
+        : "T00:00–T00:04：" + first + "T00:04–T00:08：" + second + nose + localClear + "T00:08–T00:10：" + finish;
+      const shot = { source: { ...source, duration: 10, fields: { ...fields, action, timeline } }, compile };
+      const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
+        expect([...context.allowedFields].sort()).toEqual(["action", "timeline"]);
+        expect(context.findings.map(({ failureCode }) => failureCode)).toEqual(["APPROVED_FULL_PASS_NOT_VISIBLE", "APPROVED_FULL_PASS_NOT_VISIBLE"]);
+        return { changes: [{ field: "action", value: cleanAction, reason: "写清第二辆的完整超越" },
+          { field: "timeline", value: cleanTimeline, reason: "保留现有区间" }] };
+      });
+      const before = compilePromptPackage({ shots: [shot] })[0]!.contract;
+      const result = await evaluatePromptPackage({ ...input({ review: async () => passReview(), repair }), shots: [shot], upstreamContext });
+      expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+      expect(repair).toHaveBeenCalledTimes(mode.startsWith("nose-") ? 1 : 0);
+      expect(result.shotContracts[0]!.contract.request.parameters).toEqual(before.request.parameters);
+    });
+
   it.each([true, false])("combines covered framing only across one actor in the same approved cut (%s)", async singleActor => {
     const checked = currentG4();
     const row = checked.approvedProductionPlan.scenes[0]!;

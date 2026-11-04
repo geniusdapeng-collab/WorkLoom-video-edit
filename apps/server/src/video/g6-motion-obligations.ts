@@ -3,6 +3,7 @@ import type { SemanticQualityCheck } from "./prompt-quality-gate.js";
 
 const DISMOUNT = /跨下(?:车|摩托)|完全下车|离开车座|下车/u;
 const TURN = /转身|转向领奖台/u;
+const MULTI_STEP_ASCENT = /转身(?:；)?[^。；]{0,8}(?:两|二|三|四|[2-9])步(?:半)?[^。；]{0,10}(?:登|踏|迈|跨|走上)/u;
 const ASCEND_HIGHEST = /(?:登上?|踏上?|迈上?|走上|跨上|上到)[^，。；、]{0,23}最高(?:一)?级/u;
 const TAKE_TROPHY = /(?:取(?:起|下)?|拿(?:起|下)?|拾起|捧起)[^，。；、]{0,18}(?:奖杯|杯)/u;
 const REMOVE_HELMET = /(?:抬(?:起|离)?|摘(?:下)?)(?:全|头)?盔|托起(?:全|头)?盔[^；。]{0,8}(?:抬|拔出)/u;
@@ -17,6 +18,9 @@ const SINGLE_HAND_POSES = ([["左", "右"], ["右", "左"]] as const).map(([helm
 }));
 const TIMELINE_DENSITY = "TIMELINE_ACTION_DENSITY_EXCEEDS_DURATION";
 const HELMET_HANDOFF = "HELMET_HANDOFF_CONFLICTS_WITH_TROPHY";
+const MISSING_ACTION_HANDOFF = "ACTION_PROP_HANDOFF_MISSING";
+const MISSING_TIMELINE_HANDOFF = "TIMELINE_PROP_HANDOFF_MISSING";
+const HELMET_FINDINGS = new Set([HELMET_HANDOFF, MISSING_ACTION_HANDOFF, MISSING_TIMELINE_HANDOFF]);
 
 function affirmativeMotion(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -36,20 +40,54 @@ function localWindows(value: string) {
   const ranges = [...value.matchAll(/(?<![\w:])T?(\d{1,2}):([0-5]\d(?:\.\d+)?)\s*(?:[-–—~～]|至|到)\s*T?(\d{1,2}):([0-5]\d(?:\.\d+)?)(?![\d.])/gu)];
   return ranges.map((range, index) => ({
     from: Number(range[1]) * 60 + Number(range[2]), to: Number(range[3]) * 60 + Number(range[4]),
-    text: value.slice(range.index + range[0].length, ranges[index + 1]?.index).split(/(?:目的|意图)\s*[:：]/u, 1)[0]!,
+    text: value.slice(range.index + range[0].length, ranges[index + 1]?.index).split(/(?:目的|意图)\s*(?:[:：]|是)/u, 1)[0]!,
   }));
 }
 
-function handoff(value: unknown): "held" | "free" | undefined {
+const RIVAL_ORDINAL = /第([一二])辆(?:(?:对手|对方)车?|(?=后方))/gu;
+const NOSE_ENDS_PASS = /(?:车头|前轮)[^。；\n]{0,18}(?:越过|超过|领先于)[^。；\n]{0,12}(?:对手|对方)(?:的|车)?(?:车头|前轮)\s*(?:(?:后|；\s*(?:随后|随即))\s*回正|；?\s*(?:就|即|形成|取得|标志|完成)[^。；\n]{0,24}?(?:领先|超越|超车))/gu;
+const WHOLE_PASS = /(?:^|[。；，,:：]|随后|之后|才|并)\s*(?:(?:她|主车|主体)的?)?(?:(?:整车|全车|车尾)[^。；，,\n]{0,12}(?:越过|超过|脱离)|(?:拉开|领先)(?:了)?(?:一个|一整个)车身)/u;
+
+/** A nose crossing that concludes one named rival's pass cannot borrow a different rival's clearance. */
+export function distinctRivalPassEndsAtNose(
+  frozenBrief: unknown, value: string, field: "action" | "timeline", duration: number,
+): boolean | undefined {
+  const approved = affirmativeMotion(frozenBrief);
+  if (!/(?:两|二|2)次超(?:车|越)[^。；]{0,20}(?:两|二|2)辆不同(?:的)?对手车/u.test(approved)
+    || !/(?:每次|均)(?:由|从)(?:对手)?车后(?:方)?(?:到|至)完全领先/u.test(approved)) return undefined;
+  const windows = field === "timeline"
+    ? localWindows(value).filter(({ from, to }) => from >= 0 && to > from && to <= duration).map(window => window.text)
+    : [value];
+  return windows.some((window) => {
+    // The shared assertion splitter normalizes commas to semicolons. Preserve
+    // original sentence boundaries so an implied rival stays within its event.
+    const text = window.split(/[。；\n]/u).map(affirmativeMotion).join("。");
+    return [...text.matchAll(NOSE_ENDS_PASS)].some((nose) => {
+      const end = nose.index + nose[0].length;
+      const context = text.slice(0, end).split("。").at(-1)!;
+      const rival = [...context.matchAll(RIVAL_ORDINAL)].at(-1)?.[1];
+      if (!rival) return false;
+      const after = text.slice(end);
+      const nextRival = [...after.matchAll(RIVAL_ORDINAL)].find((match) => match[1] !== rival);
+      return !WHOLE_PASS.test(after.slice(0, nextRival?.index));
+    });
+  });
+}
+
+function handoff(value: unknown): "held" | "secured" | "missing" | undefined {
   const text = affirmativeMotion(value);
-  const trophy = BOTH_HANDS_ON_TROPHY.exec(text);
-  if (!trophy) return undefined;
-  const before = text.slice(0, trophy.index);
+  const removal = REMOVE_HELMET.exec(text);
+  if (!removal) return undefined;
+  const afterRemoval = text.slice(removal.index + removal[0].length);
+  const take = TAKE_TROPHY.exec(afterRemoval), bothHands = BOTH_HANDS_ON_TROPHY.exec(afterRemoval);
+  if (!take && !bothHands) return undefined;
+  const before = afterRemoval.slice(0, Math.min(take?.index ?? Infinity, bothHands?.index ?? Infinity));
   const last = (pattern: RegExp) => [...before.matchAll(new RegExp(pattern.source, "gu"))].at(-1)?.index ?? -1;
   const held = last(HELMET_HELD), released = last(HELMET_RELEASED);
-  if (released > held && !UNRESOLVED_OPTION.test(before.slice(released))) return "free";
-  if (held >= 0) return "held";
-  return undefined;
+  if (released > held && !UNRESOLVED_OPTION.test(before.slice(released))) return "secured";
+  if (held >= 0 && bothHands) return "held";
+  if (trophyHandWithHelmetSupport(afterRemoval)) return "secured";
+  return orderedMotion(text, MOTION_CHAIN) ? "missing" : undefined;
 }
 
 function timedAction(value: unknown): unknown {
@@ -68,7 +106,7 @@ function trophyHandWithHelmetSupport(value: unknown): "左" | "右" | undefined 
 }
 
 export function isApprovedMotionFinding(check: SemanticQualityCheck): boolean {
-  return check.failureCode === TIMELINE_DENSITY || check.failureCode === HELMET_HANDOFF;
+  return check.failureCode === TIMELINE_DENSITY || (check.failureCode !== undefined && HELMET_FINDINGS.has(check.failureCode));
 }
 
 /** Only the same actor's already approved helmet-to-podium action chain authorizes these diagnoses. */
@@ -82,9 +120,13 @@ export function approvedMotionObligations(input: {
     || !orderedMotion(people.map(row => affirmativeMotion(row.description)).join("；"), MOTION_CHAIN)) return [];
 
   const findings: SemanticQualityCheck[] = [];
-  // Restrict the fixed short-window rule to this explicitly ordered four-action chain.
-  const dense = typeof input.timeline === "string" && localWindows(input.timeline).find(({ from, to, text }) =>
-    to > from && to <= input.duration && to - from < 2 && orderedMotion(affirmativeMotion(text), [DISMOUNT, TURN, ASCEND_HIGHEST, TAKE_TROPHY]));
+  // At two seconds require the additional explicit evidence of a multi-step ascent.
+  const dense = typeof input.timeline === "string" && localWindows(input.timeline).find(({ from, to, text }) => {
+    const motion = affirmativeMotion(text);
+    const seconds = to - from;
+    return seconds > 0 && to <= input.duration && (seconds < 2 || (seconds === 2 && MULTI_STEP_ASCENT.test(motion)))
+      && orderedMotion(motion, [DISMOUNT, TURN, ASCEND_HIGHEST, TAKE_TROPHY]);
+  });
   if (dense) findings.push({ id: "SQ3_CAMERA_FEASIBLE", pass: false, field: "timeline", failureCode: TIMELINE_DENSITY,
     evidence: `时间轴 ${dense.from}–${dense.to} 秒内连续要求下车、转身、登最高一级并取杯。`,
     repair: "在本镜原有总时长内为完全下车、转身、登上最高一级、自取奖杯留出可拍时间；调整其他非必要停顿，不省略已审动作，不移动切点。" });
@@ -94,6 +136,12 @@ export function approvedMotionObligations(input: {
     if (state === "held") findings.push({ id: "SQ2_SCENE_PROPS", pass: false, field, failureCode: HELMET_HANDOFF,
       evidence: "本字段明确写了摘下后仍持盔，接着双手举杯，未交代盔如何稳妥安置或双手如何腾出。",
       repair: "写清从持盔到双手取杯之前的可拍交接，并与另一字段及本镜已审动作顺序一致；不增加角色、段落或总时长。" });
+    if (state === "missing" && (field === "timeline" || timeline !== "secured")) {
+      findings.push({ id: "SQ2_SCENE_PROPS", pass: false, field,
+        failureCode: field === "timeline" ? MISSING_TIMELINE_HANDOFF : MISSING_ACTION_HANDOFF,
+        evidence: "本字段从双手摘盔接到下车登台、自取奖杯，中间未交代头盔的实际去向或哪只手能取杯。",
+        repair: "在当前摘盔之后、取杯之前明确头盔安置或连续的单手与对侧支撑，并在动作与时间轴中采用同一动作顺序。" });
+    }
   }
   return findings;
 }
@@ -116,9 +164,9 @@ export function approvedMotionRepairDrift(input: {
   const timeline = timedAction(input.timeline);
   const actionTrophyHand = trophyHandWithHelmetSupport(input.action), timelineTrophyHand = trophyHandWithHelmetSupport(timeline);
   const missingHandoff = input.findings.some(check => {
-    if (check.failureCode !== HELMET_HANDOFF) return false;
+    if (check.failureCode === undefined || !HELMET_FINDINGS.has(check.failureCode)) return false;
     const field = check.field === "action" ? input.action : timeline;
-    return handoff(field) !== "free" && !(check.field === "action" ? actionTrophyHand : timelineTrophyHand);
+    return handoff(field) !== "secured";
   });
   return missingHandoff || (actionTrophyHand && timelineTrophyHand && actionTrophyHand !== timelineTrophyHand)
     ? "APPROVED_MOTION_HELMET_REPAIR_DRIFT" : undefined;

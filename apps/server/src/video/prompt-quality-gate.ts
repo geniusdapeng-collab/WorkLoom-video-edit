@@ -31,7 +31,7 @@ import {
   type StructuredReviewDispatchProof,
 } from "@hyperreality/video-studio";
 import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
-import { approvedMotionObligations, approvedMotionRepairDrift, isApprovedMotionFinding } from "./g6-motion-obligations.js";
+import { approvedMotionObligations, approvedMotionRepairDrift, distinctRivalPassEndsAtNose, isApprovedMotionFinding } from "./g6-motion-obligations.js";
 import type { readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 
 export const SEMANTIC_QUALITY_POLICY_VERSION = "workloom.video-prompt-quality/v2" as const;
@@ -508,7 +508,9 @@ function approvedExecutionChecks(
       // an entire pass completed as soon as the two vehicle noses cross.
       const partial = /(?:车头|前轮)[^。；\n]{0,18}(?:越过|超过|领先于)[^。；\n]{0,16}(?:对手|对方)[^。；\n]{0,8}(?:车头|前轮)\s*[，,]?\s*(?:就|即|形成|取得|标志|完成)[^。；\n]{0,26}(?:领先|超越|超车)/u;
       const complete = /(?:整车|全车|整个(?:车身|车体)|车尾)[^。；\n]{0,24}(?:越过|超过|领先|脱离)|(?:拉开|领先)[^。；\n]{0,9}(?:一个|半个|[0-9.]+个)?车身/u;
-      if (partial.test(raw) && !complete.test(raw)) findings.push({ id, field, pass: false, failureCode: "APPROVED_FULL_PASS_NOT_VISIBLE",
+      const endsAtNose = distinctRivalPassEndsAtNose(interval.brief, raw, field, interval.endSec - interval.startSec)
+        ?? (partial.test(raw) && !complete.test(raw));
+      if (endsAtNose) findings.push({ id, field, pass: false, failureCode: "APPROVED_FULL_PASS_NOT_VISIBLE",
         evidence: "本镜把前轮或车头越过对手车头直接当作已完成超越，未体现整个车身已经越过。",
         repair: "保留已审超车顺序、每辆车的身份与先冲线后减速。在本字段写清可见的从后追近、并排、整车越过及领先车位，不改变时长或剪辑。" });
     }
