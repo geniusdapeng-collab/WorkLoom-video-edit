@@ -19,6 +19,10 @@ import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { parseStrictSceneJsonObject } from "./scene-json-comma-recovery.js";
 import { splitShotAssertions } from "./shot-intent.js";
 import {
+  bindRivalAuthorityIdentity, bindRivalFusionIdentity, bindRivalRepairIdentity, reviewedRivalIdentity, rivalIdentityFormatIssues,
+  type RivalIdentityScope,
+} from "./rival-identity-scope.js";
+import {
   attestVendorStructuredRedirect,
   nativeBlankJsonCorrected, nativeBlankJsonObjectCorrected, nativeBlankJsonRouteCurrent,
   nativeChatJsonObjectCorrected, nativeChatJsonObjectRouteCurrent,
@@ -118,6 +122,7 @@ interface Scope {
   truth?: TruthBoundary;
 }
 const scopes = new AsyncLocalStorage<Scope | undefined>();
+const rivalProduction = new AsyncLocalStorage<{ scope: Scope; receiver: RequirementRecord; identity: RivalIdentityScope }>();
 const systems = new WeakMap<object, Scope>();
 const generators = new WeakMap<object, Scope>();
 
@@ -211,11 +216,15 @@ export function productionModelInput(prompt: string): { prompt: string; verify: 
     ...scope.reviewedResult,
     _workloomRequirementContract: prdContractExecutionView(scope.authority, scope.contract!),
   } : scope.reviewedResult;
+  const rival = rivalProduction.getStore();
+  const sourceAuthority = prdAuthorityPrompt(scope.authority, scope.contract!);
+  const productionAuthority = rival?.scope === scope
+    ? guard(scope, () => bindRivalAuthorityIdentity(sourceAuthority)) : sourceAuthority;
   const addition = `\n\n## 本次宿主已审制作权威输入 ${scope.reviewedHash}\n`
     + `以下是当前运行的完整来源，不是新的创作稿或批准。客户完整 Brief 与 G1 的用途限定优先于通用模板、艺术参考和已审 PRD 中的创作句子。`
     + `G4 批准不把 PRD 新增的修辞、设计目的、未知颜色或部件推测升级为 G1 已接受事实。`
     + `后续剧本、场景、摄影、色彩、音频、融合、精炼、检查与修复都须按相同层级理解；本次模型自主生成内容，不能用规则补造缺失字段。\n`
-    + prdAuthorityPrompt(scope.authority, scope.contract!)
+    + productionAuthority
     + (scope.reviewedThemeHash ? `\n本次真实 G2 已审完整主题与原始裁决（SHA256 ${scope.reviewedThemeHash}）：\n${JSON.stringify(scope.reviewedTheme)}\n` : "")
     + `\n本次真实 G4 完整审核原文（SHA256 ${createHash("sha256").update(scope.reviewedContent!).digest("hex")}）：\n${scope.reviewedContent}\n`
     + `本次 G4 原始返回裁决（建议保持非阻断层级，不驱动额外调用）：\n${JSON.stringify(scope.reviewedVerdict)}\n`
@@ -1331,6 +1340,21 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       || (Object.hasOwn(shot, "shotId") && Object.hasOwn(shot, "shot_id") && shot.shotId !== shot.shot_id)) return undefined;
     return scope.contract?.scenes.some(scene => scene.id === id && scene.duration === shot.duration) ? scope : undefined;
   };
+  const rivalIdentity = (scope: Scope, shot: RequirementRecord) => reviewedRivalIdentity({
+    contract: scope.contract!, cuts: frozenCuts(scope)!, reviewedPrd: scope.reviewedResult!,
+    shotId: String(shot.shotId ?? shot.shot_id), duration: shot.duration,
+  });
+  if (deps.ruleCheckPrototype) add(deps.ruleCheckPrototype, "_checkFormat", original => function (shot, ...args) {
+    const scope = frozenFieldScope(this, shot);
+    const identity = scope && rivalIdentity(scope, shot as RequirementRecord);
+    if (!scope || !identity) return Reflect.apply(original, this, [shot, ...args]);
+    return guard(scope, () => {
+      check(scope);
+      const issues = Reflect.apply(original, this, [shot, ...args]);
+      if (!Array.isArray(issues)) prdFail("PRD_VENDOR_UNAVAILABLE", "原生字段格式检查缺少诊断列表");
+      return rivalIdentityFormatIssues(issues, (shot as RequirementRecord).character_constraint, identity);
+    });
+  });
   const coveredSuit = (value: unknown): value is string => typeof value === "string" && /全覆[^，。；\n]{0,30}赛车服/u.test(value);
   const mentionsWardrobe = (text: string, id: string) => text.match(/[A-Za-z0-9][A-Za-z0-9_-]*/gu)?.includes(id) === true;
   const approvedSuit = (scope: Scope, shot: RequirementRecord) => {
@@ -1390,14 +1414,24 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   const extractFieldRepairJson = deps.extractFieldRepairJson;
   if (deps.llmRepairPrototype && extractFieldRepairJson) add(deps.llmRepairPrototype, "_repairBatch", original => async function (shot, issues, fields, ...args) {
     const scope = frozenFieldScope(this, shot);
-    if (!scope || !Array.isArray(fields) || !fields.some(frozenField)) return Reflect.apply(original, this, [shot, issues, fields, ...args]);
+    const identity = scope && Array.isArray(fields) && fields.includes("character_constraint")
+      ? rivalIdentity(scope, shot as RequirementRecord) : undefined;
+    if (!scope || !Array.isArray(fields) || (!fields.some(frozenField) && !identity)) return Reflect.apply(original, this, [shot, issues, fields, ...args]);
     return awaited(scope, async () => {
       const engine = requirementRecord(this.llm, "原生字段修复模型");
       const reason = method(engine, "reason"), truncate = method(this, "_smartTruncate");
       const engineView = Object.create(engine) as RequirementRecord, receiver = Object.create(this) as RequirementRecord;
       const preservedValues = new Map<string, number>();
       engineView.reason = async (...callArgs: unknown[]) => {
-        const reply = await Reflect.apply(reason, engine, callArgs);
+        if (identity) {
+          callArgs[0] = guard(scope, () => {
+            check(scope);
+            if (typeof callArgs[0] !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "原生角色字段修复缺少完整提示词");
+            return bindRivalRepairIdentity(callArgs[0], identity);
+          });
+        }
+        const invokeModel = () => Reflect.apply(reason, engine, callArgs);
+        const reply = identity ? await rivalProduction.run({ scope, receiver: this, identity }, invokeModel) : await invokeModel();
         if (!reply || typeof reply !== "object" || Array.isArray(reply)) return reply;
         const envelope = reply as RequirementRecord;
         if (envelope.success !== true || typeof envelope.content !== "string") return reply;
@@ -1516,7 +1550,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       });
     });
   }
-  if (structuredAgent) add(fusionPrototype, "_fuseSingleShot", original => function (shotValue, ...args) {
+  if (structuredAgent || deps.fieldConsistencyPrototype) add(fusionPrototype, "_fuseSingleShot", original => function (shotValue, ...args) {
     const scope = productionScope(this, false);
     const run = () => Reflect.apply(original, this, [shotValue, ...args]);
     if (!scope || scope.g4Decision !== "approved" || scope.authority.profile.speechPolicy !== "none"
@@ -1528,7 +1562,9 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       const shot = requirementRecord(shotValue, "冻结合同原生融合镜头");
       const approved = scope.contract?.scenes.find(scene => scene.id === shot.shotId);
       if (!approved || shot.duration !== cuts.secondsPerSegment || approved.duration !== shot.duration) return run();
-      return primaryFusion.run({ scope, receiver: this, shotId: approved.id, started: false }, run);
+      const fuse = () => primaryFusion.run({ scope, receiver: this, shotId: approved.id, started: false }, run);
+      const identity = rivalIdentity(scope, shot);
+      return identity ? rivalProduction.run({ scope, receiver: this, identity }, fuse) : fuse();
     });
   });
   if (structuredAgent) add(structuredAgent.prototype, "_callLLM", original => async function (prompt, schema, fallback, optionsValue = {}) {
@@ -1802,7 +1838,10 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         check(scope);
         const prompt = Reflect.apply(original, this, args);
         if (typeof prompt !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "PromptFusion 系统提示词不是文本");
-        const fields = bindFusionSpeechRule(prompt, "\n15. dialogue: 角色台词(纯台词,不要旁白)\n",
+        const rival = rivalProduction.getStore();
+        const identity = rival?.scope === scope && rival.receiver === this ? rival.identity : undefined;
+        const fields = bindFusionSpeechRule(identity ? bindRivalFusionIdentity(prompt, identity) : prompt,
+          "\n15. dialogue: 角色台词(纯台词,不要旁白)\n",
           '\n15. dialogue: 固定输出"无台词"。\n');
         return bindFusionSpeechRule(fields, "\n- 台词必须是角色直接对话,不要画外音/旁白\n",
           `\n- ${FROZEN_FUSION_SPEECH_RULE}\n`);

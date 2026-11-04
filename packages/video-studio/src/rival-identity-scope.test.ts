@@ -4,6 +4,7 @@ import { bindRequirementContract, requirementCast, requirementRecord, type Requi
 import { preparePrdAuthority } from "./prd-authority.js";
 import { installPrdAuthorityBridge, installPrdProductionBridge, productionModelInput, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { PRDGenerator, PRDSchema, prdFixture } from "./prd-authority.test-support.js";
+import { bindRivalAuthorityIdentity, bindRivalFusionIdentity, bindRivalRepairIdentity } from "./rival-identity-scope.js";
 
 type NativeConstructor = { new (...args: unknown[]): RequirementRecord; prototype: RequirementRecord };
 const nativeRequire = createRequire(import.meta.url);
@@ -29,6 +30,13 @@ const fixtures: ReturnType<typeof prdFixture>[] = [];
 const invoke = (receiver: RequirementRecord, key: string, ...args: unknown[]): unknown =>
   Reflect.apply(receiver[key] as (...args: unknown[]) => unknown, receiver, args);
 
+function refreshSource(value: ReturnType<typeof prdFixture>) {
+  value.list = bindRequirementContract({ keyPoints: [] }, value.discovery, requirementRecord(value.discovery.upstreamFields, "upstream"),
+    structuredClone(value.metadata), requirementCast(value.metadata).hash, "原始年轻消费者");
+  value.contract = value.list._workloomRequirementContract as RequirementContract;
+  value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
+}
+
 function raceFixture(name: string) {
   const value = prdFixture(name, [10, 10, 10]);
   fixtures.push(value);
@@ -48,10 +56,7 @@ function raceFixture(name: string) {
       actions: [{ actorId: "builtin-person", description: action }] };
     Object.assign(value.production.scenePlan.scenes[index]!, { purpose: action, visualRequirements: [action] });
   }
-  value.list = bindRequirementContract({ keyPoints: [] }, value.discovery, requirementRecord(value.discovery.upstreamFields, "upstream"),
-    structuredClone(value.metadata), requirementCast(value.metadata).hash, "原始年轻消费者");
-  value.contract = value.list._workloomRequirementContract as RequirementContract;
-  value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: name });
+  refreshSource(value);
   return value;
 }
 
@@ -149,6 +154,19 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
     });
   });
 
+  it("the same native scope recognizes a bound motorcycle action that explicitly 连超 its rival", async () => {
+    const value = raceFixture("RIVAL-ACTUAL-SOURCE-VERB");
+    const opening = requirementRecord(requirementRecord(value.discovery.sceneStructure, "structure").opening, "opening");
+    (requirementRecord(opening.productionContract, "contract").actions as RequirementRecord[])[0]!.description =
+      "合成人物在最后一弯重刹切入内线，车身压低贴弯连超第二辆对手车，随后前轮先压过终点线";
+    refreshSource(value);
+    const accepted = nativeHarness(value), checker = new RuleChecker();
+    await accepted(() => {
+      const issues = invoke(checker, "_checkFormat", shot(value)) as RequirementRecord[];
+      expect(issues.filter(issue => issue.fieldEn === "character_constraint")).toEqual([]);
+    });
+  });
+
   it("the actual native repair replaces only its owned field rule, retaining input quotations and native options", async () => {
     const value = raceFixture("RIVAL-REPAIR"), accepted = nativeHarness(value), captured: Array<{ prompt: string; options: unknown }> = [];
     const source = shot(value), nativeHint = ` - character_constraint：${FIELD_REQUIREMENTS.character_constraint}`;
@@ -171,13 +189,20 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
   });
 
   it("the native production authority qualifies only its own named-cast rule for the same moving-rival shot", async () => {
-    const value = raceFixture("RIVAL-AUTHORITY"), accepted = nativeHarness(value);
+    const value = raceFixture("RIVAL-AUTHORITY");
+    const nativeOwned = "\n客户受众原文是权威口径；模型年龄/性别细分仅为推测。只使用合同内人物，characterId 必须等于所选 id，姓名一致。";
+    requirementRecord(value.metadata.brief, "brief").description += `${nativeOwned}人物档案是人物表达依据，不能当成商品事实；`;
+    refreshSource(value);
+    const accepted = nativeHarness(value);
     const fusion = new PromptFusionAgent({ semanticRefinement: false });
     const captured: string[] = [];
+    let lateVerify: (() => void) | undefined;
     fusion._callLLM = async function (this: RequirementRecord, prompt: string) {
       const input = productionModelInput(`${String(invoke(this, "_getSystemPrompt"))}\n\n${prompt}`);
       input.verify();
+      lateVerify = input.verify;
       captured.push(input.prompt);
+      expect(await withPrdAuthorityScope(undefined, () => productionModelInput(nativeOwned).prompt)).toBe(nativeOwned);
       throw new Error("SYNTHETIC_NATIVE_PROMPT_CAPTURE");
     };
     await accepted(async prd => {
@@ -186,10 +211,100 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
       expect(prd).toEqual(before);
     });
     expect(captured).toHaveLength(1);
-    const nativeOwned = "\n客户受众原文是权威口径；模型年龄/性别细分仅为推测。只使用合同内人物，characterId 必须等于所选 id，姓名一致。";
     expect(captured[0]).not.toContain(nativeOwned);
     expect(captured[0]).toContain("只使用合同内命名人物身份");
     expect(captured[0]).toContain(JSON.stringify(value.metadata.brief));
     expect(productionModelInput(nativeOwned).prompt).toBe(nativeOwned);
+    expect(lateVerify).toBeTypeOf("function");
+    expect(() => lateVerify!()).toThrow("PRD_SCOPE_CLOSED");
+  });
+
+  it.each(["ending", "wrong-id", "wrong-duration", "G4-no-moving-rival", "G4-negated-rival", "G3-no-moving-rival", "owner-no-race", "no-frozen-contract", "speech-unspecified"])(
+    "native rule and repair stay unchanged outside the current per-shot prerequisite %s", async mode => {
+      const value = raceFixture(`RIVAL-BOUNDARY-${mode}`), current = shot(value, mode === "ending" ? 2 : 0);
+      if (mode === "wrong-id") current.shotId = "not-this-reviewed-shot";
+      if (mode === "wrong-duration") current.duration = 8;
+      if (mode === "G4-no-moving-rival" || mode === "G4-negated-rival") {
+        const note = mode === "G4-no-moving-rival" ? "合成人物停在展台旁观察静态摩托车" : "对手车不可高速行驶或超车";
+        Object.assign(value.production.scenePlan.scenes[0]!, { purpose: note, visualRequirements: [note] });
+      }
+      if (mode === "G3-no-moving-rival") {
+        const node = requirementRecord(requirementRecord(value.discovery.sceneStructure, "structure").opening, "opening");
+        (requirementRecord(node.productionContract, "contract").actions as RequirementRecord[])[0]!.description = "合成人物停在展示摩托车旁";
+      }
+      const brief = requirementRecord(value.metadata.brief, "brief");
+      if (mode === "owner-no-race") {
+        const cuts = requirementRecord(brief.segmentContract, "cuts");
+        for (const interval of cuts.intervals as RequirementRecord[]) interval.brief = "主角观察赛道旁的静止对手车陈设，禁止超车。";
+      }
+      if (mode === "no-frozen-contract") delete brief.segmentContract;
+      if (mode === "speech-unspecified") delete requirementRecord(brief.productionRequirements, "requirements").speechPolicy;
+      refreshSource(value);
+      const accepted = nativeHarness(value), checker = new RuleChecker(), captures: string[] = [];
+      const repairer = new LLMRepairer({ reason: async (prompt: string) => {
+        captures.push(prompt);
+        return { success: true, content: JSON.stringify({ repaired_fields: {} }) };
+      } });
+      const before = structuredClone(current);
+      await accepted(async () => {
+        const issues = (invoke(checker, "_checkFormat", current) as RequirementRecord[]).filter(issue => issue.fieldEn === "character_constraint");
+        expect(issues).toHaveLength(1);
+        expect(issues[0]!.description).toContain("单角色限制");
+        await invoke(repairer, "_repairBatch", current, issues, ["character_constraint"], null, 1000, 1, 1);
+      });
+      expect(captures).toHaveLength(1);
+      expect(captures[0]).toContain(` - character_constraint：${FIELD_REQUIREMENTS.character_constraint}`);
+      expect(current).toEqual(before);
+    },
+  );
+
+  it.each([
+    "命名主角仅其他人，其他为全盔匿名成年对手骑手；合成人物仅在档案内；禁止主角分身克隆。",
+    "命名主角仅合成人物，其他为全盔成年对手骑手；禁止主角分身克隆。",
+    "命名主角仅合成人物，其他为匿名成年对手骑手；禁止主角分身克隆。",
+    "命名主角仅合成人物，其他为全盔匿名对手骑手；禁止主角分身克隆。",
+    "命名主角仅合成人物，其他为全盔匿名成年对手骑手；允许主角分身克隆。",
+    "主角为合成人物和其他具名人物，其他为全盔匿名成年对手骑手；禁止主角分身克隆。",
+  ])("the scoped native format check retains an unresolved identity or clone issue for %s", async characterConstraint => {
+    const value = raceFixture("RIVAL-IDENTITY-CONTROL"), accepted = nativeHarness(value), checker = new RuleChecker();
+    await accepted(() => {
+      const issues = invoke(checker, "_checkFormat", { ...shot(value), character_constraint: characterConstraint }) as RequirementRecord[];
+      const relevant = issues.filter(issue => issue.fieldEn === "character_constraint");
+      expect(relevant).toHaveLength(1);
+      expect(relevant[0]!.suggestion).toContain("匿名成年对手骑手");
+      expect(relevant[0]!.suggestion).not.toContain("禁止其他人物入镜");
+    });
+  });
+
+  it("pinned owned-template drift fails before it can be used as a substitute source rule", () => {
+    const scope = { leadId: "builtin-person", leadName: "合成人物" };
+    expect(() => bindRivalFusionIdentity("changed native system", scope)).toThrow("PRD_VENDOR_UNAVAILABLE");
+    expect(() => bindRivalRepairIdentity("changed native repair", scope)).toThrow("PRD_VENDOR_UNAVAILABLE");
+    expect(() => bindRivalAuthorityIdentity("changed host authority")).toThrow("PRD_VENDOR_UNAVAILABLE");
+  });
+
+  it("interleaved native shots retain distinct identity semantics across an awaited request boundary", async () => {
+    const value = raceFixture("RIVAL-INTERLEAVED"), accepted = nativeHarness(value);
+    const fusion = new PromptFusionAgent({ semanticRefinement: false });
+    let release!: () => void;
+    const ready = new Promise<void>(resolve => { release = resolve; });
+    let arrived = 0;
+    const captured: Array<{ opening: boolean; system: string; authority: string }> = [];
+    fusion._callLLM = async function (this: RequirementRecord, prompt: string) {
+      if (++arrived === 2) release();
+      await ready;
+      captured.push({ opening: prompt.includes("镜头:\nopening(10s)"),
+        system: String(invoke(this, "_getSystemPrompt")), authority: productionModelInput(prompt).prompt });
+      throw new Error("SYNTHETIC_NATIVE_PROMPT_CAPTURE");
+    };
+    await accepted(async () => {
+      const results = await Promise.allSettled([0, 2].map(index => invoke(fusion, "_fuseSingleShot", shot(value, index), "9:16", [], {})));
+      expect(results.every(result => result.status === "rejected" && String(result.reason).includes("SYNTHETIC_NATIVE_PROMPT_CAPTURE"))).toBe(true);
+    });
+    expect(captured).toHaveLength(2);
+    for (const row of captured) {
+      expect(row.system.includes("匿名成年对手骑手")).toBe(row.opening);
+      expect(row.authority.includes("只使用合同内命名人物身份")).toBe(row.opening);
+    }
   });
 });
