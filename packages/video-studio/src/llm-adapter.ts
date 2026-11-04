@@ -295,18 +295,18 @@ function dataMember(value: object, key: PropertyKey, prototype?: object): unknow
   return descriptor && "value" in descriptor ? descriptor.value : undefined;
 }
 
-function dataDescriptors(value: unknown, prototypes: readonly (object | null)[]): PropertyDescriptor[] | undefined {
+function dataDescriptors(value: unknown, prototypes: readonly (object | null)[], omit?: symbol): PropertyDescriptor[] | undefined {
   if (!value || typeof value !== "object" || types.isProxy(value)
     || !prototypes.includes(Object.getPrototypeOf(value))) return undefined;
-  const properties = Reflect.ownKeys(value).map((key) => Object.getOwnPropertyDescriptor(value, key)!);
+  const properties = Reflect.ownKeys(value).filter((key) => key !== omit).map((key) => Object.getOwnPropertyDescriptor(value, key)!);
   return properties.every((property) => "value" in property) ? properties : undefined;
 }
 
-function plainDataTree(value: unknown, parents = new WeakSet<object>(), depth = 0): boolean {
+function plainDataTree(value: unknown, parents = new WeakSet<object>(), depth = 0, omit?: symbol): boolean {
   if (value == null || typeof value === "string" || typeof value === "boolean") return true;
   if (typeof value === "number") return Number.isFinite(value);
   if (typeof value !== "object" || depth >= 32 || parents.has(value)) return false;
-  const descriptors = dataDescriptors(value, [Object.prototype, null, Array.prototype]);
+  const descriptors = dataDescriptors(value, [Object.prototype, null, Array.prototype], omit);
   if (!descriptors) return false;
   parents.add(value);
   const plain = descriptors.every((descriptor) => plainDataTree(descriptor.value, parents, depth + 1));
@@ -711,7 +711,9 @@ export class WorkloomLLMEngine {
       reasonFailures.set(failure, "unavailable");
       return failure;
     }
-    const identity = () => plainDataTree(options) && plainDataTree(schema) && options.responsesJsonSchema === undefined
+    // Proof capture adds an internal callback, not a Chat wire control.
+    const identity = () => plainDataTree(options, undefined, 0, captureReviewDispatch)
+      && plainDataTree(schema) && options.responsesJsonSchema === undefined
       ? createHash("sha256").update(JSON.stringify([String(JSON.stringify(schema)), options])).digest("hex") : undefined;
     const callOptions: InternalReasonOptions = { ...options, forceJson: true };
     if (callOptions.responsesJsonSchema === undefined) callOptions[structuredChatIdentity] = identity;

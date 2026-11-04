@@ -16,6 +16,11 @@ import {
   splitShotAssertions,
   validatePromptContract,
   WorkloomLLMEngine,
+  nativeChatJsonObjectCorrected,
+  nativeChatJsonObjectRouteCurrent,
+  nativeChatJsonSyntaxCorrected,
+  nativeChatJsonSyntaxRouteCurrent,
+  nativeReasonFailure,
   type CompiledPromptShot,
   type PromptCompileAsset,
   type PromptCompileOptions,
@@ -143,8 +148,15 @@ interface PassedSemanticReviewProof {
   dependenciesSha256: string;
   review: SemanticQualityReview;
   technicalRetry: number;
+  technicalFailure?: SemanticReviewCorrection;
   dispatch: StructuredReviewDispatchProof;
 }
+
+const SEMANTIC_REVIEW_CORRECTIONS = {
+  SEMANTIC_REVIEW_JSON_SYNTAX: "上一答复不是可直接解析的 JSON 对象。请仅重做下方原评审，返回一个完整、可由 JSON.parse 直接解析的 JSON 对象。",
+  SEMANTIC_REVIEW_CONTRACT_INVALID: "上一答复未满足评审契约。请仅重做下方原评审，逐项返回五个唯一检查，严格使用当前镜号、允许字段和字段原文证据；按 pass 值决定是否提供 failureCode 与 repair。",
+} as const;
+type SemanticReviewCorrection = keyof typeof SEMANTIC_REVIEW_CORRECTIONS;
 
 export interface PromptQualityFinding {
   code: string;
@@ -193,6 +205,7 @@ export interface PromptQualityResult {
     valid: boolean;
     errors: string[];
     technicalRetry: number;
+    technicalFailure?: SemanticReviewCorrection;
     proofReuse?: ReusedSemanticReview;
   }>;
   findings: PromptQualityFinding[];
@@ -408,14 +421,30 @@ function missingProtectedOutline(
 ): SemanticQualityCheck | undefined {
   if (!hasCurrentG4Shot(upstream, shotId)) return undefined;
   const plan = upstream!.approvedProductionPlan as { scenes: Array<{
-    shotId: string; verificationPlan: { visualRequirements: unknown[] };
+    shotId: string;
+    approvedScene: { actions: Array<{ description?: unknown } | null>; props?: unknown };
+    verificationPlan: { visualRequirements: unknown[] };
   }> };
-  const approved = plan.scenes.find(scene => scene?.shotId === shotId)!.verificationPlan.visualRequirements
+  const scene = plan.scenes.find(scene => scene?.shotId === shotId)!;
+  const visualRequirements = scene.verificationPlan.visualRequirements
     .filter((value): value is string => typeof value === "string").flatMap(affirmativeOutlineClauses);
+  const approvedActions = scene.approvedScene.actions.flatMap(action =>
+    typeof action?.description === "string" ? affirmativeOutlineClauses(action.description) : []);
   const chest = /胸(?:线|部|廓)/u, hips = /臀(?:线|部|廓)/u;
   const visible = /呈现|展示|展现|显示|看清|看见|可见(?!度)|入镜/u;
-  if (!approved.some(note => chest.test(note) && hips.test(note) && visible.test(note))
-    || !approved.some(note => /全覆|全套护具|完整护具/u.test(note))) return undefined;
+  const visiblePair = (clause: string) => chest.test(clause) && hips.test(clause) && visible.test(clause);
+  const actionOutlines = approvedActions.filter(visiblePair);
+  if (!actionOutlines.length && !visualRequirements.some(visiblePair)) return undefined;
+  const fullCoverSuit = /全覆.{0,12}(?:赛车服|防护服|保护服|连体服|服装)/u;
+  const declaredCover = [...visualRequirements, ...approvedActions].some(clause =>
+    fullCoverSuit.test(clause) || /全覆护具|全套护具|完整护具|护具完整/u.test(clause));
+  // An approved prop can corroborate protection only where the approved
+  // action already places both visible outlines inside that protective suit.
+  const corroboratedCover = actionOutlines.some(clause =>
+    /赛车服(?:包裹|覆盖)(?:下|之下)|赛车服[下内]/u.test(clause))
+    && Array.isArray(scene.approvedScene.props) && scene.approvedScene.props.some(prop =>
+      typeof prop?.name === "string" && affirmativeOutlineClauses(prop.name).some(clause => fullCoverSuit.test(clause)));
+  if (!declaredCover && !corroboratedCover) return undefined;
   const framing = ["composition", "camera_movement", "action"].map(field => fieldValueFromSource(source, field))
     .filter((value): value is string => typeof value === "string").flatMap(affirmativeOutlineClauses)
     .filter(clause => visible.test(clause)).join("；");
@@ -432,6 +461,39 @@ function semanticQuestions(upstream: Record<string, unknown> | undefined, shotId
     SQ5_PURPOSE: { question: "这一镜是否有明确叙事作用，且转场不违背本镜已审切点和末态动作？",
       fields: [...SEMANTIC_QUALITY_QUESTION.SQ5_PURPOSE.fields, "transition"] },
   };
+}
+
+/** Current frozen interval is issued only by the G4 readback for hard-cut segmented production. */
+function approvedExecutionChecks(
+  upstream: Record<string, unknown> | undefined, contract: PromptContract, source: Record<string, unknown>,
+): SemanticQualityCheck[] {
+  const shotId = contract.shotId;
+  const outline = missingProtectedOutline(upstream, shotId, source);
+  const findings = outline ? [outline] : [];
+  if (!hasCurrentG4Shot(upstream, shotId)) return findings;
+  const plan = upstream!.approvedProductionPlan as { scenes: Array<{
+    shotId: string; interval?: { startSec?: unknown; endSec?: unknown };
+  }> };
+  const interval = plan.scenes.find(scene => scene?.shotId === shotId)?.interval;
+  if (!interval || typeof interval.startSec !== "number" || typeof interval.endSec !== "number"
+    || !Number.isFinite(interval.startSec) || !Number.isFinite(interval.endSec) || interval.startSec < 0
+    || interval.endSec - interval.startSec !== Number(contract.request.parameters.duration_sec)) return findings;
+
+  const transition = fieldValueFromSource(source, "transition");
+  const explicit = typeof transition === "string"
+    ? [...transition.matchAll(/(?:^|[，；。])\s*硬切\s*(?:[，、,:：]\s*|(?:过渡|持续|耗时|用时|时长)\s*(?:为|[:：])?\s*)(\d+(?:\.\d+)?)\s*(?:秒|帧)/gu)] : [];
+  if (explicit.some(([, duration]) => Number(duration) > 0)) {
+    findings.push({ id: "SQ5_PURPOSE", field: "transition", pass: false, failureCode: "TRANSITION_DURATION_BREAKS_HARDCUT",
+      evidence: "转场字段把已审硬切写成正时长过渡。", repair: "保留已审切点、落幅和相邻位置，写成无过渡时长的直接硬切。" });
+  }
+
+  const camera = fieldValueFromSource(source, "camera_movement");
+  if (typeof camera === "string" && /(?<!对手)(?<subject>车身|主车|主体|人物|角色)\s*始终\s*(?:在画面)?\s*(?:保持)?居中[^。]{0,240}(?:落幅|收镜|结束)(?:时)?\s*(?:画面(?:中|内|里)的?)?\s*\k<subject>[^。；]{0,15}(?:左侧|右侧)(?:的)?三分线/u.test(camera)) {
+    findings.push({ id: "SQ3_CAMERA_FEASIBLE", field: "camera_movement", pass: false, failureCode: "CAMERA_FRAMING_SELF_CONTRADICTION",
+      evidence: "同一运镜既要求同一主体始终居中，又明确指定该主体在偏侧三分线结束。",
+      repair: "以已审切点和本镜动作、构图为准，写清起幅、运动和落幅；不能同时声明全程居中和偏侧落幅。" });
+  }
+  return findings;
 }
 
 export function parseSemanticQualityReview(
@@ -615,6 +677,11 @@ function repairPrompt(
 function semanticReviewRequest(context: SemanticReviewContext) {
   const options: LLMReasonOptions = { scene: "preproduction", maxTokens: 2200, temperature: 0 };
   return [semanticPrompt(context.contract, context.shot, context.upstreamContext), semanticSchema(context.contract.shotId), options] as const;
+}
+
+function correctedSemanticReviewRequest(request: ReturnType<typeof semanticReviewRequest>, failure: SemanticReviewCorrection) {
+  const [prompt, schema, options] = request;
+  return [`【G6 评审响应技术纠正】\n${SEMANTIC_REVIEW_CORRECTIONS[failure]}\n\n${prompt}`, schema, options] as const;
 }
 
 export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): SemanticQualityReviewer {
@@ -889,52 +956,85 @@ export function verifyCurrentPromptContracts(
   return { valid: reasons.length === 0, reasons: [...new Set(reasons)], contracts: compiled.map((item) => item.contract) };
 }
 
+interface TechnicalReviewResult {
+  review?: SemanticQualityReview;
+  errors: string[];
+  retries: number;
+  technicalFailure?: SemanticReviewCorrection;
+  dispatchProof?: StructuredReviewDispatchProof;
+  proofReuse?: ReusedSemanticReview;
+}
+
 async function reviewWithTechnicalRetry(
   reviewer: SemanticQualityReviewer,
   context: SemanticReviewContext,
   captureProof: boolean,
   prior?: PassedSemanticReviewProof,
-): Promise<{
-  review?: SemanticQualityReview;
-  errors: string[];
-  retries: number;
-  dispatchProof?: StructuredReviewDispatchProof;
-  proofReuse?: ReusedSemanticReview;
-}> {
+): Promise<TechnicalReviewResult> {
+  const native = proofReviewer(reviewer);
+  if (native) return reviewNativeWithCorrection(native.engine, context, captureProof, prior);
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const current = { ...context, attempt: attempt + 1 };
-      const native = captureProof || prior ? proofReviewer(reviewer) : undefined;
-      if (attempt === 0 && native && prior?.dispatch.matchesCurrent(...semanticReviewRequest(current))) {
-        const parsed = parseSemanticQualityReview(prior.review, current.contract, current.shot, current.upstreamContext);
-        if (parsed.valid && parsed.review?.checks.every((check) => check.pass)) {
-          const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = prior.dispatch;
-          return {
-            review: parsed.review, errors: [], retries: attempt,
-            proofReuse: { sourcePass: 1, sourceTechnicalRetry: prior.technicalRetry, inputSha256, dependenciesSha256: prior.dependenciesSha256,
-              sourceRequestSha256: requestSha256, sourceResponseSha256: responseSha256, modelId, policyVersion, registryVersion },
-          };
-        }
-      }
-      let value: unknown;
-      let dispatchProof: StructuredReviewDispatchProof | undefined;
-      if (native && captureProof) {
-        const { result, proof } = await native.engine.reasonStructuredWithProof(...semanticReviewRequest(current));
-        if (!result.success) throw new Error(result.error ?? "SEMANTIC_REVIEW_TRANSPORT_FAILED");
-        value = result.data ?? result.content;
-        dispatchProof = proof;
-      } else {
-        value = await reviewer.review(current);
-      }
+      const value = await reviewer.review(current);
       const parsed = parseSemanticQualityReview(value, current.contract, current.shot, current.upstreamContext);
-      if (parsed.valid && parsed.review) return { review: parsed.review, errors: [], retries: attempt, dispatchProof };
+      if (parsed.valid && parsed.review) return { review: parsed.review, errors: [], retries: attempt };
       lastError = parsed.errors.join(",");
     } catch (error) {
       lastError = errorText(error);
     }
   }
   return { errors: [lastError || "SEMANTIC_REVIEW_INVALID"], retries: 1, review: undefined };
+}
+
+async function reviewNativeWithCorrection(
+  engine: WorkloomLLMEngine, context: SemanticReviewContext, captureProof: boolean, prior?: PassedSemanticReviewProof,
+): Promise<TechnicalReviewResult> {
+  const parse = (value: unknown) => parseSemanticQualityReview(value, context.contract, context.shot, context.upstreamContext);
+  const dispatch = async (value: ReturnType<typeof semanticReviewRequest>): ReturnType<WorkloomLLMEngine["reasonStructuredWithProof"]> =>
+    captureProof ? engine.reasonStructuredWithProof(...value) : { result: await engine.reasonStructured(...value) };
+  let failure: SemanticReviewCorrection | undefined;
+  let errors: string[] = [];
+  let retries = 0;
+  try {
+    const request = semanticReviewRequest(context);
+    if (prior?.dispatch.matchesCurrent(...(prior.technicalFailure ? correctedSemanticReviewRequest(request, prior.technicalFailure) : request))) {
+      const parsed = parse(prior.review);
+      if (parsed.valid && parsed.review?.checks.every((check) => check.pass)) {
+        const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = prior.dispatch;
+        return {
+          review: parsed.review, errors: [], retries, technicalFailure: prior.technicalFailure,
+          proofReuse: { sourcePass: 1, sourceTechnicalRetry: prior.technicalRetry, inputSha256, dependenciesSha256: prior.dependenciesSha256,
+            sourceRequestSha256: requestSha256, sourceResponseSha256: responseSha256, modelId, policyVersion, registryVersion },
+        };
+      }
+    }
+    const { result: first, proof } = await dispatch(request);
+    const parsed = first.success ? parse(first.data ?? first.content) : undefined;
+    if (parsed?.valid && parsed.review) return { review: parsed.review, errors: [], retries, dispatchProof: proof };
+    failure = parsed ? "SEMANTIC_REVIEW_CONTRACT_INVALID" : nativeReasonFailure(first) === "json-syntax" ? "SEMANTIC_REVIEW_JSON_SYNTAX" : undefined;
+    errors = parsed?.errors ?? [failure ?? "SEMANTIC_REVIEW_NATIVE_UNAVAILABLE"];
+    if (!failure || !(parsed ? nativeChatJsonObjectRouteCurrent(engine, first) : nativeChatJsonSyntaxRouteCurrent(engine, first))) {
+      return { errors, retries, technicalFailure: failure };
+    }
+    retries = 1;
+    const { result: next, proof: correctedProof } = await dispatch(correctedSemanticReviewRequest(request, failure));
+    if (!next.success) {
+      const nextError = nativeReasonFailure(next) === "json-syntax" ? "SEMANTIC_REVIEW_CORRECTION_INVALID" : "SEMANTIC_REVIEW_CORRECTION_UNAVAILABLE";
+      return { errors: [...errors, nextError], retries, technicalFailure: failure };
+    }
+    if (!(parsed ? nativeChatJsonObjectCorrected(first, next) : nativeChatJsonSyntaxCorrected(first, next))) {
+      return { errors: [...errors, "SEMANTIC_REVIEW_CORRECTION_UNPROVEN"], retries, technicalFailure: failure };
+    }
+    const corrected = parse(next.data);
+    if (!corrected.valid || !corrected.review || (next.data as { shotId?: unknown }).shotId !== context.contract.shotId) {
+      return { errors: [...errors, "SEMANTIC_REVIEW_CORRECTION_INVALID"], retries, technicalFailure: failure };
+    }
+    return { review: corrected.review, errors: [], retries, technicalFailure: failure, dispatchProof: correctedProof };
+  } catch {
+    return { errors: [...errors, retries ? "SEMANTIC_REVIEW_CORRECTION_UNAVAILABLE" : "SEMANTIC_REVIEW_NATIVE_UNAVAILABLE"], retries, technicalFailure: failure };
+  }
 }
 
 function reviewDependencies(input: EvaluatePromptQualityInput, contract: PromptContract): string {
@@ -1025,7 +1125,7 @@ async function evaluateCompiledShots(
       prior && prior.dependenciesSha256 === dependencies ? prior : undefined);
     if (proofs?.phase === "capture" && dependencies && reviewed.dispatchProof && reviewed.review?.checks.every((check) => check.pass)) {
       proofs.byShot.set(item.shotId, { dependenciesSha256: dependencies, review: structuredClone(reviewed.review),
-        technicalRetry: reviewed.retries, dispatch: reviewed.dispatchProof });
+        technicalRetry: reviewed.retries, technicalFailure: reviewed.technicalFailure, dispatch: reviewed.dispatchProof });
     }
     reports.push({
       shotId: item.shotId,
@@ -1033,6 +1133,7 @@ async function evaluateCompiledShots(
       valid: Boolean(reviewed.review),
       errors: reviewed.errors,
       technicalRetry: reviewed.retries,
+      ...(reviewed.technicalFailure ? { technicalFailure: reviewed.technicalFailure } : {}),
       ...(reviewed.proofReuse ? { proofReuse: reviewed.proofReuse } : {}),
     });
     if (!reviewed.review) {
@@ -1050,8 +1151,11 @@ async function evaluateCompiledShots(
       if (check.pass) continue;
       findings.push(semanticFinding(item.source, item.compiled.contract, check));
     }
-    const visible = missingProtectedOutline(input.upstreamContext, item.shotId, item.source);
-    if (visible) findings.push(semanticFinding(item.source, item.compiled.contract, visible));
+    const explicit = approvedExecutionChecks(input.upstreamContext, item.compiled.contract, item.source);
+    for (const check of explicit) if (!findings.some(finding => finding.shotId === item.shotId
+      && finding.code === check.failureCode && finding.field === check.field)) {
+      findings.push(semanticFinding(item.source, item.compiled.contract, check));
+    }
   }
   return { compiled, reports, findings };
 }
@@ -1140,15 +1244,16 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
         const changes: Array<{ shotId: string; field: string; value: unknown; reason: string }> = [];
         for (const { firstShot, fields: shotAllowedFields, finalPromptLength, fieldBudget, semanticFields } of repairs) {
           const shotId = firstShot.shotId;
-          const visible = missingProtectedOutline(input.upstreamContext, shotId, firstShot.source);
+          const actualFindings = finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [];
+          const scopedFindings = approvedExecutionChecks(input.upstreamContext, firstShot.compiled.contract, firstShot.source)
+            .filter(check => !actualFindings.some(actual => actual.field === check.field && actual.failureCode === check.failureCode));
           const changesRaw = await reviewer.repair({
             projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
             shot: finalPromptLength ? structuredClone(firstShot.source) : firstShot.source,
             contract: finalPromptLength ? structuredClone(firstShot.compiled.contract) : firstShot.compiled.contract,
             attempt: 1,
             upstreamContext: input.upstreamContext,
-            findings: [...(finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? []),
-              ...(visible ? [visible] : [])],
+            findings: [...actualFindings, ...scopedFindings],
             allowedFields: [...shotAllowedFields],
             ...(finalPromptLength ? { finalPromptLength: { ...finalPromptLength } } : {}),
             ...(fieldBudget ? { finalPromptFieldBudget: structuredClone(fieldBudget) } : {}),
