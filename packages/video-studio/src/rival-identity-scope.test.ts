@@ -278,6 +278,53 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
     });
   });
 
+  it.each([
+    "命名主角仅合成人物和张三",
+    "合成人物和张三是唯一命名主角",
+    "命名主角仅合成人物替身",
+    "合成人物替身是唯一命名主角",
+    "命名主角仅合成人物（builtin-person）和张三",
+    "命名主角仅合成人物（foreign-person）",
+    "命名主角仅合成人物；另一个具名角色为张三",
+    "命名主角仅合成人物；另有合成人物替身参加",
+  ])("the actual native identity issue survives a conflicting complete-name declaration: %s", async declaration => {
+    const value = raceFixture("RIVAL-EXACT-NAME-REJECTION"), accepted = nativeHarness(value), checker = new RuleChecker();
+    const current = { ...shot(value), character_constraint: `${declaration}，其他为全盔匿名成年对手骑手；禁止主角分身克隆。` };
+    const before = structuredClone(current);
+    const original = (invoke(checker, "_checkFormat", current) as RequirementRecord[])
+      .filter(issue => issue.fieldEn === "character_constraint");
+    expect(original).toHaveLength(1);
+    expect(original[0]!.description).toContain("单角色限制");
+    await accepted(() => {
+      const remaining = (invoke(checker, "_checkFormat", current) as RequirementRecord[])
+        .filter(issue => issue.fieldEn === "character_constraint");
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]!.description).toContain("命名主角身份与必要对手骑手区分");
+      expect(current).toEqual(before);
+    });
+  });
+
+  it.each([
+    "命名主角仅合成人物",
+    "命名主角仅合成人物（builtin-person）",
+    "命名主角只有合成人物",
+    "唯一命名主角为合成人物",
+    "唯一具名主角是合成人物",
+    "合成人物是唯一命名主角",
+    "合成人物（builtin-person）为唯一具名主角",
+    "“合成人物”（builtin-person）是唯一命名主角",
+  ])("the actual native identity check keeps the same exact lead in either declaration order: %s", async declaration => {
+    const value = raceFixture("RIVAL-EXACT-NAME-CONTROL"), accepted = nativeHarness(value), checker = new RuleChecker();
+    const current = { ...shot(value), character_constraint: `${declaration}，其他为全盔匿名成年对手骑手；禁止主角分身克隆。` };
+    const before = structuredClone(current);
+    await accepted(() => {
+      const issues = (invoke(checker, "_checkFormat", current) as RequirementRecord[])
+        .filter(issue => issue.fieldEn === "character_constraint");
+      expect(issues).toEqual([]);
+      expect(current).toEqual(before);
+    });
+  });
+
   it("the same native scope recognizes a bound motorcycle action that explicitly 连超 its rival", async () => {
     const value = raceFixture("RIVAL-ACTUAL-SOURCE-VERB");
     const opening = requirementRecord(requirementRecord(value.discovery.sceneStructure, "structure").opening, "opening");
