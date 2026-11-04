@@ -481,6 +481,7 @@ function semanticQuestions(upstream: Record<string, unknown> | undefined, shotId
 /** Current frozen interval is issued only by the G4 readback for hard-cut segmented production. */
 function approvedExecutionChecks(
   upstream: Record<string, unknown> | undefined, contract: PromptContract, source: Record<string, unknown>,
+  nativeChecks?: readonly SemanticQualityCheck[],
 ): SemanticQualityCheck[] {
   const shotId = contract.shotId;
   const outline = missingProtectedOutline(upstream, shotId, source);
@@ -498,7 +499,7 @@ function approvedExecutionChecks(
     || interval.endSec - interval.startSec !== Number(contract.request.parameters.duration_sec)) return findings;
   findings.push(...approvedMotionObligations({ frozenBrief: interval.brief, approvedActions: scene.approvedScene.actions.filter(action => action !== null),
     action: fieldValueFromSource(source, "action"), timeline: fieldValueFromSource(source, "timeline"),
-    duration: interval.endSec - interval.startSec }));
+    duration: interval.endSec - interval.startSec, nativeChecks }));
 
   const overtaking = [scene.approvedScene.purpose, interval.brief].filter((value): value is string => typeof value === "string")
     .flatMap(value => splitShotAssertions(value).positive.split("；"));
@@ -1107,7 +1108,7 @@ async function evaluateCompiledShots(
   proofPass?: { phase: "capture" | "reuse"; byShot: Map<string, PassedSemanticReviewProof> },
   allowLengthRepair = false,
 ): Promise<{
-  compiled: Array<{ shotId: string; source: Record<string, unknown>; compiled: CompiledPromptShot }>;
+  compiled: Array<{ shotId: string; source: Record<string, unknown>; compiled: CompiledPromptShot; executionFindings: SemanticQualityCheck[] }>;
   reports: PromptQualityResult["semanticReports"];
   findings: PromptQualityFinding[];
 }> {
@@ -1121,6 +1122,7 @@ async function evaluateCompiledShots(
       shotId: String(shot.shotId ?? ""),
       source: { ...source, fields: normalizedFields },
       compiled: result,
+      executionFindings: [] as SemanticQualityCheck[],
       expectedRequestSha256,
       allowReviewedTimeline,
     };
@@ -1197,8 +1199,9 @@ async function evaluateCompiledShots(
       if (check.pass) continue;
       findings.push(semanticFinding(item.source, item.compiled.contract, check));
     }
-    const explicit = approvedExecutionChecks(input.upstreamContext, item.compiled.contract, item.source);
-    for (const check of explicit) if (!findings.some(finding => finding.shotId === item.shotId
+    item.executionFindings = approvedExecutionChecks(input.upstreamContext, item.compiled.contract, item.source,
+      reviewed.dispatchProof ? reviewed.review.checks : undefined);
+    for (const check of item.executionFindings) if (!findings.some(finding => finding.shotId === item.shotId
       && finding.code === check.failureCode && finding.field === check.field)) {
       findings.push(semanticFinding(item.source, item.compiled.contract, check));
     }
@@ -1291,7 +1294,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
         for (const { firstShot, fields: shotAllowedFields, finalPromptLength, fieldBudget, semanticFields } of repairs) {
           const shotId = firstShot.shotId;
           const actualFindings = finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [];
-          const executionFindings = approvedExecutionChecks(input.upstreamContext, firstShot.compiled.contract, firstShot.source);
+          const { executionFindings } = firstShot;
           const scopedFindings = executionFindings
             .filter(check => !actualFindings.some(actual => actual.field === check.field && actual.failureCode === check.failureCode));
           const changesRaw = await reviewer.repair({
