@@ -2844,17 +2844,23 @@ q("断链注入可检测：篡改 prev_hash 链验证立即报警（事务内构
     await c.query("BEGIN");
     await c.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
     await c.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
-    const tail = await c.query<{ seq: string }>(`SELECT MAX(seq) AS seq FROM biz_events WHERE tenant_id=$1`, [scope.tenantId]);
-    const nextSeq = BigInt(tail.rows[0]!.seq) + 1n;
-    await c.query(
-      `INSERT INTO biz_events (seq, event_id, tenant_id, workspace_id, payload, prev_hash, hash) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [nextSeq.toString(), `E-forge-${SFX}`, scope.tenantId, scope.workspaceId, JSON.stringify({ marker: "forge" }), "forged-prev-hash", "forged-hash"],
+    // 使用表的全局序列分配主键，避免与合法并发写入抢占同一序号。
+    const injected = await c.query<{ seq: string }>(
+      `INSERT INTO biz_events (event_id, tenant_id, workspace_id, payload, prev_hash, hash) VALUES ($1,$2,$3,$4,$5,$6) RETURNING seq`,
+      [`E-forge-${SFX}`, scope.tenantId, scope.workspaceId, JSON.stringify({ marker: "forge" }), "forged-prev-hash", "forged-hash"],
     );
-    const rows = await c.query<{ prev_hash: string; hash: string }>(`SELECT prev_hash, hash FROM biz_events WHERE workspace_id=$1 ORDER BY seq`, [scope.workspaceId]);
-    let prev = GENESIS_HASH, breaks = 0;
-    for (const row of rows.rows) { if (row.prev_hash !== prev) breaks++; prev = row.hash; }
-    assert(breaks >= 1, "断链必被检测");
-    await c.query("ROLLBACK"); // 不污染真实库
+    const injectedSeq = injected.rows[0]!.seq;
+    const rows = await c.query<{ seq: string; prev_hash: string; hash: string }>(
+      `SELECT seq, prev_hash, hash FROM biz_events WHERE tenant_id=$1 AND workspace_id=$2 ORDER BY seq`,
+      [scope.tenantId, scope.workspaceId],
+    );
+    let prev = GENESIS_HASH, injectedBreak = false;
+    for (const row of rows.rows) {
+      if (row.seq === injectedSeq) injectedBreak = row.prev_hash !== prev;
+      prev = row.hash;
+    }
+    assert(injectedBreak, "必须检测本用例注入的断链");
+    await c.query("ROLLBACK"); // 只回滚伪造事件行；全局序列允许间隙。
   } catch (err) {
     await c.query("ROLLBACK").catch(() => undefined);
     throw err;
