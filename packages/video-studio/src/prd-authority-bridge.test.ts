@@ -2027,6 +2027,55 @@ describe("bounded blank JSON correction at the actual frozen PromptFusion entry"
 });
 
 describe("approved production authority at native technical and title seams", () => {
+  it.each(["approved", "no-owner-selection", "no-g4-selection", "wrong-duration", "wrong-shot"])(
+    "preserves an explicitly selected one-piece wardrobe and reviewed framing at the native seams: %s", async mode => {
+      const value = fixture(`FROZEN-WARDROBE-${mode}`, [10, 10, 10]), h = productionHarness(true);
+      const wardrobe = "哑光纯色全覆保护真皮赛车服，护肩、护肘、护膝、护背、手套和高帮赛车靴完整，拉链到颈部，贴合身体但不露胸、不露腰、不穿短裤";
+      const framing = "侧前中景、转身与登台动作呈现全覆赛车服下的自然胸线与上翘臀部轮廓，不作孤立局部特写";
+      const actor = (value.metadata.characters as RequirementRecord[])[0]!;
+      Object.assign(actor, { activeWardrobeId: "w1", wardrobeId: "w1", wardrobe: [
+        { id: "w1", name: "历史外套", detail: "普通外套与白色内搭" },
+        { id: "w2", name: "全覆保护赛道赛车服", detail: wardrobe },
+      ] });
+      const brief = requirementRecord(value.metadata.brief, "test frozen Brief");
+      brief.segmentContract = { count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+        intervals: [{ startSec: 0, endSec: 10, brief: "追击" }, { startSec: 10, endSec: 20, brief: "超越冲线" },
+          { startSec: 20, endSec: 30, brief: (mode === "no-owner-selection" ? "登台" : "全段同一套合身全覆 w2 赛车服") + "。" + framing }] };
+      value.production.characterSystem.characters[0]!.costume = mode === "no-g4-selection" ? wardrobe : `本片唯一造型（w2 全覆保护赛道赛车服）：${wardrobe}。历史 w1 不进入本片。`;
+      value.production.scenePlan.scenes[2]!.visualRequirements = [framing];
+      declareDelivery(value, { speechPolicy: "none" });
+      const run = h.make(value);
+      const shot = { shotId: mode === "wrong-shot" ? "unbound" : "ending", duration: mode === "wrong-duration" ? 9 : 10,
+        sceneType: "ending", scene: "正式场景", character: "合成人物", costume: wardrobe, dialogue: "无台词",
+        timeline: "单一没有分段的测试时间轴", fields: { costume: wardrobe, dialogue: "无台词" } };
+      const rule = new RuleRepairer(), checker = new RuleChecker();
+      const before = invoke(checker, "_checkStructure", shot) as RequirementRecord[];
+      const legacy = before.find(issue => issue.fieldEn === "costume")!;
+      expect(legacy.description).toContain("服装字段层次不足");
+      await h.accepted(run, () => {
+        const checked = invoke(checker, "_checkStructure", shot) as RequirementRecord[];
+        const output = requirementRecord(invoke(rule, "repair", shot, { issues: [legacy] }, new PRD({})), "costume rule result");
+        const repaired = requirementRecord(output.repaired, "repaired costume");
+        expect(checked.some(issue => issue.fieldEn === "timeline")).toBe(true);
+        expect(checked.some(issue => issue.fieldEn === "costume")).toBe(mode !== "approved");
+        if (mode === "approved") expect(repaired.costume).toBe(wardrobe);
+        else expect(repaired.costume).toContain("外套：合身外套");
+        const prompt = invoke(run.fusion, "_buildBatchPrompt", [shot], "9:16", [], { config: { aspectRatio: "9:16" } });
+        if (mode === "approved") {
+          expect(prompt).toContain(`本镜已审防护造型与构图`);
+          expect(prompt).toContain(framing);
+          expect(prompt).toContain("只在现有 composition");
+          const previous = { ...shot, shotId: "scene-1", sceneType: "body" };
+          expect(invoke(run.fusion, "_buildBatchPrompt", [previous], "9:16", [], { config: { aspectRatio: "9:16" } })).not.toContain(framing);
+          expect(invoke(rule, "_generateDefault", "costume", new PRD({}), { ...shot, costume: "" })).toBeNull();
+        } else {
+          expect(prompt).not.toContain("本镜已审防护造型与构图");
+        }
+      });
+      expect(shot.costume).toBe(wardrobe);
+    },
+  );
+
   it.each([true, false])("keeps native per-shot scene and director prose only for a verified frozen contract (%s)", async frozen => {
     const value = fixture(`DIRECTOR-RULE-${frozen}`, [10, 10, 10]), h = productionHarness();
     if (frozen) {
