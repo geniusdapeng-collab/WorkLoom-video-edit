@@ -408,14 +408,30 @@ function missingProtectedOutline(
 ): SemanticQualityCheck | undefined {
   if (!hasCurrentG4Shot(upstream, shotId)) return undefined;
   const plan = upstream!.approvedProductionPlan as { scenes: Array<{
-    shotId: string; verificationPlan: { visualRequirements: unknown[] };
+    shotId: string;
+    approvedScene: { actions: Array<{ description?: unknown } | null>; props?: unknown };
+    verificationPlan: { visualRequirements: unknown[] };
   }> };
-  const approved = plan.scenes.find(scene => scene?.shotId === shotId)!.verificationPlan.visualRequirements
+  const scene = plan.scenes.find(scene => scene?.shotId === shotId)!;
+  const visualRequirements = scene.verificationPlan.visualRequirements
     .filter((value): value is string => typeof value === "string").flatMap(affirmativeOutlineClauses);
+  const approvedActions = scene.approvedScene.actions.flatMap(action =>
+    typeof action?.description === "string" ? affirmativeOutlineClauses(action.description) : []);
   const chest = /胸(?:线|部|廓)/u, hips = /臀(?:线|部|廓)/u;
   const visible = /呈现|展示|展现|显示|看清|看见|可见(?!度)|入镜/u;
-  if (!approved.some(note => chest.test(note) && hips.test(note) && visible.test(note))
-    || !approved.some(note => /全覆|全套护具|完整护具/u.test(note))) return undefined;
+  const visiblePair = (clause: string) => chest.test(clause) && hips.test(clause) && visible.test(clause);
+  const actionOutlines = approvedActions.filter(visiblePair);
+  if (!actionOutlines.length && !visualRequirements.some(visiblePair)) return undefined;
+  const fullCoverSuit = /全覆.{0,12}(?:赛车服|防护服|保护服|连体服|服装)/u;
+  const declaredCover = [...visualRequirements, ...approvedActions].some(clause =>
+    fullCoverSuit.test(clause) || /全覆护具|全套护具|完整护具|护具完整/u.test(clause));
+  // An approved prop can corroborate protection only where the approved
+  // action already places both visible outlines inside that protective suit.
+  const corroboratedCover = actionOutlines.some(clause =>
+    /赛车服(?:包裹|覆盖)(?:下|之下)|赛车服[下内]/u.test(clause))
+    && Array.isArray(scene.approvedScene.props) && scene.approvedScene.props.some(prop =>
+      typeof prop?.name === "string" && affirmativeOutlineClauses(prop.name).some(clause => fullCoverSuit.test(clause)));
+  if (!declaredCover && !corroboratedCover) return undefined;
   const framing = ["composition", "camera_movement", "action"].map(field => fieldValueFromSource(source, field))
     .filter((value): value is string => typeof value === "string").flatMap(affirmativeOutlineClauses)
     .filter(clause => visible.test(clause)).join("；");

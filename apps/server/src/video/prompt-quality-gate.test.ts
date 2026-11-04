@@ -540,6 +540,33 @@ describe("prompt semantic quality gate", () => {
     }
   });
 
+  it.each([
+    { mode: "current action and cover", shotId: "S01", action: "佩戴完整护具；侧前中景自然呈现赛车服内的胸线与臀部轮廓。", visual: "合身赛车服保留力量感。", expected: true },
+    { mode: "current action and visual cover", shotId: "S01", action: "侧前中景自然呈现合身赛车服包裹下的胸线与臀部轮廓。", visual: "穿戴全套护具，人物动作清楚。", expected: true },
+    { mode: "current wrapped action and approved full-cover prop", shotId: "S01",
+      action: "完全下车，转身登上紧邻停车点的虚构领奖台最高一级，自己拿起预置奖杯并举杯，侧前中景与转身动作自然呈现合身赛车服包裹下的丰满胸线与上翘臀部轮廓；全程不脱手套、不做慢动作、不增加长距离行走。",
+      visual: "侧前中景与转身自然呈现合身赛车服下的身材与力量感，不用裸露或孤立局部替代动作。",
+      prop: "合身纯色全覆赛车服", expected: true },
+    { mode: "generic prop does not authorize covered visibility", shotId: "S01", action: "侧前中景呈现赛车服包裹下的胸线与臀部轮廓。", visual: "人物动作清楚。", prop: "合身赛车服", expected: false },
+    { mode: "full-cover prop without an explicitly wrapped action", shotId: "S01", action: "侧前中景呈现胸线与臀部轮廓。", visual: "人物动作清楚。", prop: "合身纯色全覆赛车服", expected: false },
+    { mode: "full-cover prop without explicit outline action", shotId: "S01", action: "侧前中景呈现合身赛车服的力量感。", visual: "人物动作清楚。", prop: "合身纯色全覆赛车服", expected: false },
+    { mode: "no explicit full cover", shotId: "S01", action: "侧前中景自然呈现胸线与臀部轮廓。", visual: "人物动作清楚。", expected: false },
+    { mode: "negated current action", shotId: "S01", action: "佩戴完整护具；不呈现胸线与臀部轮廓。", visual: "人物动作清楚。", expected: false },
+    { mode: "different approved shot", shotId: "S02", action: "佩戴完整护具；侧前中景呈现自然胸线与臀部轮廓。", visual: "人物动作清楚。", expected: false },
+  ])("uses the bound approved scene action as visibility authority: $mode", async ({ shotId, action, visual, prop, expected }) => {
+    const upstream = currentG4(shotId);
+    const bound = upstream.approvedProductionPlan.scenes[0]!;
+    bound.approvedScene.actions[0]!.description = action;
+    bound.verificationPlan.visualRequirements = [visual];
+    if (prop) Object.assign(bound.approvedScene, { props: [{ name: prop }] });
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async () => ({
+      changes: [{ field: "composition", value: "侧前中景自然呈现完整护具下的胸线与臀部轮廓。", reason: "落实本镜已审动作" }],
+    }));
+    const result = await evaluatePromptPackage({ ...input({ review: async () => passReview(), repair }), upstreamContext: upstream });
+    expect(result.g6Eligible).toBe(true);
+    expect(repair).toHaveBeenCalledTimes(expected ? 1 : 0);
+  });
+
   function isolatedRedundancyShot() {
     const shaped: Record<string, string> = {
       lighting: "柔和侧光保留面部细节。", composition: "中景保留栏杆与人物的位置关系。", color_palette: "暖灰与浅木色。",
