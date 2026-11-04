@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { bindRequirementContract, requirementCast, requirementRecord, type RequirementContract, type RequirementRecord } from "./requirement-contract.js";
 import { preparePrdAuthority } from "./prd-authority.js";
-import { installPrdAuthorityBridge, installPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
+import { installPrdAuthorityBridge, installPrdProductionBridge, productionModelInput, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { PRDGenerator, PRDSchema, prdFixture } from "./prd-authority.test-support.js";
 
 type NativeConstructor = { new (...args: unknown[]): RequirementRecord; prototype: RequirementRecord };
@@ -168,5 +168,28 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
     expect(captured[0]!.prompt).toContain(prd.toConstraintText());
     expect(captured[0]!.options).toMatchObject({ temperature: 0.31 });
     expect(engine.reason).toHaveBeenCalledTimes(1);
+  });
+
+  it("the native production authority qualifies only its own named-cast rule for the same moving-rival shot", async () => {
+    const value = raceFixture("RIVAL-AUTHORITY"), accepted = nativeHarness(value);
+    const fusion = new PromptFusionAgent({ semanticRefinement: false });
+    const captured: string[] = [];
+    fusion._callLLM = async function (this: RequirementRecord, prompt: string) {
+      const input = productionModelInput(`${String(invoke(this, "_getSystemPrompt"))}\n\n${prompt}`);
+      input.verify();
+      captured.push(input.prompt);
+      throw new Error("SYNTHETIC_NATIVE_PROMPT_CAPTURE");
+    };
+    await accepted(async prd => {
+      const before = structuredClone(prd);
+      await expect(invoke(fusion, "_fuseSingleShot", shot(value), "9:16", [], {})).rejects.toThrow("SYNTHETIC_NATIVE_PROMPT_CAPTURE");
+      expect(prd).toEqual(before);
+    });
+    expect(captured).toHaveLength(1);
+    const nativeOwned = "\n客户受众原文是权威口径；模型年龄/性别细分仅为推测。只使用合同内人物，characterId 必须等于所选 id，姓名一致。";
+    expect(captured[0]).not.toContain(nativeOwned);
+    expect(captured[0]).toContain("只使用合同内命名人物身份");
+    expect(captured[0]).toContain(JSON.stringify(value.metadata.brief));
+    expect(productionModelInput(nativeOwned).prompt).toBe(nativeOwned);
   });
 });
