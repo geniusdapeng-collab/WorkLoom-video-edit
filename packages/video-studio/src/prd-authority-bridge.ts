@@ -656,7 +656,7 @@ export function installPrdAuthorityBridge(
             return guard(scope, () => {
               check(scope);
               if (!constraintResult || args[3] !== constraintResult) prdFail("PRD_QUALITY_INVALID", "Agent5 未消费本次真实 Agent4 结果");
-              const result = authoritativeDelivery(Reflect.apply(process, this, args), scope.authority.profile);
+              const result = authoritativeDelivery(Reflect.apply(process, this, args), scope.authority.profile, scope.authority);
               validatePrdDelivery(result, scope.authority.profile, schema);
               if (!qualityPolicy || !qualityPolicy.fallbackTrigger) prdFail("PRD_QUALITY_INVALID", "原生 Agent5 未产生完整统一阈值与降级预案");
               return result;

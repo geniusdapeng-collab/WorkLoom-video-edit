@@ -583,6 +583,31 @@ describe("PRD native generator, two native agent processes and real schema", () 
     }
     expect(requirementRecord(run.generator.agent2, "agent2")).not.toHaveProperty("_lastDiscoveryResult");
   });
+  it("carries the exact frozen Film codec through the native Agent5 result and reviewed G4 markdown", async () => {
+    const value = fixture("NATIVE-AGENT5-FILM-CODEC", [10, 10, 10]), h = harness();
+    requirementRecord(value.metadata.brief, "brief").segmentContract = {
+      count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+      intervals: [0, 10, 20].map(startSec => ({ startSec, endSec: startSec + 10, brief: `冻结分段 ${startSec}` })),
+    };
+    declareDelivery(value, { speechPolicy: "none", coverDelivery: "standalone", coverIntroSeconds: 0,
+      sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: "AI剧情演绎｜封闭赛道",
+      postTailOverlayText: "车型 820RR-RC", postTailOverlaySeconds: 2 });
+    const run = h.make(value);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run);
+      const delivery = requirementRecord(prd.deliveryStandard, "Agent5 交付");
+      expect(delivery.outputFormat).toMatchObject({ videoCodec: "H.264", audioCodec: "AAC", container: "MP4", resolution: "1080p" });
+      expect(delivery.deliverables).toEqual(expect.arrayContaining([
+        expect.objectContaining({ item: "video_master", spec: expect.stringMatching(/^MP4\/H\.264, 1080p; /) }),
+      ]));
+      const markdown = await h.review(run, prd);
+      expect(markdown).toContain("视频编码：H.264");
+      expect(markdown).toContain("**video_master**：MP4/H.264, 1080p;");
+      expect(markdown).not.toContain("H.265");
+      return h.success(prd);
+    });
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+  });
   it("renders a 35s six-scene contract without inapplicable noPropsReason nulls while preserving every canonical field and hash", async () => {
     const value = fixture("DISPLAY-35", [4, 6, 7, 8, 5, 5]);
     (value.metadata.characters as RequirementRecord[])[0]!.nullableCharacterNote = null;

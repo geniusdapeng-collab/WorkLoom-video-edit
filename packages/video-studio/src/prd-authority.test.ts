@@ -235,6 +235,44 @@ describe("PRD rule-owned delivery projection and legacy byte compatibility", () 
     items.find(item => item.item === "post_tail_overlay")!.spec = "过时文字";
     expect(() => validatePrdDelivery(final, profile, PRDSchema)).toThrow("PRD_DELIVERY_INVALID");
   });
+  it.each(["native-film", "no-authority", "no-frozen-segments", "other-segments", "no-tail", "other-tail-duration",
+    "other-platform", "explicit-owner-codec", "explicit-codec-field", "custom-master-format"])(
+    "aligns the Agent5 codec default only with the exact frozen Film handoff (%s)", mode => {
+      const value = fixture(`POST-CODEC-${mode}`, [10, 10, 10]);
+      const brief = requirementRecord(value.metadata.brief, "brief");
+      const count = mode === "other-segments" ? 2 : 3, secondsPerSegment = 30 / count;
+      if (mode !== "no-frozen-segments") brief.segmentContract = {
+        count, totalSeconds: 30, secondsPerSegment, hardCuts: true,
+        intervals: Array.from({ length: count }, (_, i) => ({
+          startSec: i * secondsPerSegment, endSec: (i + 1) * secondsPerSegment, brief: `冻结段 ${i + 1}`,
+        })),
+      };
+      const production = requirementRecord(brief.productionRequirements, "requirements");
+      Object.assign(production, { speechPolicy: "none", coverDelivery: "standalone", coverIntroSeconds: 0,
+        sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: "AI剧情演绎｜封闭赛道" });
+      if (mode !== "no-tail") Object.assign(production, {
+        postTailOverlayText: "车型 820RR-RC", postTailOverlaySeconds: mode === "other-tail-duration" ? 2.5 : 2,
+      });
+      if (mode === "other-platform") brief.platform = "bilibili";
+      if (mode === "explicit-owner-codec") brief.requirements = "交付成片必须使用 HEVC 编码。";
+      if (mode === "explicit-codec-field") brief.video_codec = "HEVC";
+      const authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing,
+        projectId: value.scope.projectId, workDir: value.workDir });
+      const original = standard();
+      if (mode === "custom-master-format") original.deliveryStandard.deliverables[0]!.spec = "MP4/H.265, 1080p";
+      const before = structuredClone(original);
+      const result = authoritativeDelivery(original, authority.profile, mode === "no-authority" ? undefined : authority);
+      const delivery = requirementRecord(result.deliveryStandard, "delivery");
+      const output = requirementRecord(delivery.outputFormat, "format");
+      const master = (delivery.deliverables as RequirementRecord[]).find(item => item.item === "video_master");
+      const expectedCodec = mode === "native-film" ? "H.264" : "H.265";
+      expect(output).toMatchObject({ ...authority.profile, container: "MP4", audioCodec: "AAC", videoCodec: expectedCodec });
+      expect(String(master?.spec)).toMatch(new RegExp(`^MP4/${expectedCodec}, 1080p; `));
+      expect(original).toEqual(before);
+      expect(authority.profile).not.toHaveProperty("videoCodec");
+      expect(() => validatePrdDelivery(result, authority.profile, PRDSchema)).not.toThrow();
+    },
+  );
   it.each(["standalone", "none"])("a cover-only %s declaration preserves the exact former subtitle specs without inventing a sidecar or persistent policy", coverDelivery => {
     const profile = declared({ coverDelivery }), result = authoritativeDelivery(standard(), profile), delivery = requirementRecord(result.deliveryStandard, "delivery");
     const items = delivery.deliverables as RequirementRecord[];

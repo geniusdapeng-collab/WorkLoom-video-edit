@@ -296,13 +296,33 @@ export function authoritativeProduct(value: unknown, profile: PrdProductionProfi
   return result;
 }
 
-export function authoritativeDelivery(value: unknown, profile: PrdProductionProfile): RequirementRecord {
+function usesNativeFilmPostTail(profile: PrdProductionProfile, authority?: PrdAuthority): boolean {
+  if (!authority || authority.profile !== profile || profile.targetPlatform !== "抖音" || profile.aspectRatio !== "9:16"
+    || profile.resolution !== "1080p" || profile.frameRate !== 30 || profile.nativeAudio !== true
+    || profile.coverDelivery !== "standalone" || profile.postTailOverlayText === undefined
+    || profile.postTailOverlaySeconds !== 2) return false;
+  const segments = frozenVisualPrdSegments(authority);
+  if (segments?.count !== 3 || segments.secondsPerSegment !== 10) return false;
+  const brief = requirementRecord(authority.metadata.brief, "本次后期编码 Brief");
+  const codec = /\b(?:h[.\s_-]?26[45]|hevc|avc|av1|vp[89]|prores|(?:lib)?x26[45])\b/iu;
+  return !["videoCodec", "video_codec", "codec"].some(key => Object.hasOwn(brief, key))
+    && ![authority.metadata.customerOriginalIntent, brief.description, brief.requirements]
+      .some(value => typeof value === "string" && codec.test(value));
+}
+
+export function authoritativeDelivery(value: unknown, profile: PrdProductionProfile, authority?: PrdAuthority): RequirementRecord {
   const result = structuredClone(requirementRecord(value, "DeliveryStandard 原始输出"));
   const standard = requirementRecord(result.deliveryStandard, "交付标准");
   const output = requirementRecord(standard.outputFormat, "交付输出格式");
   const deliverables = list(standard.deliverables, "原始交付物").map(value => ({ ...requirementRecord(value, "交付项") }));
   const masters = deliverables.filter(item => item.item === "video_master");
   if (masters.length !== 1) prdFail("PRD_DELIVERY_INVALID", "原始交付标准必须恰好包含一个视频母版");
+  // Agent5's generic commercial template declares HEVC. The native Film
+  // compose, disclosure burn and tail sticker path for this delivery uses AVC.
+  if (output.container === "MP4" && output.videoCodec === "H.265" && output.audioCodec === "AAC"
+    && masters[0]!.spec === "MP4/H.265, 4K" && usesNativeFilmPostTail(profile, authority)) {
+    output.videoCodec = "H.264";
+  }
   const declared = Object.entries(profile).map(([key, value]) => `${key}=${String(value)}`).join("; ");
   if (profile.resolution) {
     masters[0]!.spec = `${nonempty(output.container, "容器")}/${nonempty(output.videoCodec, "视频编码")}, ${profile.resolution}; ${declared}; delivery declaration, native capability verified separately`;
