@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
-import { callTool, parseAssEvents, plan } from '../../bundles/ai-video/connectors/subtitle-bridge/core.mjs';
+import { callTool, parseAssEvents, plan, renderSticker } from '../../bundles/ai-video/connectors/subtitle-bridge/core.mjs';
 
 const ROOT = resolve(import.meta.dirname, '../..'), CLI = join(ROOT, 'scripts/tools/full-chain-film.mts');
 const FFMPEG = process.env.WL_FFMPEG || process.env.FFMPEG_PATH || 'ffmpeg';
@@ -33,6 +33,10 @@ test('persistent fullchain rejects missing, duplicate, malformed and title/intro
     [['--subtitle-persistent-text', '文字', '--subtitle-persistent-text', '重复'], /PERSISTENT_SUBTITLE_OPTION_DUPLICATE/],
     [['--subtitle-persistent-text', '文字'], /PERSISTENT_SUBTITLE_TITLE_CONFLICT/],
     [['--subtitle-persistent-text', '文字', '--no-title-card', '--no-open-with-cover', '--opening-title', '装饰'], /PERSISTENT_SUBTITLE_TITLE_CONFLICT/],
+    [['--subtitle-persistent-style-json'], /PERSISTENT_SUBTITLE_STYLE_REQUIRED/],
+    [['--subtitle-persistent-style-json', '{"outlinePx":2,"sideMarginPx":65}'], /持续字幕样式/],
+    [['--subtitle-persistent-text', '文字', '--subtitle-persistent-style-json', '{"outlinePx":2,"sideMarginPx":65,"alignment":2}'], /持续字幕样式/],
+    [['--subtitle-persistent-text', '文字', '--subtitle-persistent-anchor', 'bottom-center', '--subtitle-persistent-style-json', '{"outlinePx":2,"sideMarginPx":65}'], /不能与底部版式共用/],
   ]) {
     const result = invoke(['--shots', join(root, 'unread-source.json'), '--out', out, '--work-dir', work, ...extra]);
     assert.notEqual(result.status, 0); assert.match(result.stdout + result.stderr, expected);
@@ -60,20 +64,20 @@ test('persistent fullchain requires its subtitle consumer before creating work o
   assert.equal(existsSync(work), false); assert.equal(existsSync(out), false); assert.equal(sha(shots), original);
 });
 
-function fixture(t, { dialogue = [{ speaker: '原片人物', text: '保留原片全部台词' }], hasPriorHistory = true, resolution = '720p' } = {}) {
+function fixture(t, { dialogue = [{ speaker: '原片人物', text: '保留原片全部台词' }], hasPriorHistory = true, resolution = '720p', duration = 1.4 } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'persistent 正式全链-')); t.after(() => rmSync(root, { recursive: true, force: true }));
   const project = 'PERSISTENT-OFFLINE', work = join(root, 'work'), out = join(root, 'out');
   const logs = join(work, 'logs', project), clips = join(work, 'clips', project);
   for (const dir of [logs, clips]) mkdirSync(dir, { recursive: true });
   const clip = join(clips, 'S1.mp4'), prompt = join(root, 'issued-prompt.txt'), shots = join(root, 'shots.json'), keys = join(root, 'empty.env');
   const dimensions = resolution === '1080p' ? '1080x1920' : '360x640';
-  const media = spawnSync(FFMPEG, ['-hide_banner', '-v', 'error', '-n', '-f', 'lavfi', '-i', `color=c=black:s=${dimensions}:r=25:d=1.4`,
-    '-f', 'lavfi', '-i', 'sine=frequency=417:sample_rate=48000:duration=1.4', '-map', '0:v', '-map', '1:a',
+  const media = spawnSync(FFMPEG, ['-hide_banner', '-v', 'error', '-n', '-f', 'lavfi', '-i', `color=c=black:s=${dimensions}:r=25:d=${duration}`,
+    '-f', 'lavfi', '-i', `sine=frequency=417:sample_rate=48000:duration=${duration}`, '-map', '0:v', '-map', '1:a',
     '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', clip], { encoding: 'utf8', timeout: 30000 });
   assert.equal(media.status, 0, media.stderr);
   writeFileSync(prompt, 'Already issued provider prompt; immutable in all postprocessing tests.'); writeFileSync(keys, '');
-  writeFileSync(shots, JSON.stringify({ title: '完整作品', durationSeconds: 1.4, aspect: '9:16', resolution,
-    eraProfile: { storyDate: '2026-10-07' }, shots: [{ shotId: 'S1', duration: 1.4,
+  writeFileSync(shots, JSON.stringify({ title: '完整作品', durationSeconds: duration, aspect: '9:16', resolution,
+    eraProfile: { storyDate: '2026-10-07' }, shots: [{ shotId: 'S1', duration,
       dialogue, motion: '既有动作', scene: '既有场景' }] }));
   const network = join(root, 'network.log'), preloader = join(root, 'deny-network.cjs'); writeFileSync(network, '');
   writeFileSync(preloader, `const fs=require('node:fs');const deny=k=>{fs.appendFileSync(${JSON.stringify(network)},k+'\\n');throw new Error('OFFLINE_NETWORK_FORBIDDEN:'+k)};globalThis.fetch=()=>deny('fetch');for(const n of ['node:http','node:https']){const m=require(n);m.request=()=>deny(n+'.request');m.get=()=>deny(n+'.get')};
@@ -97,13 +101,14 @@ function fixture(t, { dialogue = [{ speaker: '原片人物', text: '保留原片
   return { root, work, out, logs, project, clip, prompt, shots, keys, network, env, history, resolution,
     originals: [clip, prompt, shots].map(file => ({ file, sha256: sha(file) })), oldHistory: readFileSync(history) };
 }
-function run(f, text, env = {}, { stages = "compose,subtitle,master", postOnly = false, anchor } = {}) {
+function run(f, text, env = {}, { stages = "compose,subtitle,master", postOnly = false, anchor, style } = {}) {
   return invoke(['--shots', f.shots, '--project', f.project, '--work-dir', f.work, '--out', f.out, '--keys-file', f.keys,
     '--resolution', f.resolution, '--route-kind', 'narrative', '--stages', stages, '--xfade', '0', '--cut-transition', '',
     '--subtitle-mode', 'both', '--no-open-with-cover', '--no-title-card', '--no-danmaku', '--no-bgm',
     ...(postOnly ? ['--assembly-mode', 'post-only', '--assembly-reason', '已有原片完成本地后期'] : []),
     ...(text === null ? [] : ['--subtitle-persistent-text', text]),
-    ...(anchor === undefined ? [] : ['--subtitle-persistent-anchor', anchor])], { ...f.env, ...env });
+    ...(anchor === undefined ? [] : ['--subtitle-persistent-anchor', anchor]),
+    ...(style === undefined ? [] : ['--subtitle-persistent-style-json', JSON.stringify(style)])], { ...f.env, ...env });
 }
 function originals(f) {
   for (const item of f.originals) assert.equal(sha(item.file), item.sha256, item.file);
@@ -259,6 +264,74 @@ test('Film refuses invalid persistent anchors or conflicting lower text before p
     assert.equal(existsSync(join(f.out, 'current.json')), false);
     originals(f);
   }
+});
+
+test('Film publishes one bounded two-pixel persistent style and exact same ASS for burn and sidecar', { timeout: 180000 }, t => {
+  const f = fixture(t, { dialogue: [], hasPriorHistory: false, resolution: '1080p' });
+  const style = { outlinePx: 2, sideMarginPx: 65 };
+  const result = run(f, 'AI剧情演绎｜封闭赛道', {}, { postOnly: true, style });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  originals(f);
+  const manifest = readJson(readJson(join(f.out, 'current.json')).manifest);
+  const { compositionAss, persistentText: proof } = manifest.subtitles;
+  assert.equal(proof.layout.anchor, 'top-center');
+  assert.equal(proof.layout.platform, '抖音/快手');
+  assert.deepEqual(proof.layout.occlusionHits, []);
+  assert.equal(proof.style.outline, 2);
+  assert.equal(proof.style.borderStyle, 1);
+  assert.equal(proof.style.marginL, 65);
+  assert.equal(proof.style.marginR, 65);
+  assert.ok(proof.style.fontSize >= 44);
+  assert.ok(proof.layout.rect.x >= 65 / 1080 && proof.layout.rect.x + proof.layout.rect.w <= 1 - 65 / 1080);
+  assert.equal(sha(compositionAss), proof.assSha256);
+  const sidecar = readJson(join(dirname(compositionAss), `${f.project}.subtitle-manifest.json`));
+  assert.equal(sidecar.persistentText.assSha256, proof.assSha256);
+  assert.equal(sidecar.persistentText.compositionSha256, proof.compositionSha256);
+  assert.deepEqual(sidecar.layout.occlusionZones.map(zone => zone.id), ['right-rail', 'bottom-caption', 'top-follow']);
+  const rows = readFileSync(f.history, 'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(rows.find(row => row.stage === 'subtitle' && row.evidence?.mode === 'burn').evidence.persistentMatchesSidecar, true);
+});
+
+test('native sticker preserves an explicit two-pixel outline and full static font size at its first event frame', { timeout: 120000 }, async t => {
+  const f = fixture(t, { dialogue: [], hasPriorHistory: false, resolution: '1080p', duration: 2.4 });
+  const report = await renderSticker({ input: f.clip, output: join(f.root, 'title.mp4'), platform: '抖音/快手',
+    evidenceDir: join(f.root, 'title'), stickers: [{ text: '张雪机车 820RR-RC', start: .4, end: 2.4,
+      x: .47, y: .4, preset: '国风', scale: .72, outlinePx: 2, staticSize: true }] });
+  originals(f);
+  const text = readFileSync(report.assPath, 'utf8'), style = text.split('\n').find(line => line.startsWith('Style: ')).split(',');
+  assert.equal(Number(style[2]), 54);
+  assert.equal(Number(style[15]), 1);
+  assert.equal(Number(style[16]), 2);
+  assert.doesNotMatch(parseAssEvents(text)[0].text, /\\(?:fsc[xy]|t\()/u);
+  assert.equal(sha(report.assPath), report.assSha256);
+  assert.equal(report.checks.timeline_within_video, true);
+  assert.deepEqual(report.placements[0].typography, { fontSizePx: 54, outlinePx: 2, staticSize: true });
+  const frame = spawnSync(FFMPEG, ['-v', 'error', '-ss', '0.4', '-i', report.output.path,
+    '-frames:v', '1', '-vf', 'crop=iw:ih*0.15:0:ih*0.32,format=gray', '-f', 'rawvideo', 'pipe:1'],
+  { timeout: 20000, maxBuffer: 2_000_000 });
+  assert.equal(frame.status, 0, frame.stderr.toString());
+  assert.ok(frame.stdout.some(pixel => pixel >= 220));
+});
+
+test('native tool binds explicit top typography to its real platform and rejects bad options before writing', { timeout: 120000 }, async t => {
+  const f = fixture(t, { dialogue: [], hasPriorHistory: false, resolution: '1080p' });
+  const fontsDir = join(ROOT, 'bundles/ai-video/library/fonts');
+  const bins = { ffmpeg: FFMPEG, ffprobe: FFPROBE };
+  const env = { ...process.env, WORKLOOM_SUBTITLE_ALLOWED_ROOTS: f.root, WORKLOOM_SUBTITLE_FONTS_DIR: fontsDir };
+  const input = { input_path: f.clip, output_dir: join(f.root, 'tool-top'), platform: '抖音',
+    persistent_text: 'AI剧情演绎｜封闭赛道', persistent_style: { outlinePx: 2, sideMarginPx: 65 } };
+  const result = await callTool('subtitlewrite.plan', input, { bins, env });
+  assert.equal(result.result.plan.platform, '抖音/快手');
+  assert.equal(result.result.plan.styles.find(style => style.name === 'Title').outline, 2);
+  const blocked = join(f.root, 'blocked-style');
+  await assert.rejects(callTool('subtitlewrite.plan', { ...input, output_dir: blocked,
+    persistent_style: { outlinePx: 13, sideMarginPx: 65 } }, { bins, env }), /持续字幕样式/u);
+  assert.equal(existsSync(blocked), false);
+  const catalog = readJson(join(ROOT, 'bundles/ai-video/library/font-catalog/font_db.json'));
+  catalog.layout_policy['抖音/快手'].occlusion_zones.push({ id: 'fixture-center-top', x: .35, y: .12, w: .30, h: .1 });
+  await assert.rejects(plan({ input: f.clip, persistentText: input.persistent_text, persistentStyle: input.persistent_style,
+    platform: '抖音', catalog, fontsDir, bins, outputDir: join(f.root, 'blocked-top-zone') }), /未能.*放入顶部安全区/u);
+  originals(f);
 });
 
 test('native plan accepts the bottom anchor but rejects a real ink collision with a platform exclusion', { timeout: 120000 }, async t => {

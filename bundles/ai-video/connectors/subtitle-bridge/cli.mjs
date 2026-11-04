@@ -14,6 +14,7 @@
  *                           [--brief brief.json] [--evidence-dir dir]
  *                           [--persistent-text "全片持续显示的文本"] # 无对白时可省略 --srt；与 --title 互斥
  *                           [--persistent-anchor bottom-center] # plan/burn/sidecar 共用；仅竖幅无对白
+ *                           [--persistent-style-json '{"outlinePx":2,"sideMarginPx":65}'] # 顶部持续字幕
  *   subtitle-cli title      --in clip.mp4 --out out.mp4 --title "川西之行 · WEST SICHUAN" [--srt subs.srt]
  *   subtitle-cli danmaku    --in clip.mp4 --out out.mp4 --items danmaku.json [--opacity 0.85]
  *   subtitle-cli sticker    --in clip.mp4 --out out.mp4 --items stickers.json
@@ -35,7 +36,7 @@ import path from "node:path";
 import {
   allowedRoots, assertPathAllowed, SubtitleError, best, callTool, exportSidecars, findRecipes, health, parseSrt, plan, renderDanmaku,
   renderKaraoke, renderSticker, renderTitle, renderWithSubtitles, selectFonts, softMux,
-  validatePersistentSubtitleAnchor, validatePersistentSubtitleText,
+  validatePersistentSubtitleAnchor, validatePersistentSubtitleStyle, validatePersistentSubtitleText,
 } from "./core.mjs";
 
 function parseArgs(argv) {
@@ -45,10 +46,12 @@ function parseArgs(argv) {
     const token = argv[index];
     if (token.startsWith("--persistent-text=")) throw new SubtitleError("--persistent-text 须以独立参数传入完整文本", "bad_request", false);
     if (token.startsWith("--persistent-anchor=")) throw new SubtitleError("--persistent-anchor 须以独立参数传入锚点", "bad_request", false);
+    if (token.startsWith("--persistent-style-json=")) throw new SubtitleError("--persistent-style-json 须以独立参数传入样式", "bad_request", false);
     if (token.startsWith("--")) {
       const key = token.slice(2);
       if (key === "persistent-text" && Object.hasOwn(flags, key)) throw new SubtitleError("--persistent-text 不能重复", "bad_request", false);
       if (key === "persistent-anchor" && Object.hasOwn(flags, key)) throw new SubtitleError("--persistent-anchor 不能重复", "bad_request", false);
+      if (key === "persistent-style-json" && Object.hasOwn(flags, key)) throw new SubtitleError("--persistent-style-json 不能重复", "bad_request", false);
       const next = argv[index + 1];
       if (next === undefined || next.startsWith("--")) flags[key] = true;
       else { flags[key] = next; index += 1; }
@@ -92,6 +95,7 @@ async function main() {
   const { flags } = parseArgs(rest);
   const persistentText = Object.hasOwn(flags, "persistent-text") ? validatePersistentSubtitleText(flags["persistent-text"]) : null;
   const persistentAnchor = validatePersistentSubtitleAnchor(flags["persistent-anchor"], persistentText);
+  const persistentStyle = validatePersistentSubtitleStyle(flags["persistent-style-json"], persistentText, persistentAnchor);
   if (persistentText && (!["plan", "burn", "sidecar"].includes(command) || Object.hasOwn(flags, "title"))) {
     throw new SubtitleError("持续字幕仅支持plan/burn/sidecar且不能同时指定--title", "bad_request", false);
   }
@@ -185,6 +189,7 @@ async function main() {
         titleText: typeof flags.title === "string" ? flags.title : "",
         persistentText,
         persistentAnchor,
+        persistentStyle,
         cues: flags.srt ? (await import("./core.mjs")).parseSrt(fs.readFileSync(flags.srt, "utf8")) : [],
         outputDir: typeof flags["out-dir"] === "string" ? flags["out-dir"] : null,
         evidenceDir: typeof flags["evidence-dir"] === "string" ? flags["evidence-dir"] : null,
@@ -208,6 +213,7 @@ async function main() {
         titleText: typeof flags.title === "string" ? flags.title : "",
         persistentText,
         persistentAnchor,
+        persistentStyle,
         brief: readBrief(flags),
         platform: typeof flags.platform === "string" ? flags.platform : null,
         evidenceDir: typeof flags["evidence-dir"] === "string" ? flags["evidence-dir"] : null,
@@ -316,6 +322,7 @@ async function main() {
         titleText: typeof flags.title === "string" ? flags.title : "",
         persistentText,
         persistentAnchor,
+        persistentStyle,
         platform: typeof flags.platform === "string" ? flags.platform : null,
         brief: readBrief(flags),
         evidenceDir: typeof flags["evidence-dir"] === "string" ? flags["evidence-dir"] : null,
