@@ -13,6 +13,7 @@ import {
   promptFieldPolicy,
   promptContractManifestHash,
   sha256Json,
+  splitShotAssertions,
   validatePromptContract,
   WorkloomLLMEngine,
   type CompiledPromptShot,
@@ -394,7 +395,14 @@ function hasCurrentG4Shot(upstream: Record<string, unknown> | undefined, shotId:
     && bound[0].approvedScene.actions.length > 0 && Array.isArray(bound[0].verificationPlan?.visualRequirements);
 }
 
-/** A specifically approved, covered silhouette needs framing evidence for both named areas. */
+function affirmativeOutlineClauses(text: string): string[] {
+  // Keep an enumerated pair inside the same clause, and teach the shared
+  // splitter the direct visibility and protective-wear negations used here.
+  const directNegation = /(?:不(?:允许|应当|应|宜|会|再|易|可|必)?|未(?:能)?|无法|无从)(?=\s*(?:(?:清楚|清晰|完整|自然|单独|被)\s*)?(?:呈现|展示|展现|显示|看清|看见|可见|入镜|穿戴|佩戴|戴|穿))|(?:看|拍|辨)不(?:清|见|到)|不以|不通过|不借助|不用|不把|不让|而非|并非|不是/gu;
+  return splitShotAssertions(text.replaceAll("、", "与").replace(directNegation, "禁止")).positive.split("；");
+}
+
+/** A specifically approved, covered silhouette needs affirmative framing evidence for both named areas. */
 function missingProtectedOutline(
   upstream: Record<string, unknown> | undefined, shotId: string, source: Record<string, unknown>,
 ): SemanticQualityCheck | undefined {
@@ -403,12 +411,14 @@ function missingProtectedOutline(
     shotId: string; verificationPlan: { visualRequirements: unknown[] };
   }> };
   const approved = plan.scenes.find(scene => scene?.shotId === shotId)!.verificationPlan.visualRequirements
-    .filter((value): value is string => typeof value === "string");
+    .filter((value): value is string => typeof value === "string").flatMap(affirmativeOutlineClauses);
   const chest = /胸(?:线|部|廓)/u, hips = /臀(?:线|部|廓)/u;
-  if (!approved.some(note => chest.test(note) && hips.test(note) && /(?:呈现|看清|可见).*(?:轮廓|胸线|臀线)/u.test(note))
+  const visible = /呈现|展示|展现|显示|看清|看见|可见(?!度)|入镜/u;
+  if (!approved.some(note => chest.test(note) && hips.test(note) && visible.test(note))
     || !approved.some(note => /全覆|全套护具|完整护具/u.test(note))) return undefined;
   const framing = ["composition", "camera_movement", "action"].map(field => fieldValueFromSource(source, field))
-    .filter((value): value is string => typeof value === "string").join("；");
+    .filter((value): value is string => typeof value === "string").flatMap(affirmativeOutlineClauses)
+    .filter(clause => visible.test(clause)).join("；");
   if (chest.test(framing) && hips.test(framing)) return undefined;
   return { id: "SQ4_LIGHT_COLOR", pass: false, field: "composition", failureCode: "APPROVED_PROTECTED_OUTLINE_MISSING",
     evidence: "当前构图、运镜和动作字段没有落实本镜已审的两项全覆防护服下轮廓。",

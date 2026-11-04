@@ -499,6 +499,47 @@ describe("prompt semantic quality gate", () => {
     expect(result.shotContracts[0]!.contract.prompt.includes("全覆护具下自然胸线和臀部轮廓")).toBe(current);
   });
 
+  it.each([
+    "全套护具；不呈现胸线和臀部轮廓。",
+    "全套护具；不得呈现胸部、臀部轮廓。",
+    "全套护具；胸线和臀部轮廓不可见。",
+    "全套护具；不允许清楚呈现胸部、臀部轮廓。",
+    "全套护具；不以特写呈现胸线与臀部轮廓。",
+    "不戴完整护具；中景呈现自然胸线和臀部轮廓。",
+  ])("does not derive a protected outline requirement from negated approval text: %s", async text => {
+    const upstream = currentG4();
+    upstream.approvedProductionPlan.scenes[0]!.verificationPlan.visualRequirements = [text];
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async () => ({ changes: [] }));
+    const result = await evaluatePromptPackage({ ...input({ review: async () => passReview(), repair }), upstreamContext: upstream });
+    expect(result.g6Eligible).toBe(true);
+    expect(repair).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["侧前中景清楚呈现全覆护具下自然胸线和臀部轮廓，禁止孤立局部特写。", false],
+    ["侧前中景清楚呈现全覆护具下的胸线、臀部轮廓，不以特写替代动作。", false],
+    ["侧前中景；全套护具，胸线和臀部轮廓看不清。", true],
+    ["全套护具；不呈现胸部、臀部轮廓。", true],
+    ["侧前中景呈现全覆护具下的胸线；臀部轮廓不可见。", true],
+  ] as const)("requires affirmative visibility in actual framing: %s", async (composition, needsRepair) => {
+    const upstream = currentG4();
+    upstream.approvedProductionPlan.scenes[0]!.verificationPlan.visualRequirements = [
+      "全程完整护具；侧前中景与转身动作自然呈现合身赛车服包裹下的丰满胸线与上翘臀部轮廓，不作孤立局部特写。",
+    ];
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async () => ({
+      changes: [{ field: "composition", value: "侧前中景完整护具下的胸线和臀部轮廓自然可见。", reason: "落实已审构图" }],
+    }));
+    const result = await evaluatePromptPackage({ ...input({ review: async () => passReview(), repair }),
+      upstreamContext: upstream, shots: [{ source: { ...source, fields: { ...fields, composition } }, compile }] });
+    expect(result.g6Eligible).toBe(true);
+    expect(repair).toHaveBeenCalledTimes(needsRepair ? 1 : 0);
+    if (needsRepair) {
+      expect(repair.mock.calls[0]![0].findings).toContainEqual(expect.objectContaining({
+        field: "composition", failureCode: "APPROVED_PROTECTED_OUTLINE_MISSING",
+      }));
+    }
+  });
+
   function isolatedRedundancyShot() {
     const shaped: Record<string, string> = {
       lighting: "柔和侧光保留面部细节。", composition: "中景保留栏杆与人物的位置关系。", color_palette: "暖灰与浅木色。",
