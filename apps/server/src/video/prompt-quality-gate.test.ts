@@ -565,8 +565,9 @@ describe("prompt semantic quality gate", () => {
       approvedScene: { ...row.approvedScene, purpose: "先把第一辆对手车留在后方，再贴着第二辆对手车完成超车。" },
       verificationPlan: { visualRequirements: ["两次超车均完整看清从对手后方到完全领先。"] },
     }] } };
-    const first = "先从第一辆对手车后方追近并排，整车越过第一辆对手车。";
+    const first = "先从第一辆对手车后方追近并排，整车越过第一辆对手车，第一辆对手车继续留在后方。";
     const second = "随后贴住第二辆对手车，车头越过其中段形成并排。";
+    const secondFromRear = "随后从第二辆对手车后方追近，与同一第二辆对手车同向并排。";
     const clear = "主车车尾完全越过第二辆对手车前轮。";
     const finish = "前轮先压过黑白方格线，随后减速。";
     const shot = { source: { ...source, duration: 10, fields: { ...fields,
@@ -575,8 +576,8 @@ describe("prompt semantic quality gate", () => {
     } }, compile };
     const revised = {
       camera_movement: "长焦同向侧跟，起幅从第一辆对手车后轮开始，随后跟住第二辆完整超越，再落到冲线。",
-      action: first + second + clear + finish,
-      timeline: `T00:00–T00:04：${first} T00:04–T00:07：${second}${clear} T00:07–T00:10：${finish}`,
+      action: first + secondFromRear + clear + finish,
+      timeline: `T00:00–T00:04：${first} T00:04–T00:07：${secondFromRear}${clear} T00:07–T00:10：${finish}`,
     };
     const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
       expect([...context.allowedFields].sort()).toEqual(["action", "camera_movement", "timeline"]);

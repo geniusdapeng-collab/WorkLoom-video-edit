@@ -34,6 +34,7 @@ import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
 import { approvedHelmetCustodyFields, approvedMotionObligations, approvedMotionRepairDrift, distinctRivalPassEndsAtNose, isApprovedMotionFinding } from "./g6-motion-obligations.js";
 import { approvedSecondPassEndsHalfway } from "./g6-rival-pass.js";
 import { approvedOpeningFirstPassDeadline, approvedRaceCameraChecks, approvedRaceRepairDrift, isApprovedRaceFinding } from "./g6-race-camera.js";
+import { g6EventWitnessChecks, g6EventWitnessRepairDrift, type G6EventWitnessProof } from "./g6-event-witness.js";
 import type { readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 
 export const SEMANTIC_QUALITY_POLICY_VERSION = "workloom.video-prompt-quality/v2" as const;
@@ -81,6 +82,8 @@ export interface SemanticQualityCheck {
   repair?: string;
   /** Issued by the verified host check, never parsed from model output. */
   helmetCustodyArm?: "左" | "右";
+  /** Original source spans and finite event requirements issued only by the host. */
+  eventWitness?: G6EventWitnessProof;
 }
 export interface SemanticQualityReview {
   shotId: string;
@@ -182,6 +185,7 @@ export interface PromptQualityRepairAttempt {
   beforePromptSha256: string;
   afterPromptSha256: string;
   changes: Array<{ shotId: string; field: string; reason: string }>;
+  eventWitnesses?: G6EventWitnessProof[];
   status: "applied" | "stalled";
   reason?: string;
   lengthDiagnostic?: {
@@ -566,6 +570,10 @@ function approvedExecutionChecks(
       evidence: "同一运镜既要求同一主体始终居中，又明确指定该主体在偏侧三分线结束。",
       repair: "以已审切点和本镜动作、构图为准，写清起幅、运动和落幅；不能同时声明全程居中和偏侧落幅。" });
   }
+  findings.push(...g6EventWitnessChecks({ approvedProductionPlan: upstream!.approvedProductionPlan, shotId,
+    duration: interval.endSec - interval.startSec, action: fieldValueFromSource(source, "action"),
+    timeline: fieldValueFromSource(source, "timeline"), cameraMovement: camera,
+    characterConstraint: fieldValueFromSource(source, "character_constraint") }));
   return findings;
 }
 
@@ -747,6 +755,9 @@ function repairPrompt(
         : "沿用本镜已审动作和道具。若取杯需要双手，写清头盔先放稳在现有的哪一处支撑面，再腾出双手，例如「头盔放稳在车座上，空出双手」；若已审允许单手取杯，写清头盔由哪只手持续持住及对侧手取起并举杯，例如「左手提着头盔，右手举起奖杯」。例句中的位置和左右手须按本镜已有条件确定；在输出中只落实一种去向，不写备选。",
       "时间轴的交接写进实际发生的段内时窗，保留完整原时长、切点和已审动作顺序，运镜及动作字段须与之相容。",
     ] : []),
+    ...(findings.some(check => check.eventWitness) ? [
+      "eventWitness 是宿主从当前已审计划及同版字段提取的有限事件见证。逐项落实对应演员、身体侧别、对手身份、事件顺序与时间窗，不得删除原事件或借用另一对手的完成状态来消除诊断。",
+    ] : []),
     "只输出 JSON：changes[]，每项必须有 field、value、reason；至少产生一个变化。",
     `镜头：${JSON.stringify({ shotId: contract.shotId, durationSec: contract.request.parameters.duration_sec,
       allowedFields: fields.filter(({ field }) => writable.has(field)),
@@ -819,7 +830,7 @@ const FINAL_PROMPT_LENGTH_CODE = "HARD_FINAL_PROMPT_TOO_LONG";
 const FINAL_LENGTH_EDITABLE_FIELDS = new Set(["lighting", "composition", "color_palette", "depth_of_field", "mood"]);
 const FINAL_LENGTH_G4_DESCRIPTION_FIELDS = new Set(["director_instruction", "scene", "pacing", "makeup"]);
 const FINAL_COMBINED_SEMANTIC_FIELDS = new Set([
-  ...FINAL_LENGTH_EDITABLE_FIELDS, "director_instruction", "scene", "character", "action", "props", "timeline", "camera_movement",
+  ...FINAL_LENGTH_EDITABLE_FIELDS, "director_instruction", "scene", "character", "action", "props", "timeline", "camera_movement", "character_constraint",
 ]);
 
 function promptFieldBudget(contract: PromptContract, source: Record<string, unknown>, fields: string[],
@@ -845,11 +856,13 @@ function promptFieldBudget(contract: PromptContract, source: Record<string, unkn
     }) };
 }
 
-function repairRequestHash(contract: PromptContract, allowReviewedTimeline: boolean): string {
-  if (!allowReviewedTimeline) return contract.requestSha256;
-  // A diagnosed timeline edit may change the timeline string in the native technical map.
-  // Duration, provider and all other request channels still have to match exactly.
-  const { timeline: _approvedTimelineEdit, ...technical } = contract.request.technical;
+function repairRequestHash(contract: PromptContract, allowReviewedTimeline: boolean, allowReviewedCharacterConstraint = false): string {
+  if (!allowReviewedTimeline && !allowReviewedCharacterConstraint) return contract.requestSha256;
+  // Only diagnosed text channels may follow their source fields. All provider,
+  // duration, audio, references and other request channels remain identical.
+  const technical = { ...contract.request.technical };
+  if (allowReviewedTimeline) delete technical.timeline;
+  if (allowReviewedCharacterConstraint) delete technical.character_constraint;
   return sha256Json({ ...contract.request, technical });
 }
 
@@ -1139,7 +1152,8 @@ function reviewDependencies(input: EvaluatePromptQualityInput, contract: PromptC
 async function evaluateCompiledShots(
   input: EvaluatePromptQualityInput,
   reviewer: SemanticQualityReviewer | null,
-  sources: Array<{ source: Record<string, unknown>; compile: PromptCompileOptions; expectedRequestSha256?: string; allowReviewedTimeline?: boolean }>,
+  sources: Array<{ source: Record<string, unknown>; compile: PromptCompileOptions; expectedRequestSha256?: string;
+    allowReviewedTimeline?: boolean; allowReviewedCharacterConstraint?: boolean }>,
   proofPass?: { phase: "capture" | "reuse"; byShot: Map<string, PassedSemanticReviewProof> },
   allowLengthRepair = false,
 ): Promise<{
@@ -1147,7 +1161,7 @@ async function evaluateCompiledShots(
   reports: PromptQualityResult["semanticReports"];
   findings: PromptQualityFinding[];
 }> {
-  const compiled = sources.map(({ source, compile, expectedRequestSha256, allowReviewedTimeline }) => {
+  const compiled = sources.map(({ source, compile, expectedRequestSha256, allowReviewedTimeline, allowReviewedCharacterConstraint }) => {
     const shot = source as unknown as PromptCompileShot;
     const result = compilePromptShot(shot, compile);
     const normalizedFields = source.fields && typeof source.fields === "object" && !Array.isArray(source.fields)
@@ -1160,6 +1174,7 @@ async function evaluateCompiledShots(
       executionFindings: [] as SemanticQualityCheck[],
       expectedRequestSha256,
       allowReviewedTimeline,
+      allowReviewedCharacterConstraint,
     };
   });
   const reports: PromptQualityResult["semanticReports"] = [];
@@ -1167,7 +1182,8 @@ async function evaluateCompiledShots(
   for (const item of compiled) {
     for (const error of item.compiled.hardErrors) findings.push(hardFinding(error, item.shotId));
     if (item.expectedRequestSha256 !== undefined
-      && repairRequestHash(item.compiled.contract, item.allowReviewedTimeline === true) !== item.expectedRequestSha256) {
+      && repairRequestHash(item.compiled.contract, item.allowReviewedTimeline === true,
+        item.allowReviewedCharacterConstraint === true) !== item.expectedRequestSha256) {
       findings.push(hardFinding({ code: "FINAL_PROMPT_REPAIR_REQUEST_DRIFT", field: null, detail: "缩短提示词时请求参数发生变化" }, item.shotId));
     }
   }
@@ -1256,6 +1272,8 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
   const hardOrReviewFindings = first.findings.filter((finding) => finding.repairClass !== "semantic");
   const semanticFindings = first.findings.filter((finding) => finding.repairClass === "semantic");
   const firstContracts = first.compiled.map((item) => item.compiled.contract);
+  const eventWitnesses = first.compiled.flatMap(item => item.executionFindings.flatMap(check =>
+    check.eventWitness ? [structuredClone(check.eventWitness)] : []));
   const reviewInvalid = first.findings.some((finding) => finding.code.startsWith("SEMANTIC_REVIEW_"));
   const firstStatus: PromptQualityStatus = input.mode === "shadow"
     ? "shadow"
@@ -1338,6 +1356,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
             ? approvedOpeningFirstPassDeadline(racePlan.scenes.find(scene => scene?.shotId === shotId)?.approvedScene.purpose) : undefined;
           const helmetCustodyFields = approvedHelmetCustodyFields(executionFindings).filter(field => shotAllowedFields.includes(field));
           const helmetCustodyArm = executionFindings.find(check => check.helmetCustodyArm)?.helmetCustodyArm;
+          const shotEventWitnesses = eventWitnesses.filter(proof => proof.shotId === shotId);
           if (helmetCustodyArm && shotAllowedFields.includes("props")) throw new Error("APPROVED_MOTION_HELMET_REPAIR_DRIFT");
           const scopedFindings = executionFindings
             .filter(check => !actualFindings.some(actual => actual.field === check.field && actual.failureCode === check.failureCode));
@@ -1395,6 +1414,8 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           }
           const patched = patchSource(firstShot.source, shotChanges);
           const allowReviewedTimeline = semanticFields.includes("timeline") && shotChanges.some(change => change.field === "timeline");
+          const allowReviewedCharacterConstraint = shotEventWitnesses.some(proof => proof.family === "rival-driver")
+            && semanticFields.includes("character_constraint") && shotChanges.some(change => change.field === "character_constraint");
           const motionFindings = executionFindings.filter(isApprovedMotionFinding);
           if (motionFindings.length) {
             const drift = approvedMotionRepairDrift({ findings: motionFindings, action: fieldValueFromSource(patched, "action"),
@@ -1409,10 +1430,17 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
             camera: fieldValueFromSource(patched, "camera_movement") })) {
             throw new Error("APPROVED_RACE_REPAIR_DRIFT");
           }
+          if (shotEventWitnesses.length && g6EventWitnessRepairDrift({
+            approvedProductionPlan: input.upstreamContext?.approvedProductionPlan, shotId,
+            duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
+            action: fieldValueFromSource(patched, "action"), timeline: fieldValueFromSource(patched, "timeline"),
+            cameraMovement: fieldValueFromSource(patched, "camera_movement"),
+            characterConstraint: fieldValueFromSource(patched, "character_constraint"),
+          }, shotEventWitnesses)) throw new Error("APPROVED_EVENT_WITNESS_REPAIR_DRIFT");
           patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,
-            ...(finalPromptLength || reviewedTransition || motionFindings.length || raceFindings.length ? {
-              expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
-              allowReviewedTimeline } : {}) });
+            ...(finalPromptLength || reviewedTransition || motionFindings.length || raceFindings.length || shotEventWitnesses.length ? {
+              expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline, allowReviewedCharacterConstraint),
+              allowReviewedTimeline, allowReviewedCharacterConstraint } : {}) });
           changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
         }
         if (changes.length === 0) throw new Error("REPAIR_CHANGES_MISSING");
@@ -1472,6 +1500,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
     }
   }
 
+  if (repairAttempt && eventWitnesses.length) repairAttempt = { ...repairAttempt, eventWitnesses };
   const finalContracts = finalCompiled.map((item) => item.compiled.contract);
   const decision = makeDecision({
     projectId: input.projectId,

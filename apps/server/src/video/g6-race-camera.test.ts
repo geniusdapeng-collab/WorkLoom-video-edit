@@ -72,7 +72,7 @@ const actualMiddleCamera = "缓慢推近，速度均匀偏慢，起幅贴住两�
 const middleTimeline = "T00:00–T00:02：起幅贴住两车齐平的车头。T00:02–T00:05：车头一点点探出。"
   + "T00:05–T00:08：车头拉开半个车身，前轮先压过黑白方格纹。T00:08–T00:10：轻收油门。";
 const revisedMiddleTimeline = "T00:00–T00:02：从第二辆对手车后方起幅。T00:02–T00:05：由并排推进到完全领先。"
-  + "T00:05–T00:08：主车车尾越过第二辆对手车前轮，前轮先压过方格线。T00:08–T00:10：轻收油门。";
+  + "T00:05–T00:08：主车车尾越过第二辆对手车前轮，前轮先压过方格线。T00:08–T00:10：轻收油门，第一辆对手车继续留在后方。";
 const middleShape = { ...openingShape, shotId: "scene-1", purpose: middlePurpose, frozenBrief,
   visualRequirements: ["弯心内侧轮对轮近景，两车车头几乎齐平后拉开差距，方格纹路面涂装作为压线唯一参照。"],
   camera: actualMiddleCamera, action: "贴住第二辆对手车的侧面，车头拉开半个车身。", timeline: middleTimeline };
@@ -158,7 +158,9 @@ function packageFixture(shape: typeof openingShape, { foreign = false, reviseTim
 }
 
 it.each([openingShape, middleShape])("uses a single current-shot repair and retains immutable request channels for $shotId", async shape => {
-  const fixture = packageFixture(shape);
+  const fixture = packageFixture(shape.shotId === "scene-1" ? { ...shape,
+    action: "从第二辆对手车后方追近并排，主车车尾完整越过第二辆对手车前轮，前轮先压过黑白方格线，之后收油减速，第一辆对手车继续留在后方。",
+  } : shape);
   const original = compilePromptPackage(fixture.input)[0]!.contract;
   const changes = [{ field: "timeline", value: shape.shotId === "opening" ? correctedOpeningTimeline : revisedMiddleTimeline, reason: "按已审时序修复" }];
   if (shape.shotId === "scene-1") changes.push({ field: "camera_movement", value: revisedMiddleCamera, reason: "起幅位于同一对手后方" });
@@ -202,8 +204,8 @@ const partialMiddleTimeline = "T00:00–T00:02：从第二辆对手车后方起�
   + `T00:05–T00:08：车身扶正抢先出弯，${halfNose}${middleFinish}T00:08–T00:10：轻收油门，落幅保持向右前方滑行。`;
 const secondGapShape = { ...middleShape, camera: revisedMiddleCamera, action: partialMiddleAction, timeline: partialMiddleTimeline };
 const secondClearance = "随后主车车尾完整越过第二辆对手车前轮。";
-const fixedGapAction = partialMiddleAction.replace("车头拉开半个车身，", secondClearance + halfNose);
-const fixedGapTimeline = partialMiddleTimeline.replace(halfNose, secondClearance + halfNose);
+const fixedGapAction = partialMiddleAction.replace("车头拉开半个车身，", secondClearance + halfNose) + "第一辆对手车继续留在后方。";
+const fixedGapTimeline = partialMiddleTimeline.replace(halfNose, secondClearance + halfNose) + "第一辆对手车继续留在后方。";
 
 it("scopes the actual #46 partial second clearance to the two independently proved fields", () => {
   expect(approvedRaceCameraChecks(secondGapShape).map(({ field, failureCode }) => [field, failureCode])).toEqual([
