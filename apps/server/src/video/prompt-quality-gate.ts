@@ -31,6 +31,7 @@ import {
   type StructuredReviewDispatchProof,
 } from "@hyperreality/video-studio";
 import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
+import { approvedMotionObligations, approvedMotionRepairDrift, isApprovedMotionFinding } from "./g6-motion-obligations.js";
 import type { readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 
 export const SEMANTIC_QUALITY_POLICY_VERSION = "workloom.video-prompt-quality/v2" as const;
@@ -422,8 +423,9 @@ function missingProtectedOutline(
   if (!hasCurrentG4Shot(upstream, shotId)) return undefined;
   const plan = upstream!.approvedProductionPlan as { scenes: Array<{
     shotId: string;
-    approvedScene: { actions: Array<{ description?: unknown } | null>; props?: unknown };
+    approvedScene: { actions: Array<{ actorId?: unknown; description?: unknown } | null>; props?: unknown };
     verificationPlan: { visualRequirements: unknown[] };
+    interval?: { startSec?: unknown; endSec?: unknown; brief?: unknown };
   }> };
   const scene = plan.scenes.find(scene => scene?.shotId === shotId)!;
   const visualRequirements = scene.verificationPlan.visualRequirements
@@ -434,17 +436,29 @@ function missingProtectedOutline(
   const visible = /呈现|展示|展现|显示|看清|看见|可见(?!度)|入镜/u;
   const visiblePair = (clause: string) => chest.test(clause) && hips.test(clause) && visible.test(clause);
   const actionOutlines = approvedActions.filter(visiblePair);
-  if (!actionOutlines.length && !visualRequirements.some(visiblePair)) return undefined;
+  const inSuit = /(?:赛车服|防护服|保护服|护具)(?:(?:包裹|覆盖)(?:下|之下)|[下内])/u;
+  const actors = new Set(scene.approvedScene.actions.map(action => action?.actorId)
+    .filter((value): value is string => typeof value === "string" && Boolean(value) && !value.startsWith("$")));
+  const ownActionOutlines = scene.approvedScene.actions.flatMap(action =>
+    typeof action?.description === "string" && typeof action.actorId === "string" && actors.has(action.actorId)
+      ? affirmativeOutlineClauses(action.description) : []);
+  const visibleInsideSuit = [...ownActionOutlines, ...visualRequirements].filter(clause => visible.test(clause) && inSuit.test(clause));
+  const splitPair = actors.size === 1 && visibleInsideSuit.some(clause => chest.test(clause)) && visibleInsideSuit.some(clause => hips.test(clause));
+  if (!actionOutlines.length && !visualRequirements.some(visiblePair) && !splitPair) return undefined;
   const fullCoverSuit = /全覆.{0,12}(?:赛车服|防护服|保护服|连体服|服装)/u;
   const declaredCover = [...visualRequirements, ...approvedActions].some(clause =>
     fullCoverSuit.test(clause) || /全覆护具|全套护具|完整护具|护具完整/u.test(clause));
   // An approved prop can corroborate protection only where the approved
   // action already places both visible outlines inside that protective suit.
-  const corroboratedCover = actionOutlines.some(clause =>
-    /赛车服(?:包裹|覆盖)(?:下|之下)|赛车服[下内]/u.test(clause))
-    && Array.isArray(scene.approvedScene.props) && scene.approvedScene.props.some(prop =>
-      typeof prop?.name === "string" && affirmativeOutlineClauses(prop.name).some(clause => fullCoverSuit.test(clause)));
-  if (!declaredCover && !corroboratedCover) return undefined;
+  const approvedSuitProp = Array.isArray(scene.approvedScene.props) && scene.approvedScene.props.some(prop =>
+    typeof prop?.name === "string" && affirmativeOutlineClauses(prop.name).some(clause => fullCoverSuit.test(clause)));
+  const corroboratedCover = actionOutlines.some(clause => inSuit.test(clause)) && approvedSuitProp;
+  const interval = scene.interval;
+  const coveredSplitPair = splitPair && (approvedSuitProp || (typeof interval?.brief === "string"
+    && typeof interval.startSec === "number" && typeof interval.endSec === "number" && interval.startSec >= 0
+    && interval.endSec - interval.startSec === source.duration
+    && affirmativeOutlineClauses(interval.brief).some(clause => fullCoverSuit.test(clause))));
+  if (!declaredCover && !corroboratedCover && !coveredSplitPair) return undefined;
   const framing = ["composition", "camera_movement", "action"].map(field => fieldValueFromSource(source, field))
     .filter((value): value is string => typeof value === "string").flatMap(affirmativeOutlineClauses)
     .filter(clause => visible.test(clause)).join("；");
@@ -472,12 +486,33 @@ function approvedExecutionChecks(
   const findings = outline ? [outline] : [];
   if (!hasCurrentG4Shot(upstream, shotId)) return findings;
   const plan = upstream!.approvedProductionPlan as { scenes: Array<{
-    shotId: string; interval?: { startSec?: unknown; endSec?: unknown };
+    shotId: string; interval?: { startSec?: unknown; endSec?: unknown; brief?: unknown };
+    approvedScene: { purpose?: unknown; actions: Array<{ actorId?: unknown; description?: unknown } | null> };
   }> };
-  const interval = plan.scenes.find(scene => scene?.shotId === shotId)?.interval;
+  const scene = plan.scenes.find(scene => scene?.shotId === shotId)!;
+  const interval = scene.interval;
   if (!interval || typeof interval.startSec !== "number" || typeof interval.endSec !== "number"
     || !Number.isFinite(interval.startSec) || !Number.isFinite(interval.endSec) || interval.startSec < 0
     || interval.endSec - interval.startSec !== Number(contract.request.parameters.duration_sec)) return findings;
+  findings.push(...approvedMotionObligations({ frozenBrief: interval.brief, approvedActions: scene.approvedScene.actions.filter(action => action !== null),
+    action: fieldValueFromSource(source, "action"), timeline: fieldValueFromSource(source, "timeline"),
+    duration: interval.endSec - interval.startSec }));
+
+  const overtaking = [scene.approvedScene.purpose, interval.brief].filter((value): value is string => typeof value === "string")
+    .flatMap(value => splitShotAssertions(value).positive.split("；"));
+  if (overtaking.some(clause => /(?:对手|车后|车辆)/u.test(clause) && /(?:完整超(?:车|越)|完全领先|全车超越)/u.test(clause))) {
+    for (const [field, id] of [["action", "SQ1_SUBJECT_ACTION"], ["timeline", "SQ2_SCENE_PROPS"]] as const) {
+      const raw = fieldValueFromSource(source, field);
+      if (typeof raw !== "string") continue;
+      // Crossing a finish line by the front wheel is distinct from declaring
+      // an entire pass completed as soon as the two vehicle noses cross.
+      const partial = /(?:车头|前轮)[^。；\n]{0,18}(?:越过|超过|领先于)[^。；\n]{0,16}(?:对手|对方)[^。；\n]{0,8}(?:车头|前轮)\s*[，,]?\s*(?:就|即|形成|取得|标志|完成)[^。；\n]{0,26}(?:领先|超越|超车)/u;
+      const complete = /(?:整车|全车|整个(?:车身|车体)|车尾)[^。；\n]{0,24}(?:越过|超过|领先|脱离)|(?:拉开|领先)[^。；\n]{0,9}(?:一个|半个|[0-9.]+个)?车身/u;
+      if (partial.test(raw) && !complete.test(raw)) findings.push({ id, field, pass: false, failureCode: "APPROVED_FULL_PASS_NOT_VISIBLE",
+        evidence: "本镜把前轮或车头越过对手车头直接当作已完成超越，未体现整个车身已经越过。",
+        repair: "保留已审超车顺序、每辆车的身份与先冲线后减速。在本字段写清可见的从后追近、并排、整车越过及领先车位，不改变时长或剪辑。" });
+    }
+  }
 
   const transition = fieldValueFromSource(source, "transition");
   const explicit = typeof transition === "string"
@@ -1245,7 +1280,8 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
         for (const { firstShot, fields: shotAllowedFields, finalPromptLength, fieldBudget, semanticFields } of repairs) {
           const shotId = firstShot.shotId;
           const actualFindings = finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [];
-          const scopedFindings = approvedExecutionChecks(input.upstreamContext, firstShot.compiled.contract, firstShot.source)
+          const executionFindings = approvedExecutionChecks(input.upstreamContext, firstShot.compiled.contract, firstShot.source);
+          const scopedFindings = executionFindings
             .filter(check => !actualFindings.some(actual => actual.field === check.field && actual.failureCode === check.failureCode));
           const changesRaw = await reviewer.repair({
             projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
@@ -1300,8 +1336,15 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           }
           const patched = patchSource(firstShot.source, shotChanges);
           const allowReviewedTimeline = semanticFields.includes("timeline") && shotChanges.some(change => change.field === "timeline");
+          const motionFindings = executionFindings.filter(isApprovedMotionFinding);
+          if (motionFindings.length) {
+            const drift = approvedMotionRepairDrift({ findings: motionFindings, action: fieldValueFromSource(patched, "action"),
+              timeline: fieldValueFromSource(patched, "timeline"), duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
+              revisedTimeline: allowReviewedTimeline, revisedAction: shotChanges.some(change => change.field === "action") });
+            if (drift) throw new Error(drift);
+          }
           patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,
-            ...(finalPromptLength || reviewedTransition ? { expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
+            ...(finalPromptLength || reviewedTransition || motionFindings.length ? { expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
               allowReviewedTimeline } : {}) });
           changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
         }

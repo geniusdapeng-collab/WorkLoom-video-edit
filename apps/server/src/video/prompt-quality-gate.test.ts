@@ -557,6 +557,48 @@ describe("prompt semantic quality gate", () => {
         verificationPlan: { visualRequirements: ["看清走近栏杆"] } }] } };
   }
 
+  it.each(["complete", "front-only", "unrelated"] as const)("separates a whole overtake from a front-wheel claim (%s)", async mode => {
+    const checked = currentG4();
+    const row = checked.approvedProductionPlan.scenes[0]!;
+    const upstreamContext = { approvedProductionPlan: { ...checked.approvedProductionPlan, scenes: [{ ...row,
+      interval: { startSec: 0, endSec: 5, brief: mode === "unrelated" ? "在栏杆旁观察" : "从对手车后到完全领先，完成第二次完整超越" },
+      approvedScene: { ...row.approvedScene, purpose: mode === "unrelated" ? "观察木纹" : "追近对手，完成完整超越" },
+    }] } };
+    const front = "前轮先越过对手的车头形成完全领先；随后前轮先于对手压过终点线。";
+    const whole = "前轮开始超过对手车头，随后整车完整越过对手并保持领先；前轮先压过终点线。";
+    const shot = { source: { ...source, fields: { ...fields, action: mode === "complete" ? whole : front,
+      timeline: mode === "complete" ? `T00:00–T00:05：${whole}` : "T00:00–T00:05：前轮先越过对手车头，完成从车后到完全领先的第二次超越。" } }, compile };
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
+      expect(new Set(context.allowedFields)).toEqual(new Set(["action", "timeline"]));
+      expect(context.findings.every(check => check.failureCode === "APPROVED_FULL_PASS_NOT_VISIBLE")).toBe(true);
+      return { changes: [{ field: "action", value: whole, reason: "补足整车动作" },
+        { field: "timeline", value: `T00:00–T00:05：${whole}`, reason: "补足整车动作区间" }] };
+    });
+    const initial = compilePromptPackage({ shots: [shot] })[0]!.contract;
+    const result = await evaluatePromptPackage({ ...input({ review: async () => passReview(), repair }), shots: [shot], upstreamContext, maxFinalPromptChars: 3000 });
+    expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+    expect(repair).toHaveBeenCalledTimes(mode === "front-only" ? 1 : 0);
+    expect(result.shotContracts[0]!.contract.request.parameters).toEqual(initial.request.parameters);
+  });
+
+  it.each([true, false])("combines covered framing only across one actor in the same approved cut (%s)", async singleActor => {
+    const checked = currentG4();
+    const row = checked.approvedProductionPlan.scenes[0]!;
+    const upstreamContext = { approvedProductionPlan: { ...checked.approvedProductionPlan, scenes: [{ ...row,
+      interval: { startSec: 0, endSec: 5, brief: "同一套合身全覆 w2 赛车服与完整护具" },
+      approvedScene: { actions: [{ actorId: "lead", description: "胸线与肩背轮廓在合身赛车服下自然呈现" },
+        { actorId: singleActor ? "$scene" : "other", description: "背景与主体保持清晰" }] },
+      verificationPlan: { visualRequirements: ["站姿自然呈现合身赛车服下的肩背与上翘臀部轮廓，不用裸露或孤立局部替代动作"] },
+    }] } };
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
+      expect(context.allowedFields).toEqual(["composition"]);
+      return { changes: [{ field: "composition", value: "中景自然呈现全覆防护赛车服下的胸线和臀部轮廓。", reason: "保留两项已审轮廓" }] };
+    });
+    const result = await evaluatePromptPackage({ ...input({ review: async () => passReview(), repair }), upstreamContext, maxFinalPromptChars: 3000 });
+    expect(result.g6Eligible).toBe(true);
+    expect(repair).toHaveBeenCalledTimes(singleActor ? 1 : 0);
+  });
+
   it.each(["both", "consistent", "foreign", "wrong-duration"] as const)(
     "binds explicit camera framing and hard-cut duration conflicts to the current frozen shot (%s)", async mode => {
       const checked = currentG4(mode === "foreign" ? "another-shot" : "S01");
