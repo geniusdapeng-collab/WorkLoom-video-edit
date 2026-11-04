@@ -1534,24 +1534,35 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   });
   if (deps.fieldQualityPrototype) add(deps.fieldQualityPrototype, "run", original => async function (shotValue, ...args) {
     const scope = productionScope(this);
-    if (!scope?.authority.portraitSources?.length) return Reflect.apply(original, this, [shotValue, ...args]);
+    const nativeRun = () => {
+      if (!scope?.authority.portraitSources?.length) return Reflect.apply(original, this, [shotValue, ...args]);
+      return awaited(scope, async () => {
+        check(scope);
+        const shot = requirementRecord(shotValue, "原始定妆引用镜头");
+        const fields = requirementRecord(shot.fields, "原始定妆引用字段");
+        const portraits = structuredClone(fields.portraits ?? shot.portraits);
+        const result = requirementRecord(await Reflect.apply(original, this, [shotValue, ...args]), "原生字段修复结果");
+        const final = requirementRecord(result.finalShot, "修复后镜头");
+        const finalFields = requirementRecord(final.fields, "修复后镜头字段");
+        // The native field-quality rule overwrites all format errors with a
+        // guessed v1 path. Identity selection remains the earlier shot input.
+        if (portraits === undefined) {
+          delete final.portraits;
+          delete finalFields.portraits;
+        } else {
+          final.portraits = structuredClone(portraits);
+          finalFields.portraits = portraits;
+        }
+        check(scope);
+        return result;
+      });
+    };
+    const frozen = scope && frozenFieldScope(this, shotValue);
+    const identity = frozen && rivalIdentity(frozen, shotValue as RequirementRecord);
+    if (!scope || !identity) return nativeRun();
     return awaited(scope, async () => {
       check(scope);
-      const shot = requirementRecord(shotValue, "原始定妆引用镜头");
-      const fields = requirementRecord(shot.fields, "原始定妆引用字段");
-      const portraits = structuredClone(fields.portraits ?? shot.portraits);
-      const result = requirementRecord(await Reflect.apply(original, this, [shotValue, ...args]), "原生字段修复结果");
-      const final = requirementRecord(result.finalShot, "修复后镜头");
-      const finalFields = requirementRecord(final.fields, "修复后镜头字段");
-      // The native field-quality rule overwrites all format errors with a
-      // guessed v1 path. Identity selection remains the earlier shot input.
-      if (portraits === undefined) {
-        delete final.portraits;
-        delete finalFields.portraits;
-      } else {
-        final.portraits = structuredClone(portraits);
-        finalFields.portraits = portraits;
-      }
+      const result = await rivalProduction.run({ scope, receiver: this, identity }, nativeRun);
       check(scope);
       return result;
     });

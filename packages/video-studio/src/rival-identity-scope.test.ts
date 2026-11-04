@@ -151,14 +151,16 @@ function fieldQualityShot(value: ReturnType<typeof prdFixture>, index = 0): Requ
 
 interface FieldQualityCapture { kind: "check" | "repair"; scoped: boolean; source: string; fields?: string[] }
 
-function nativeFieldQualityCapture(captures: FieldQualityCapture[]) {
+function nativeFieldQualityCapture(captures: FieldQualityCapture[], beforeCheck?: (check: number) => Promise<void>) {
   const pipeline = new FieldQualityPipeline({ maxRounds: 2, checkerTimeout: 1000, repairerTimeout: 1000 });
   const checker = requirementRecord(requirementRecord(pipeline.checker, "checker").llmChecker, "native LLM checker");
   let checks = 0;
   checker.llm = { reason: async (prompt: string) => {
+    checks++;
+    await beforeCheck?.(checks);
     const input = productionModelInput(prompt); input.verify();
     captures.push({ kind: "check", scoped: input.prompt.includes("只使用合同内命名人物身份"), source: input.prompt });
-    return { success: true, content: JSON.stringify({ issues: ++checks === 1 ? [{ field_en: "costume", field_cn: "服装",
+    return { success: true, content: JSON.stringify({ issues: checks === 1 ? [{ field_en: "costume", field_cn: "服装",
       severity: "major", issue_type: "inconsistent", description: "本镜服装细节需要单独修复", suggestion: "只修服装字段" }] : [] }) };
   } };
   const repairer = requirementRecord(pipeline.repairer, "repairer");
@@ -182,10 +184,10 @@ afterEach(() => {
 });
 
 describe("current reviewed moving rivals keep the unique lead identity", () => {
-  it("the actual native FieldQuality run carries one reviewed rider identity through checking and costume-only repair", async () => {
-    const value = raceFixture("RIVAL-NATIVE-FIELD-QUALITY"), accepted = nativeHarness(value);
+  it.each([0, 1])("the actual native FieldQuality run carries one reviewed rider identity through checking and costume-only repair for shot %i", async index => {
+    const value = raceFixture(`RIVAL-NATIVE-FIELD-QUALITY-${index}`), accepted = nativeHarness(value);
     const captured: FieldQualityCapture[] = [];
-    const pipeline = nativeFieldQualityCapture(captured), source = fieldQualityShot(value), before = structuredClone(source);
+    const pipeline = nativeFieldQualityCapture(captured), source = fieldQualityShot(value, index), before = structuredClone(source);
     const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async () => { throw new Error("OFFLINE_NETWORK_FORBIDDEN"); });
     await accepted(async () => {
       const result = requirementRecord(await invoke(pipeline, "run", source, String(source.shotId)), "native field-quality result");
@@ -196,7 +198,48 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
     expect(captured.map(row => row.scoped)).toEqual([true, true, true]);
     for (const row of captured) expect(row.source).toContain(JSON.stringify(value.metadata.brief));
     expect(source).toEqual(before);
+    await expect(invoke(pipeline, "run", source, String(source.shotId))).rejects.toThrow("PRD_SCOPE_CONFLICT");
+    expect(captured).toHaveLength(3);
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(["ending", "wrong-id", "wrong-duration", "unfrozen"])(
+    "the actual native FieldQuality run retains the original authority outside the current rival shot %s", async mode => {
+      const value = raceFixture(`RIVAL-NATIVE-FIELD-QUALITY-${mode}`);
+      if (mode === "unfrozen") {
+        delete requirementRecord(value.metadata.brief, "brief").segmentContract;
+        refreshSource(value);
+      }
+      const accepted = nativeHarness(value), source = fieldQualityShot(value, mode === "ending" ? 2 : 0);
+      if (mode === "wrong-id") source.shotId = "another-shot";
+      if (mode === "wrong-duration") source.duration = 8;
+      const captures: FieldQualityCapture[] = [], pipeline = nativeFieldQualityCapture(captures);
+      await accepted(async () => { await invoke(pipeline, "run", source, String(source.shotId)); });
+      expect(captures.map(row => row.kind)).toEqual(["check", "repair", "check"]);
+      expect(captures.map(row => row.scoped)).toEqual([false, false, false]);
+      expect(captures.find(row => row.kind === "repair")!.fields).toEqual(["costume"]);
+    },
+  );
+
+  it("interleaved actual native FieldQuality runs keep the racing shot scope out of the ending", async () => {
+    const value = raceFixture("RIVAL-NATIVE-FIELD-QUALITY-INTERLEAVED"), accepted = nativeHarness(value);
+    let release!: () => void;
+    const ready = new Promise<void>(resolve => { release = resolve; });
+    let arrivals = 0;
+    const beforeCheck = async (check: number) => {
+      if (check !== 1) return;
+      if (++arrivals === 2) release();
+      await ready;
+    };
+    const captures: FieldQualityCapture[][] = [[], []];
+    const pipelines = captures.map(capture => nativeFieldQualityCapture(capture, beforeCheck));
+    const sources = [fieldQualityShot(value), fieldQualityShot(value, 2)];
+    await accepted(async () => {
+      await Promise.all(pipelines.map((pipeline, index) => invoke(pipeline, "run", sources[index], String(sources[index]!.shotId))));
+    });
+    expect(captures[0]!.map(row => row.scoped)).toEqual([true, true, true]);
+    expect(captures[1]!.map(row => row.scoped)).toEqual([false, false, false]);
+    for (const capture of captures) expect(capture.map(row => row.kind)).toEqual(["check", "repair", "check"]);
   });
 
   it("the actual native per-shot Fusion system template distinguishes required anonymous riders", async () => {
