@@ -60,6 +60,7 @@ const FOLLOW_HELMET = /(?:跟住|跟随|随(?:着)?|配合)[^；。]{0,12}(?:抬
 const FOLLOW_HAIR = /(?:跟住|跟随|随(?:着)?|配合)[^；。]{0,12}(?:甩(?:头|发)|长发落肩)/u;
 const REMOVE_HELMET_IN_FRAME = /(?:全盔|头盔)[^；。]{0,12}(?:摘下|抬离)/u;
 const HAIR_TOSS = /甩(?:头|发)/u;
+const ENDING_CAMERA_CHAIN = [/停稳/u, /双脚落地/u, REMOVE_HELMET, HAIR_TOSS, DISMOUNT];
 
 function uniqueWindow(ranges: readonly LocalWindow[], matches: (text: string) => boolean): LocalWindow | undefined {
   const hits = ranges.filter(range => matches(affirmativeMotion(range.text)));
@@ -185,10 +186,11 @@ export function approvedMotionObligations(input: {
 }): SemanticQualityCheck[] {
   const people = input.approvedActions.filter(row => typeof row?.actorId === "string" && row.actorId && !row.actorId.startsWith("$"));
   if (new Set(people.map(row => row.actorId)).size !== 1) return [];
-  if (!orderedMotion(affirmativeMotion(input.frozenBrief), MOTION_CHAIN)
-    || !orderedMotion(people.map(row => affirmativeMotion(row.description)).join("；"), MOTION_CHAIN)) return [];
-
-  const findings = endingCameraFindings(input.cameraMovement, input.timeline, input.duration);
+  const frozen = affirmativeMotion(input.frozenBrief);
+  const approved = people.map(row => affirmativeMotion(row.description)).join("；");
+  const findings = orderedMotion(frozen, ENDING_CAMERA_CHAIN) && orderedMotion(approved, ENDING_CAMERA_CHAIN)
+    ? endingCameraFindings(input.cameraMovement, input.timeline, input.duration) : [];
+  if (!orderedMotion(frozen, MOTION_CHAIN) || !orderedMotion(approved, MOTION_CHAIN)) return findings;
   // At two seconds require the additional explicit evidence of a multi-step ascent.
   const dense = typeof input.timeline === "string" && localWindows(input.timeline).find(({ from, to, text }) => {
     const motion = affirmativeMotion(text);

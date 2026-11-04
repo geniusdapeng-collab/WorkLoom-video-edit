@@ -105,7 +105,10 @@ function nativeScenario(timeline: string, { helmet = true, foreign = false } = {
 
 describe("G6 approved physical motion", () => {
   function endingCameraScenario(override: Parameters<typeof scenario>[0] = {}) {
-    const fixture = scenario({ action: fixedAction, timeline: attempt42EndingTimeline, cameraMovement: attempt42EndingCamera, ...override });
+    const fixture = scenario({ action: fixedAction, timeline: attempt42EndingTimeline, cameraMovement: attempt42EndingCamera,
+      brief: "进入维修区停稳并双脚落地；同一侧前中景双手抬盔、顺势甩头一次，黑色长发完整落到肩背；完全下车，再转身登紧邻停车点的领奖台最高一级，自取预置奖杯举杯。",
+      approved: ["驶入维修区后减速停稳，双脚落地撑住车身，双手抬盔从头顶摘下并顺势甩头一次，黑色长发完整落到肩背；随后完全下车，转身走到紧邻停车点的领奖台最高一级，自己拿起预置奖杯举起"],
+      ...override });
     fixture.review.mockImplementation(async ({ contract }) => ({
       shotId: contract.shotId,
       checks: SEMANTIC_QUALITY_CHECK_IDS.map(id => ({ id, pass: true,
