@@ -784,6 +784,38 @@ describe("prompt semantic quality gate", () => {
   });
 
   it.each([
+    ["转身登台带出成年角色自然的丰满胸线与上翘臀部，服装始终为合身全覆赛车服，不以裸露或孤立局部替代", false],
+    ["转身登台不自然带出成年角色的丰满胸线与上翘臀部，服装始终为合身全覆赛车服", true],
+    ["禁止转身登台带出胸线与臀部轮廓；服装始终为合身全覆赛车服", true],
+    ["转身登台带出胸线；另提及臀部轮廓，服装始终为合身全覆赛车服", true],
+    ["转身登台带出成年角色自然的丰满胸线与上翘臀部，服装未穿全覆赛车服", true],
+    ["转身登台带出双手抬盔；仅列出胸线与臀部，服装始终为合身全覆赛车服", true],
+  ] as const)("binds outline revealed by the actual covered podium motion: %s", async (composition, needsRepair) => {
+    const upstream = currentG4();
+    upstream.approvedProductionPlan.scenes[0]!.verificationPlan.visualRequirements = [
+      "侧前中景与转身、登台动作清楚呈现成年角色自然的丰满胸线与上翘臀部轮廓，始终穿着合身全覆赛车服，不以裸露或孤立局部替代动作",
+    ];
+    const shot = { source: { ...source, fields: { ...fields, composition } }, compile };
+    const original = compilePromptPackage({ shots: [shot] })[0]!.contract;
+    const review = vi.fn(async () => passReview());
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
+      expect(context.allowedFields).toEqual(["composition"]);
+      expect(context.findings).toContainEqual(expect.objectContaining({ failureCode: "APPROVED_PROTECTED_OUTLINE_MISSING" }));
+      return { changes: [{ field: "composition", value: "侧前中景自然呈现全覆赛车服下的胸线与臀部轮廓。", reason: "落实已审轮廓" }] };
+    });
+    const result = await evaluatePromptPackage({ ...input({ review, repair }), upstreamContext: upstream, shots: [shot] });
+    expect(result.g6Eligible).toBe(true);
+    expect(repair).toHaveBeenCalledTimes(needsRepair ? 1 : 0);
+    expect(review).toHaveBeenCalledTimes(needsRepair ? 2 : 1);
+    expect(result.shotContracts[0]!.contract.request.parameters).toEqual(original.request.parameters);
+    if (!needsRepair) {
+      const accepted = result.shotContracts[0]!.contract;
+      expect([accepted.promptSha256, accepted.fieldsSha256, accepted.requestSha256])
+        .toEqual([original.promptSha256, original.fieldsSha256, original.requestSha256]);
+    }
+  });
+
+  it.each([
     { mode: "current action and cover", shotId: "S01", action: "佩戴完整护具；侧前中景自然呈现赛车服内的胸线与臀部轮廓。", visual: "合身赛车服保留力量感。", expected: true },
     { mode: "current action and visual cover", shotId: "S01", action: "侧前中景自然呈现合身赛车服包裹下的胸线与臀部轮廓。", visual: "穿戴全套护具，人物动作清楚。", expected: true },
     { mode: "current wrapped action and approved full-cover prop", shotId: "S01",

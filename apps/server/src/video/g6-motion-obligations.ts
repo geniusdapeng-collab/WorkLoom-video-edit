@@ -43,7 +43,7 @@ function orderedMotion(text: string, steps: readonly RegExp[]): boolean {
   return true;
 }
 
-function localWindows(value: string) {
+export function localWindows(value: string) {
   const ranges = [...value.matchAll(/(?<![\w:])T?(\d{1,2}):([0-5]\d(?:\.\d+)?)\s*(?:[-–—~～]|至|到)\s*T?(\d{1,2}):([0-5]\d(?:\.\d+)?)(?![\d.])/gu)];
   return ranges.map((range, index) => ({
     from: Number(range[1]) * 60 + Number(range[2]), to: Number(range[3]) * 60 + Number(range[4]),
@@ -51,7 +51,7 @@ function localWindows(value: string) {
   }));
 }
 
-function completeLocalClock(ranges: ReturnType<typeof localWindows>, duration: number): boolean {
+export function completeLocalClock(ranges: ReturnType<typeof localWindows>, duration: number): boolean {
   return ranges.length > 0 && ranges[0]!.from === 0 && ranges.at(-1)!.to === duration
     && ranges.every(({ from, to }, index) => to > from && (index === 0 || from === ranges[index - 1]!.to));
 }

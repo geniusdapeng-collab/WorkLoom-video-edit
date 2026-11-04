@@ -33,7 +33,7 @@ import {
 import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
 import { approvedHelmetCustodyFields, approvedMotionObligations, approvedMotionRepairDrift, distinctRivalPassEndsAtNose, isApprovedMotionFinding } from "./g6-motion-obligations.js";
 import { approvedSecondPassEndsHalfway } from "./g6-rival-pass.js";
-import { approvedRaceCameraChecks, isApprovedRaceFinding } from "./g6-race-camera.js";
+import { approvedOpeningFirstPassDeadline, approvedRaceCameraChecks, approvedRaceRepairDrift, isApprovedRaceFinding } from "./g6-race-camera.js";
 import type { readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 
 export const SEMANTIC_QUALITY_POLICY_VERSION = "workloom.video-prompt-quality/v2" as const;
@@ -418,7 +418,7 @@ function hasCurrentG4Shot(upstream: Record<string, unknown> | undefined, shotId:
 function affirmativeOutlineClauses(text: string): string[] {
   // Keep an enumerated pair inside the same clause, and teach the shared
   // splitter the direct visibility and protective-wear negations used here.
-  const directNegation = /(?:不(?:允许|应当|应|宜|会|再|易|可|必)?|未(?:能)?|无法|无从)(?=\s*(?:(?:清楚|清晰|完整|自然|单独|被)\s*)?(?:呈现|展示|展现|显示|看清|看见|可见|入镜|穿戴|佩戴|戴|穿))|(?:看|拍|辨)不(?:清|见|到)|不以|不通过|不借助|不用|不把|不让|而非|并非|不是/gu;
+  const directNegation = /(?:不(?:允许|应当|应|宜|会|再|易|可|必)?|未(?:能)?|无法|无从)(?=\s*(?:(?:清楚|清晰|完整|自然|单独|被)\s*)?(?:呈现|展示|展现|显示|看清|看见|可见|入镜|带出|穿戴|佩戴|戴|穿))|(?:看|拍|辨)不(?:清|见|到)|不以|不通过|不借助|不用|不把|不让|而非|并非|不是/gu;
   return splitShotAssertions(text.replaceAll("、", "与").replace(directNegation, "禁止")).positive.split("；");
 }
 
@@ -469,6 +469,18 @@ function missingProtectedOutline(
     .filter((value): value is string => typeof value === "string").flatMap(affirmativeOutlineClauses)
     .filter(clause => visible.test(clause)).join("；");
   if (chest.test(framing) && hips.test(framing)) return undefined;
+  // An affirmative composition can reveal both contours through the staged
+  // podium motion. Do not treat bare "带出" or an approved costume alone as
+  // evidence: the composition itself must tie both outlines to that motion
+  // and explicitly keep the same full-cover wardrobe.
+  const composition = fieldValueFromSource(source, "composition");
+  const compositionClauses = typeof composition === "string" ? affirmativeOutlineClauses(composition) : [];
+  const coveredInComposition = compositionClauses.some(clause => fullCoverSuit.test(clause)
+    && /^(?:服装(?:始终)?(?:为|是)|(?:人物|角色)?(?:始终)?穿着)/u.test(clause));
+  if (coveredInComposition && compositionClauses.some(clause => {
+    const revealed = /^转身(?:后|再|与|并)?登(?:上(?:最高一级)?领奖台|台)(?:的动作|动作)?(?:自然|清楚|清晰)?带出(.+)$/u.exec(clause)?.[1];
+    return revealed !== undefined && chest.test(revealed) && hips.test(revealed);
+  })) return undefined;
   return { id: "SQ4_LIGHT_COLOR", pass: false, field: "composition", failureCode: "APPROVED_PROTECTED_OUTLINE_MISSING",
     evidence: "当前构图、运镜和动作字段没有落实本镜已审的两项全覆防护服下轮廓。",
     repair: "只在本镜构图说明中补齐已审的自然胸线和臀部轮廓，保留完整护具、动作连贯及无孤立局部特写。" };
@@ -509,7 +521,8 @@ function approvedExecutionChecks(
     approvedProps: Array.isArray(scene.approvedScene.props) ? scene.approvedScene.props : undefined,
     approvedVisualRequirements: scene.verificationPlan.visualRequirements,
     duration: interval.endSec - interval.startSec, nativeChecks }));
-  findings.push(...approvedRaceCameraChecks({ frozenBrief: interval.brief, purpose: scene.approvedScene.purpose,
+  findings.push(...approvedRaceCameraChecks({ shotId, duration: interval.endSec - interval.startSec,
+    frozenBrief: interval.brief, purpose: scene.approvedScene.purpose,
     visualRequirements: scene.verificationPlan.visualRequirements, camera: fieldValueFromSource(source, "camera_movement"),
     action: fieldValueFromSource(source, "action"), timeline: fieldValueFromSource(source, "timeline") }));
 
@@ -1317,6 +1330,12 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           const shotId = firstShot.shotId;
           const actualFindings = finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [];
           const { executionFindings } = firstShot;
+          const raceFindings = executionFindings.filter(isApprovedRaceFinding);
+          const racePlan = raceFindings.length ? input.upstreamContext?.approvedProductionPlan as {
+            scenes: Array<{ shotId: string; approvedScene: { purpose?: unknown } }>;
+          } : undefined;
+          const openingDeadline = shotId === "opening" && racePlan
+            ? approvedOpeningFirstPassDeadline(racePlan.scenes.find(scene => scene?.shotId === shotId)?.approvedScene.purpose) : undefined;
           const helmetCustodyFields = approvedHelmetCustodyFields(executionFindings).filter(field => shotAllowedFields.includes(field));
           const helmetCustodyArm = executionFindings.find(check => check.helmetCustodyArm)?.helmetCustodyArm;
           if (helmetCustodyArm && shotAllowedFields.includes("props")) throw new Error("APPROVED_MOTION_HELMET_REPAIR_DRIFT");
@@ -1384,8 +1403,14 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
               revisedTimeline: allowReviewedTimeline, revisedAction: shotChanges.some(change => change.field === "action") });
             if (drift) throw new Error(drift);
           }
+          if (raceFindings.length && approvedRaceRepairDrift({ findings: raceFindings, openingDeadline,
+            duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
+            action: fieldValueFromSource(patched, "action"), timeline: fieldValueFromSource(patched, "timeline"),
+            camera: fieldValueFromSource(patched, "camera_movement") })) {
+            throw new Error("APPROVED_RACE_REPAIR_DRIFT");
+          }
           patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,
-            ...(finalPromptLength || reviewedTransition || motionFindings.length || executionFindings.some(isApprovedRaceFinding) ? {
+            ...(finalPromptLength || reviewedTransition || motionFindings.length || raceFindings.length ? {
               expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
               allowReviewedTimeline } : {}) });
           changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
