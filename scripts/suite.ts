@@ -12,6 +12,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import pg from "pg";
+import { withWorkspace } from "@workloom/db";
 import { routeIntent, ruleBasedRoute, LlmIntentClassifier, registerAskKbSearch, runAsk, runQuest, type IntentClassifier, type QuestPlanner } from "@workloom/runtime";
 import { acquisitionQuestPlanner } from "../apps/server/src/industry/hotel/acquisition-planner.js";
 import {
@@ -3705,43 +3706,63 @@ h2("协作·readonly 写契约/推进/回执 → 403（API 层强制，审计回
   });
 
   RC("成绩单精确性：2 裁决+1 简报+1 熔断后计数精确匹配", async () => {
-    const arc = await getArchive();
-    try {
-      // 队列隔离（同 R-11，D32）：历史遗留 l2_captain 待批会被节拍一并裁决，污染计数
-      const leftovers = await qApp<{ approval_id: string }>(
-        `UPDATE approvals SET status='rejected' WHERE workspace_id=$1 AND status='pending' AND tier='l2_captain' RETURNING approval_id`,
-        [scope.workspaceId],
+    // 成绩单按工作区统计真实事件。单独装配本用例，避免共用演示区的简报或裁决混入两次快照之间。
+    const fixtureScope = { ...scope, workspaceId: `ws-suite-r16-${SFX}` };
+    const { rows: [config] } = await qApp<{
+      industry: string; charter: unknown; name: string; version: string; kind: string; readonly: boolean; fence_bindings: unknown;
+    }>(
+      `SELECT p.industry, p.archive->'charter' AS charter, a.name, a.version, a.kind, a.readonly, a.fence_bindings
+       FROM profiles p JOIN agents a ON a.workspace_id=p.workspace_id AND a.preset_key='company-ceo'
+       WHERE p.workspace_id=$1 LIMIT 1`,
+      [scope.workspaceId],
+    );
+    assert(config?.charter, "本用例需要种子宪章和已装配 CEO");
+    await withWorkspace(app, fixtureScope, async (_db, client) => {
+      await client.query(
+        `INSERT INTO workspaces (id, tenant_id, name, slug, industry) VALUES ($1,$2,'R-16 成绩单夹具',$1,$3)`,
+        [fixtureScope.workspaceId, fixtureScope.tenantId, config.industry],
       );
-      try {
-      const before = await buildScorecard(app, scope);
-      await qApp(
+      await client.query(
+        `INSERT INTO profiles (workspace_id, tenant_id, industry, archive) VALUES ($1,$2,$3,$4)`,
+        [fixtureScope.workspaceId, fixtureScope.tenantId, config.industry, JSON.stringify({ charter: config.charter })],
+      );
+      await client.query(
+        `INSERT INTO agents (id, workspace_id, preset_key, name, version, kind, readonly, fence_bindings)
+         VALUES ($1,$2,'company-ceo',$3,$4,$5,$6,$7)`,
+        [`agt-r16-${SFX}`, fixtureScope.workspaceId, config.name, config.version, config.kind, config.readonly, JSON.stringify(config.fence_bindings)],
+      );
+      await client.query(
         `INSERT INTO approvals (approval_id, tenant_id, workspace_id, event_id, channel, status, snapshot, tier)
-         VALUES ($1,$2,$3,$4,'inapp','pending',$5,'l2_captain'), ($6,$2,$3,$7,'inapp','pending',$5,'l2_captain')
-         ON CONFLICT (event_id, channel) DO NOTHING`,
-        [`apr-r17a-${SFX}`, scope.tenantId, scope.workspaceId, `E-apr-r17a-${SFX}`, JSON.stringify({ action: "price.adjust", params: { price: 480 }, base_price: 458 }),
-         `apr-r17b-${SFX}`, `E-apr-r17b-${SFX}`]);
-      await runQueueBeatIsolated([`apr-r17a-${SFX}`, `apr-r17b-${SFX}`]);
-      await runBriefingBeat(app, scope, "daily");
-      await gatewayAppend(gw, { ...scope, actor: { id: "suite", type: "agent" }, sessionId: "suite-r17" }, {
+         VALUES ($1,$2,$3,$4,'inapp','pending',$5,'l2_captain'), ($6,$2,$3,$7,'inapp','pending',$5,'l2_captain')`,
+        [`apr-r16a-${SFX}`, fixtureScope.tenantId, fixtureScope.workspaceId, `E-apr-r16a-${SFX}`,
+          JSON.stringify({ action: "price.adjust", params: { price: 480 }, base_price: 458 }),
+          `apr-r16b-${SFX}`, `E-apr-r16b-${SFX}`],
+      );
+    });
+    try {
+      const before = await buildScorecard(app, fixtureScope);
+      await runQueueBeat(app, fixtureScope);
+      await runBriefingBeat(app, fixtureScope, "daily");
+      await gatewayAppend(gw, { ...fixtureScope, actor: { id: "suite", type: "agent" }, sessionId: "suite-r16" }, {
         who: { type: "agent", id: "suite" },
-        context: { tenant_id: scope.tenantId, workspace_id: scope.workspaceId, time: new Date().toISOString() },
+        context: { tenant_id: fixtureScope.tenantId, workspace_id: fixtureScope.workspaceId, time: new Date().toISOString() },
         object: { type: "store", id: "yunqi" },
-        decision: { action: "store.daily.summary", after: { occ: 0.61, adr: 480, revpar: 293 }, basis: ["R17 熔断注入"] },
+        decision: { action: "store.daily.summary", after: { occ: 0.61, adr: 480, revpar: 293 }, basis: ["R-16 熔断注入"] },
         rule_impact: [], model_trace: { model_id: "suite", tier: "standard" },
       });
-      await runBreakerBeat(app, scope);
-      const after = await buildScorecard(app, scope);
+      await runBreakerBeat(app, fixtureScope);
+      const after = await buildScorecard(app, fixtureScope);
       eq(after.decisions, before.decisions + 2, "裁决 +2");
       eq(after.briefings, before.briefings + 1, "简报 +1");
       eq(after.breakerTrips, before.breakerTrips + 1, "熔断 +1");
-      } finally {
-        if (leftovers.rowCount) {
-          await qApp(`UPDATE approvals SET status='pending' WHERE workspace_id=$1 AND approval_id = ANY($2::text[])`, [scope.workspaceId, leftovers.rows.map((x) => x.approval_id)]);
-        }
-        await qApp(`DELETE FROM approvals WHERE approval_id IN ($1,$2)`, [`apr-r17a-${SFX}`, `apr-r17b-${SFX}`]);
-      }
     } finally {
-      await restoreArchive(arc);
+      // 可变夹具撤收；只增不改的测试事件留在自己的链上。
+      await withWorkspace(app, fixtureScope, async (_db, client) => {
+        await client.query("DELETE FROM approvals WHERE workspace_id=$1", [fixtureScope.workspaceId]);
+        await client.query("DELETE FROM agents WHERE workspace_id=$1", [fixtureScope.workspaceId]);
+        await client.query("DELETE FROM profiles WHERE workspace_id=$1", [fixtureScope.workspaceId]);
+        await client.query("DELETE FROM workspaces WHERE id=$1", [fixtureScope.workspaceId]);
+      });
     }
   });
 
