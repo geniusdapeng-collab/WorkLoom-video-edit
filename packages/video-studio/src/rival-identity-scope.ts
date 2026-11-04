@@ -34,6 +34,19 @@ function hasDriverlessRivalAuthority(text: string): boolean {
   });
 }
 
+/** Match the complete approved identity, rather than a substring of another name or a list. */
+function sameNamedLead(clause: string, scope: RivalIdentityScope): boolean {
+  const names = [scope.leadName, `“${scope.leadName}”`, `「${scope.leadName}」`, `"${scope.leadName}"`];
+  const references = names.flatMap(name => [name, `${name}（${scope.leadId}）`, `${name}(${scope.leadId})`]);
+  const declaration = /^(?:命名主角(?:仅|只)(?:有|为|是|出现)?|唯一(?:命名|具名)主角(?:为|是|[:：])?|具名主角(?:仅|只)(?:有|为|是|出现)?)\s*/u.exec(clause);
+  if (declaration) {
+    const subject = clause.slice(declaration[0].length).trim();
+    return references.some(reference => [reference, `${reference}一人`, `${reference}一名`, `${reference}本人`].includes(subject));
+  }
+  return references.some(reference => ["是", "为"].some(copula =>
+    ["命名", "具名"].some(kind => clause === `${reference}${copula}唯一${kind}主角`)));
+}
+
 /** The caller supplies its verified current G4 snapshot, never generated shot prose. */
 export function reviewedRivalIdentity(input: {
   contract: RequirementContract;
@@ -97,11 +110,11 @@ export function bindRivalAuthorityIdentity(authorityPrompt: string): string {
 export function rivalIdentityFormatIssues(issues: unknown[], value: unknown, scope: RivalIdentityScope): unknown[] {
   if (typeof value !== "string") return issues;
   const clauses = positiveClauses(value), positive = clauses.join("；");
-  const identity = clauses.some(clause => /命名主角(?:仅|只)|唯一(?:命名|具名)主角|具名主角(?:仅|只)/u.test(clause)
-    && clause.includes(scope.leadName));
+  const declarations = clauses.filter(clause => /(?:命名|(?<!不)具名)(?:主角|角色)/u.test(clause));
+  const identity = declarations.length > 0 && declarations.every(clause => sameNamedLead(clause, scope));
   const counterpart = clauses.some(clause => /匿名|无名|不具名/u.test(clause) && /成年|成人/u.test(clause)
     && /全盔|全覆[^，；。]{0,8}头盔/u.test(clause) && /对手骑手|对手[^，；。]{0,12}骑手/u.test(clause));
-  const validIdentity = identity && counterpart && !/分身|克隆|重复出现/u.test(positive);
+  const validIdentity = identity && counterpart && !/分身|克隆|重复出现|替身/u.test(positive);
   return issues.flatMap(value => {
     const issue = value as RequirementRecord | null;
     if (!issue || issue.fieldEn !== "character_constraint" || issue.issueType !== "incomplete"

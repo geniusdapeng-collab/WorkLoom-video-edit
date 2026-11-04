@@ -325,6 +325,19 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
     });
   });
 
+  it.each(["匿名", "无名", "不具名"])("the native exact-name check keeps explicitly %s adult counterpart roles", async anonymous => {
+    const value = raceFixture("RIVAL-EXACT-NAME-ANONYMOUS"), accepted = nativeHarness(value), checker = new RuleChecker();
+    const current = { ...shot(value), character_constraint:
+      `命名主角仅合成人物，其他${anonymous}角色为全盔成年对手骑手；禁止主角分身克隆。` };
+    const before = structuredClone(current);
+    await accepted(() => {
+      const issues = (invoke(checker, "_checkFormat", current) as RequirementRecord[])
+        .filter(issue => issue.fieldEn === "character_constraint");
+      expect(issues).toEqual([]);
+      expect(current).toEqual(before);
+    });
+  });
+
   it("the same native scope recognizes a bound motorcycle action that explicitly 连超 its rival", async () => {
     const value = raceFixture("RIVAL-ACTUAL-SOURCE-VERB");
     const opening = requirementRecord(requirementRecord(value.discovery.sceneStructure, "structure").opening, "opening");
