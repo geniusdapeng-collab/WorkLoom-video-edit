@@ -4,7 +4,7 @@ import { bindRequirementContract, requirementCast, requirementRecord, type Requi
 import { preparePrdAuthority } from "./prd-authority.js";
 import { installPrdAuthorityBridge, installPrdProductionBridge, productionModelInput, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { PRDGenerator, PRDSchema, prdFixture } from "./prd-authority.test-support.js";
-import { bindRivalAuthorityIdentity, bindRivalFusionIdentity, bindRivalRepairIdentity } from "./rival-identity-scope.js";
+import { bindRivalAuthorityIdentity, bindRivalFusionIdentity, bindRivalRepairIdentity, rivalIdentityRequirement } from "./rival-identity-scope.js";
 
 type NativeConstructor = { new (...args: unknown[]): RequirementRecord; prototype: RequirementRecord };
 const nativeRequire = createRequire(import.meta.url);
@@ -334,6 +334,22 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
       const issues = (invoke(checker, "_checkFormat", current) as RequirementRecord[])
         .filter(issue => issue.fieldEn === "character_constraint");
       expect(issues).toEqual([]);
+      expect(current).toEqual(before);
+    });
+  });
+
+  it.each([false, true])("the actual native check retains the complete canonical host rule without hiding another named lead (%s)", async extraLead => {
+    const value = raceFixture("RIVAL-CANONICAL-COMPLETE-IDENTITY"), accepted = nativeHarness(value), checker = new RuleChecker();
+    const canonical = rivalIdentityRequirement({ leadName: "合成人物", leadId: "builtin-person" });
+    const current = { ...shot(value), character_constraint: canonical + (extraLead ? "命名主角仅合成人物和张三。" : "") };
+    const before = structuredClone(current);
+    const original = (invoke(checker, "_checkFormat", current) as RequirementRecord[])
+      .filter(issue => issue.fieldEn === "character_constraint");
+    expect(original).toHaveLength(1);
+    await accepted(() => {
+      const relevant = (invoke(checker, "_checkFormat", current) as RequirementRecord[])
+        .filter(issue => issue.fieldEn === "character_constraint");
+      expect(relevant).toHaveLength(extraLead ? 1 : 0);
       expect(current).toEqual(before);
     });
   });
