@@ -557,6 +557,51 @@ describe("prompt semantic quality gate", () => {
         verificationPlan: { visualRequirements: ["看清走近栏杆"] } }] } };
   }
 
+  it("repairs the two-pass shot's camera, action, and timeline together with the original request parameters", async () => {
+    const checked = currentG4();
+    const row = checked.approvedProductionPlan.scenes[0]!;
+    const upstreamContext = { approvedProductionPlan: { ...checked.approvedProductionPlan, scenes: [{ ...row,
+      interval: { startSec: 10, endSec: 20, brief: "两次超车针对两辆不同对手车，每次从车后到完全领先。" },
+      approvedScene: { ...row.approvedScene, purpose: "先把第一辆对手车留在后方，再贴着第二辆对手车完成超车。" },
+      verificationPlan: { visualRequirements: ["两次超车均完整看清从对手后方到完全领先。"] },
+    }] } };
+    const first = "先从第一辆对手车后方追近并排，整车越过第一辆对手车。";
+    const second = "随后贴住第二辆对手车，车头越过其中段形成并排。";
+    const clear = "主车车尾完全越过第二辆对手车前轮。";
+    const finish = "前轮先压过黑白方格线，随后减速。";
+    const shot = { source: { ...source, duration: 10, fields: { ...fields,
+      camera_movement: "长焦保持同向。起幅落在第二辆对手车车尾与主角车头齐平的并排位置。",
+      action: first + second + finish, timeline: `T00:00–T00:05：${first} T00:05–T00:10：${second}${finish}`,
+    } }, compile };
+    const revised = {
+      camera_movement: "长焦同向侧跟，起幅从第一辆对手车后轮开始，随后跟住第二辆完整超越，再落到冲线。",
+      action: first + second + clear + finish,
+      timeline: `T00:00–T00:04：${first} T00:04–T00:07：${second}${clear} T00:07–T00:10：${finish}`,
+    };
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
+      expect([...context.allowedFields].sort()).toEqual(["action", "camera_movement", "timeline"]);
+      expect(context.findings).toContainEqual(expect.objectContaining({
+        field: "camera_movement", failureCode: "APPROVED_RACE_CAMERA_START_MISMATCH",
+      }));
+      return { changes: Object.entries(revised).map(([field, value]) => ({ field, value, reason: "让起幅和两次完整超越一致" })) };
+    });
+    const before = compilePromptPackage({ shots: [shot] })[0]!.contract;
+    const review: SemanticQualityReviewer["review"] = async ({ shot: current }) => {
+      const checks = passReview();
+      checks.checks[2]!.evidence = String((current.fields as Record<string, unknown>).camera_movement);
+      return checks;
+    };
+    const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [shot], upstreamContext });
+    expect(result.g6Eligible, JSON.stringify({ findings: result.findings, reports: result.semanticReports,
+      reason: result.repairAttempt?.reason })).toBe(true);
+    expect(repair).toHaveBeenCalledTimes(1);
+    const after = result.shotContracts[0]!.contract;
+    expect(after.request).toEqual({ ...before.request, technical: { ...before.request.technical, timeline: revised.timeline } });
+    expect(after.bindings.find(binding => binding.field === "portraits")).toMatchObject({
+      valueSha256: before.bindings.find(binding => binding.field === "portraits")!.valueSha256,
+    });
+  });
+
   it.each(["complete", "front-only", "unrelated"] as const)("separates a whole overtake from a front-wheel claim (%s)", async mode => {
     const checked = currentG4();
     const row = checked.approvedProductionPlan.scenes[0]!;
