@@ -1,10 +1,11 @@
 import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resetCircuit, DEEPSEEK_FLASH_MAX_OUTPUT_TOKENS } from "@workloom/base/model-router";
+import { resetCircuit, DEEPSEEK_FLASH_MAX_OUTPUT_TOKENS, OpenAiCompatibleProvider } from "@workloom/base/model-router";
 import { WorkloomLLMEngine } from "./llm-adapter.js";
 import { installPrdAuthorityBridge, installPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { PRDGenerator, PRDSchema, prdFixture } from "./prd-authority.test-support.js";
-import type { RequirementRecord } from "./requirement-contract.js";
+import { bindRequirementContract, requirementCast, requirementRecord, type RequirementContract, type RequirementRecord } from "./requirement-contract.js";
+import { preparePrdAuthority } from "./prd-authority.js";
 
 const require = createRequire(import.meta.url);
 type BridgeDependencies = Parameters<typeof installPrdProductionBridge>[0];
@@ -33,6 +34,7 @@ const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
   resetCircuit("video.preproduction.plan");
+  resetCircuit("preproduction");
   vi.restoreAllMocks();
 });
 
@@ -42,22 +44,41 @@ const good = '{"shots":[{"shotId":"SC-01","scene":"测试赛道","genre":"action
 type Wire = { model: string; max_tokens: number; response_format: unknown; thinking: unknown;
   messages: Array<{ role: string; content: string }> };
 type Reply = string | Response | Error;
-function fixture(replies: Reply[]) {
+function fixture(replies: Reply[], frozen = false, onDispatch?: (ordinal: number) => void) {
   resetCircuit("video.preproduction.plan");
-  const value = prdFixture("FULL-PRODUCTION");
+  resetCircuit("preproduction");
+  const value = prdFixture("FULL-PRODUCTION", frozen ? [10, 10, 10] : undefined);
+  if (frozen) {
+    const brief = requirementRecord(value.metadata.brief, "fixture brief");
+    requirementRecord(brief.productionRequirements, "fixture requirements").speechPolicy = "none";
+    brief.segmentContract = { count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+      intervals: [0, 1, 2].map(index => ({ startSec: index * 10, endSec: (index + 1) * 10, brief: "保留真实动作与原生声音" })) };
+    value.list = bindRequirementContract({ keyPoints: [] }, value.discovery,
+      requirementRecord(value.discovery.upstreamFields, "fixture upstream"), structuredClone(value.metadata),
+      requirementCast(value.metadata).hash, "原始年轻消费者");
+    value.contract = value.list._workloomRequirementContract as RequirementContract;
+    value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing,
+      workDir: value.workDir, projectId: value.scope.projectId });
+  }
   cleanups.push(value.cleanup);
   const wires: Wire[] = [];
   const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
     wires.push(JSON.parse(String(init!.body)) as Wire);
+    onDispatch?.(wires.length);
     const reply = replies[wires.length - 1];
     if (reply instanceof Error) throw reply;
     if (reply instanceof Response) return reply;
     if (reply === undefined) throw new Error("unexpected additional fixture request");
-    return Response.json({ id: `synthetic-response-${wires.length}`, model: "deepseek-flash",
-      choices: [{ finish_reason: "stop", message: { content: reply } }],
+    return Response.json({ id: `synthetic-response-${wires.length}`, object: "chat.completion", model: "deepseek-flash",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: reply } }],
       usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 } });
   });
-  const engine = new WorkloomLLMEngine({ baseUrl: "https://fixture.invalid/v1", apiKey: "fixture-only", model: "deepseek-flash", fetchImpl });
+  const baseUrl = "https://fixture.invalid/v1";
+  const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl, apiKey: "fixture-only", fetchImpl });
+  const engine = new WorkloomLLMEngine({ baseUrl, apiKey: "fixture-only", model: "deepseek-flash", fetchImpl,
+    ...(frozen ? { scene: "preproduction", router: { providers: new Map([[provider.modelId, provider]]), sink: {
+      recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
+    } } } : {}) });
   const generator = new PRDGenerator();
   for (const [name, data] of [["agent2", value.creative], ["agent3", value.production]] as const) {
     Object.assign(generator[name] as object, { _llmEngineLoaded: true,
@@ -87,6 +108,7 @@ function fixture(replies: Reply[]) {
     qualityGatePrototype: unused("run"), deliveryGuardPrototype: unused("verify"), semanticPrototype: unused("_buildPrompt"),
     standardizeShot: standardizer.standardizeShot, validateShot: standardizer.validateShot, fields: standardizer.CRITICAL_FIELDS,
     structuredAgent: { prototype: BaseAgent.prototype, limiter: globalLLMLimiter },
+    sceneDesignPrototype: SceneDesignAgent.prototype as unknown as RequirementRecord,
   };
   cleanups.push(installPrdProductionBridge(dependencies));
   const system = new System();
@@ -108,6 +130,65 @@ function fixture(replies: Reply[]) {
 }
 
 describe("host-bound Studio production with the native SceneDesignAgent", () => {
+  it.each([
+    "corrected", "empty-string", "normal", "null", "unicode-space", "missing-usage", "finish-length",
+    "second-blank", "wrong-order", "duplicate-key", "same-id", "outside-exact-shot-contract", "late-first", "late-second",
+  ] as const)("bounds frozen native SceneDesign blank JSON correction: %s", async mode => {
+    const replies: Reply[] = [];
+    const originalNow = Date.now.bind(Date);
+    let elapsed = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => originalNow() + elapsed);
+    const f = fixture(replies, true, ordinal => {
+      if ((mode === "late-first" && ordinal === 1) || (mode === "late-second" && ordinal === 2)) elapsed = 16_000;
+    });
+    f.agent.setDeadline(originalNow() + 30_000);
+    const nativeShots = f.value.contract.scenes.map(({ id, duration }) => ({ shotId: id, duration, dialogue: "" }));
+    const designs = nativeShots.map(({ shotId }) => ({ shotId, scene: "测试赛道", genre: "action", mood: "专注",
+      action: "清楚的实际动作", makeup: "实际妆容", props: "轮胎墙", emotional_target: "速度感" }));
+    const accepted = JSON.stringify({ shots: designs });
+    const response = (content: string | null, id: string, finish = "stop", measured = true) => Response.json({
+      id, object: "chat.completion", model: "deepseek-flash",
+      choices: [{ index: 0, finish_reason: finish, message: { role: "assistant", content } }],
+      ...(measured ? { usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 } } : {}),
+    });
+    const first = mode === "normal" ? accepted : mode === "empty-string" ? "" : mode === "unicode-space" ? "\u3000"
+      : mode === "null" ? response(null, "synthetic-response-1") : mode === "missing-usage" ? response(" ", "synthetic-response-1", "stop", false)
+        : mode === "finish-length" ? response(" ", "synthetic-response-1", "length") : "    ";
+    const second = mode === "second-blank" ? " " : mode === "wrong-order" ? JSON.stringify({ shots: [...designs].reverse() })
+      : mode === "duplicate-key" ? '{"\\u0073hots":[],' + accepted.slice(1)
+        : mode === "same-id" ? response(accepted, "synthetic-response-1") : accepted;
+    replies.push(first, second);
+    const input = mode === "outside-exact-shot-contract" ? nativeShots.map((shot, index) => index ? shot : { ...shot, duration: 9 })
+      : nativeShots;
+    const original = f.agent._buildPrompt(input, blueprint);
+    const operation = f.run(() => f.agent.process(input, blueprint));
+    if (["corrected", "empty-string", "normal"].includes(mode)) {
+      await expect(operation).resolves.toMatchObject({ degraded: false, shots: designs });
+    } else {
+      await expect(operation).rejects.toThrow(mode === "late-first" ? "PRD_PRODUCTION_MODEL_DEADLINE" : "PRD_PRODUCTION_MODEL_UNVERIFIED");
+    }
+    expect(f.wires).toHaveLength(["corrected", "empty-string", "second-blank", "wrong-order", "duplicate-key", "same-id",
+      "late-second"].includes(mode) ? 2 : 1);
+    const [one, two] = f.wires;
+    const originalWire = one!.messages.at(-1)!.content;
+    expect(originalWire).toContain(f.agent._getSystemPrompt() + "\n\n" + original);
+    expect(originalWire).toContain(f.value.content);
+    expect(originalWire.includes("## 本次场景设计 JSON 自检")).toBe(mode !== "outside-exact-shot-contract");
+    if (two) {
+      const { messages, ...options } = two, { messages: originalMessages, ...originalOptions } = one!;
+      expect(options).toEqual(originalOptions);
+      expect(options.max_tokens).toBe(DEEPSEEK_FLASH_MAX_OUTPUT_TOKENS);
+      expect(messages.slice(0, -1)).toEqual(originalMessages.slice(0, -1));
+      const next = messages.at(-1)!.content;
+      const schemaBoundary = "\n\n【硬性输出要求】";
+      const [before, correction] = next.split("\n\n## 本次场景设计最终 JSON 交付\n");
+      expect(before + correction!.slice(correction!.lastIndexOf(schemaBoundary))).toBe(originalWire);
+      expect(correction).toContain("按原镜号和顺序");
+    }
+    expect(f.fallback).not.toHaveBeenCalled();
+    expect(f.alt).not.toHaveBeenCalled();
+  });
+
   it.each(["malformed", "wrong-shape"])("repairs a settled %s response using the complete original prompt and same schema", async kind => {
     const invalid = kind === "malformed" ? '{"shots":[RAW_BAD_CONTENT_MARKER' : '{"shots":[]}';
     const f = fixture([invalid, good]);

@@ -583,6 +583,31 @@ describe("PRD native generator, two native agent processes and real schema", () 
     }
     expect(requirementRecord(run.generator.agent2, "agent2")).not.toHaveProperty("_lastDiscoveryResult");
   });
+  it("carries the exact frozen Film codec through the native Agent5 result and reviewed G4 markdown", async () => {
+    const value = fixture("NATIVE-AGENT5-FILM-CODEC", [10, 10, 10]), h = harness();
+    requirementRecord(value.metadata.brief, "brief").segmentContract = {
+      count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+      intervals: [0, 10, 20].map(startSec => ({ startSec, endSec: startSec + 10, brief: `冻结分段 ${startSec}` })),
+    };
+    declareDelivery(value, { speechPolicy: "none", coverDelivery: "standalone", coverIntroSeconds: 0,
+      sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: "AI剧情演绎｜封闭赛道",
+      postTailOverlayText: "车型 820RR-RC", postTailOverlaySeconds: 2 });
+    const run = h.make(value);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run);
+      const delivery = requirementRecord(prd.deliveryStandard, "Agent5 交付");
+      expect(delivery.outputFormat).toMatchObject({ videoCodec: "H.264", audioCodec: "AAC", container: "MP4", resolution: "1080p" });
+      expect(delivery.deliverables).toEqual(expect.arrayContaining([
+        expect.objectContaining({ item: "video_master", spec: expect.stringMatching(/^MP4\/H\.264, 1080p; /) }),
+      ]));
+      const markdown = await h.review(run, prd);
+      expect(markdown).toContain("视频编码：H.264");
+      expect(markdown).toContain("**video_master**：MP4/H.264, 1080p;");
+      expect(markdown).not.toContain("H.265");
+      return h.success(prd);
+    });
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+  });
   it("renders a 35s six-scene contract without inapplicable noPropsReason nulls while preserving every canonical field and hash", async () => {
     const value = fixture("DISPLAY-35", [4, 6, 7, 8, 5, 5]);
     (value.metadata.characters as RequirementRecord[])[0]!.nullableCharacterNote = null;
@@ -904,6 +929,27 @@ describe("explicit delivery plans through the real native PRD generator", () => 
 });
 
 describe("G4 executable plans and one native quality policy", () => {
+  it.each([8, 28])("checks an explicit local tail layer schedule starting at %i s against the typed contract", async start => {
+    const value = fixture(`POST-TAIL-CLOCK-${start}`, [10, 10, 10]);
+    const tail = "封闭赛道车型示例";
+    declareDelivery(value, { speechPolicy: "none", subtitleMode: "both", sidecarPolicy: "dialogue-and-composite-ass",
+      persistentSubtitleText: "剧情演绎", postTailOverlayText: tail, postTailOverlaySeconds: 2, openWithCover: false, titleCard: false });
+    const shotClock = `20–30 秒进入维修区停稳、摘盔后下车；最后仅在本地后期核对“${tail}”的净区`;
+    const localClock = `${start}–30 秒在原生画面上由本地后期独立层叠加唯一产品名“${tail}”，只在 28 秒（含）至 30 秒（不含）显示`;
+    value.production.scenePlan.scenes[2]!.visualRequirements = [shotClock, localClock];
+    const h = harness(), run = h.make(value);
+    const checked = withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), markdown = await h.review(run, prd);
+      expect(markdown).toContain(shotClock);
+      expect(markdown).toContain(localClock);
+      expect(markdown).toContain("28–30秒");
+      return h.success(prd);
+    });
+    if (start === 28) await expect(checked).resolves.toMatchObject({ success: true });
+    else await expect(checked).rejects.toMatchObject({ code: "PRD_DELIVERY_INVALID" });
+    expect(value.production.scenePlan.scenes[2]!.visualRequirements).toEqual([shotClock, localClock]);
+  });
+
   it("preserves a compound marketing genre and approved G3 evidence without adopting unrequested named references", async () => {
     const value = fixture("COMMERCIAL-PRD-REFERENCES");
     const upstream = requirementRecord(value.discovery.upstreamFields, "上游主题");
@@ -1160,11 +1206,13 @@ describe("native truth-check preserves verdicts and scopes internal fact use to 
     const { value, raw } = truthFixture(`VISUAL-EXECUTION-${frozen}`, [10, 10, 10]), h = harness();
     const audienceCopy = "UNAPPROVED-AUDIENCE-0.5S：一条另加的台词或字幕";
     const riskCopy = "UNBOUND-320RR：未核验型号不能作为执行限制";
+    const referenceCopy = "G3参考备选：首段末帧主角车头刚越过第一辆对手车后轮";
     const authoredSegments = ["第一段原始动作与声音", "第二段原始动作与声音", "第三段原始动作与声音"];
     Object.assign(requirementRecord(value.discovery.audienceProfile, "audience"), {
       emotionTriggers: [audienceCopy, "另一项模型推测"], contentExpectations: [audienceCopy],
     });
     value.discovery.riskAssessment = { technicalRisks: [], businessConstraints: [riskCopy] };
+    value.discovery.referenceCases = { filmReferences: [], adReferences: [], styleReferences: [referenceCopy] };
     value.discovery._originalStoryText = "用户原创动作：主角在封闭场地观察商品。";
     const unboundNotes = "UNBOUND-G2-NOTES：双语字幕轨，三个场景之间三次硬切";
     Object.assign(requirementRecord(value.discovery.upstreamFields, "upstream"), { special_notes: unboundNotes, tone: "冷酷精密" });
@@ -1210,7 +1258,10 @@ describe("native truth-check preserves verdicts and scopes internal fact use to 
           expect(prompt).not.toContain(audienceCopy);
           expect(prompt).not.toContain(riskCopy);
           expect(prompt).not.toContain(unboundNotes);
+          expect(prompt).not.toContain(referenceCopy);
         }
+        expect(productionPrompt).toContain("未采纳的 G3 风格建议只留在原始审核材料");
+        expect(requirementRecord(prd.referenceCases, "参考案例").styleReferences).toEqual(["具体手法见本次视觉与声音规格"]);
         for (const prompt of [...run.calls.map(call => call.prompt), execution.prompt]) expect(prompt).toContain(value.content);
         const display = requirementRecord(authorityFromMarkdown(markdown).approvedRequirementContract, "display");
         expect(display).not.toHaveProperty("modelAudienceHypothesis");
@@ -1220,6 +1271,8 @@ describe("native truth-check preserves verdicts and scopes internal fact use to 
         expect(creativePrompt).toContain(audienceCopy);
         expect(markdown).toContain(riskCopy);
         expect(markdown).toContain(unboundNotes);
+        expect(markdown).toContain(referenceCopy);
+        expect(run.calls[1]!.prompt).toContain(referenceCopy);
       }
       return h.success(prd);
     });

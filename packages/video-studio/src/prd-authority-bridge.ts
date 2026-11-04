@@ -16,8 +16,10 @@ import { preparePrdPortraitReferenceSelection, verifyPrdPortraitSources } from "
 import { assertNoSpokenPromptPackage } from "./frozen-speech-policy.js";
 import { isNoSpeechDeclaration } from "./dialogue-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
+import { parseStrictSceneJsonObject } from "./scene-json-comma-recovery.js";
 import {
-  nativeBlankJsonCorrected, nativeBlankJsonRouteCurrent, nativeChatJsonObjectCorrected, nativeChatJsonObjectRouteCurrent,
+  nativeBlankJsonCorrected, nativeBlankJsonObjectCorrected, nativeBlankJsonRouteCurrent,
+  nativeChatJsonObjectCorrected, nativeChatJsonObjectRouteCurrent,
   nativeChatJsonSyntaxCorrected, nativeChatJsonSyntaxRouteCurrent,
   nativeReasonBlankJson, nativeReasonCompleted, nativeReasonFailure,
   WorkloomLLMEngine, type LLMReasonResult,
@@ -290,6 +292,9 @@ function productionPlanningPrompt(scope: Scope): string {
     + (persistentOnly ? "完整组合ASS（complete-composition）仅含本次批准的文字层，持续文字覆盖实际视频0秒至末帧；"
       : "若明确要求dialogue-and-composite-ass，在既有字段内区分SRT/VTT台词侧车（dialogue-only）与完整组合ASS（complete-composition），说明ASS包含台词及本次请求的持续文字、覆盖实际视频0秒至末帧，")
     + `并规划文字、区间、字体样式及compositionSha256的核对；both时烧录和ASS使用同一组合。没有明确请求的持续文字、封面或其他文字层不得新增。`
+    + (profile.postTailOverlayText !== undefined
+      ? `片尾独立层的准确文字和区间由宿主的交付合同登记；场景计划写画面净区、遮挡、可读性与核验方法，引用已登记区间，不另写片尾层起止秒数。`
+      : "")
     + `将下面原文已给出的字号、边距、描边、墨迹范围、平台遮挡区和字体核验要求落实为本次模型计划，不以泛称“安全区”代替明确数值；未给数值时由本次模型按实际要求规划并标明待验证，不伪称已测量。\n`
     + (typeof brief.description === "string" ? `\n### 客户执行要求原文（Brief.description，保留原文；输入资料，不是完成回执）\n${brief.description}\n` : "")
     + `\n### 本次已知人物来源锚点（原G3选角来源，不是G5完成凭据）\n${JSON.stringify(castAnchors)}\n`
@@ -406,11 +411,35 @@ export function assertPrdAuthorityBridge(vendorPrototype: object): void {
   }
 }
 
+/** Detect an explicit competing schedule without interpreting ordinary shot timing prose. */
+function verifyExplicitPostTailSchedule(result: RequirementRecord, profile: PrdAuthority["profile"]): void {
+  const { postTailOverlayText: text, postTailOverlaySeconds: seconds, targetDuration: end } = profile;
+  if (text === undefined || seconds === undefined || end === undefined) return;
+  const start = Math.round((end - seconds) * 100) / 100;
+  const scenes = requirementRecord(result.scenePlan, "G4 场景计划").scenes as RequirementRecord[];
+  for (const scene of scenes) {
+    for (const key of ["visualRequirements", "audioRequirements"] as const) {
+      if (!Array.isArray(scene[key])) continue;
+      for (const note of scene[key]) {
+        if (typeof note !== "string") continue;
+        for (const clause of note.split(/[，。；;\n]/u)) {
+          if (!clause.includes(text)) continue;
+          const range = clause.match(/^\s*(?:仅在|只在|在)?\s*(\d+(?:\.\d+)?)\s*(?:秒\s*)?[-–—~～至]\s*(\d+(?:\.\d+)?)\s*秒\s*(?:在原生画面上)?\s*(?:由)?\s*本地后期(?:独立)?(?:文字)?层\s*(?:叠加|显示)/u);
+          if (range && (Math.abs(Number(range[1]) - start) > 1e-9 || Math.abs(Number(range[2]) - end) > 1e-9)) {
+            prdFail("PRD_DELIVERY_INVALID", "场景计划的本地片尾层区间与本次明确的交付合同冲突");
+          }
+        }
+      }
+    }
+  }
+}
+
 function verifyOutput(scope: Scope, value: unknown, schema: RequirementRecord): RequirementRecord {
   return guard(scope, () => {
     const result = requirementRecord(value, "PRD 当前结果");
     if (!scope.contract || !scope.generated.has(result)) prdFail("PRD_RESULT_UNBOUND", "PRD 不属于本次真实生成调用");
     validatePrdProduction(result, scope.contract, scope.authority.profile);
+    verifyExplicitPostTailSchedule(result, scope.authority.profile);
     validatePrdDelivery(result, scope.authority.profile, schema);
     const quality = scope.quality.get(result);
     const constraints = requirementRecord(result.productionConstraints, "PRD 制作约束");
@@ -551,11 +580,15 @@ export function installPrdAuthorityBridge(
       const visualSegments = frozenVisualDiscoveryView(scope, discovery, contract);
       const tone = visualSegments ? requirementRecord(discovery.upstreamFields, "本次 G3 上游字段").tone : undefined;
       const references = marketingPrdReferenceView(discovery.referenceCases, scope.authority.metadata);
-      if (references) discovery.referenceCases = references;
+      // The original G3 review retains discovery advice. Its free text can
+      // combine style with new action timings and cut positions; only the
+      // approved contract and frozen brief supply execution for these shots.
+      if (references) discovery.referenceCases = visualSegments ? { ...references, styleReferences: [] } : references;
       const promptContext = prdAuthorityPrompt(scope.authority, contract)
         + (scope.truth ? `\n\n本次规则事实边界（仅作内部限制，不是创意任务；完整原件不变）：\n${JSON.stringify(scope.truth.constraints)}\n` : "")
         + (visualSegments ? `\n\n## 本次无对白制作采用边界\n`
           + `完整 G3 原件中的 modelAudienceHypothesis 仅供审计；禁止采用其固定短句、额外动作或推测数值作为剧情、台词、字幕、时间节点或制作约束。`
+          + `未采纳的 G3 风格建议只留在原始审核材料；用客户原文和已审 G2/G3 场景来决定摄影与声音，不把参考当作另一套动作或剪辑指令。`
           + `实际创意动作顺序、时长与连续性来自本次 ${visualSegments.count} 个已审场景及客户冻结段。每段是一个 ${visualSegments.secondsPerSegment} 秒的生成镜头，整片只有相邻两段之间共 ${visualSegments.count - 1} 处硬切；段内机位变化不计作剪辑或额外生成镜头。`
           + `情绪弧线选择与这些现有节点可逐项对应的枚举，段内情绪变化仍是原场景的一部分。出现产品名或型号时直接复制已接受 G1 对应身份，不改写字符。`
           + `全片保留客户要求的原生环境和动作声，无可辨识人声。不增加双语轨。已声明的持续标识保留至末帧；如声明了独立片尾文字，只在声明的结尾区间本地后期叠加，禁止放在生成画面、前段或片头。P0 等导演内部要求也要分别说明两个适用区间，不得用“后期只叠加产品名”覆盖已声明的持续标识。\n` : "");
@@ -623,7 +656,7 @@ export function installPrdAuthorityBridge(
             return guard(scope, () => {
               check(scope);
               if (!constraintResult || args[3] !== constraintResult) prdFail("PRD_QUALITY_INVALID", "Agent5 未消费本次真实 Agent4 结果");
-              const result = authoritativeDelivery(Reflect.apply(process, this, args), scope.authority.profile);
+              const result = authoritativeDelivery(Reflect.apply(process, this, args), scope.authority.profile, scope.authority);
               validatePrdDelivery(result, scope.authority.profile, schema);
               if (!qualityPolicy || !qualityPolicy.fallbackTrigger) prdFail("PRD_QUALITY_INVALID", "原生 Agent5 未产生完整统一阈值与降级预案");
               return result;
@@ -1036,6 +1069,7 @@ interface ProductionDependencies {
   systemPrototype: RequirementRecord;
   productionPrototype: RequirementRecord;
   phase1Prototype: RequirementRecord;
+  sceneDesignPrototype?: RequirementRecord;
   refinerPrototype: RequirementRecord;
   costumePrototype: RequirementRecord;
   fieldGuardPrototype: RequirementRecord;
@@ -1144,6 +1178,8 @@ function retiredTitleIssue(value: string): boolean {
 }
 
 const FUSION_BLANK_JSON_CORRECTION = "## 本镜头最终 JSON 交付\n完成必要推理后，把完整结果写入最终答复，只输出一个合法 JSON 对象。严格保留上文原始镜头、镜头编号、全部字段、时长、事实与制作约束。按同一结构正确转义字符串中的引号和换行。不要输出 Markdown、解释、占位符或省略号。";
+const SCENE_DESIGN_JSON_PRESENTATION = "## 本次场景设计 JSON 自检\n最终答复只输出一个非空的完整 JSON 对象。按原镜号和顺序写满 shots 数组，核对引号、逗号、括号和全部必需字段。";
+const SCENE_DESIGN_BLANK_JSON_CORRECTION = "## 本次场景设计最终 JSON 交付\n完成必要推理后，把完整设计写入最终答复，只输出一个合法且非空的 JSON 对象。按原镜号和顺序逐镜返回全部字段，保留原动作、时长、人物、连续性与已审约束。不要输出 Markdown、解释、占位符或省略号。";
 
 function exactFusionCorrection(value: unknown, schema: unknown, shotId: string): boolean {
   const object = (data: unknown) => data !== null && typeof data === "object" && !Array.isArray(data) ? data as RequirementRecord : undefined;
@@ -1331,6 +1367,29 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   // semantic refinement share the receiver but cannot inherit another slot.
   const primaryFusion = new AsyncLocalStorage<{ scope: Scope; receiver: RequirementRecord; shotId: string; started: boolean }>();
   const blankCorrectionUsed = new WeakSet<Scope>(); // one blank correction per approved run
+  const sceneDesignPrototype = deps.sceneDesignPrototype;
+  const sceneDesignValidator = sceneDesignPrototype && Object.getOwnPropertyDescriptor(sceneDesignPrototype, "_validateSchema");
+  const primarySceneDesign = new AsyncLocalStorage<{
+    scope: Scope; receiver: RequirementRecord; shotIds: string[]; started: boolean;
+  }>();
+  const sceneDesignBlankCorrectionUsed = new WeakSet<Scope>();
+  if (structuredAgent && sceneDesignPrototype) {
+    if (typeof sceneDesignValidator?.value !== "function") prdFail("PRD_VENDOR_UNAVAILABLE", "原生场景设计校验器不可用");
+    add(sceneDesignPrototype, "process", original => function (shots, ...args) {
+      const scope = productionScope(this, false);
+      const run = () => Reflect.apply(original, this, [shots, ...args]);
+      if (!scope || scope.g4Decision !== "approved" || scope.authority.profile.speechPolicy !== "none"
+        || Object.getPrototypeOf(this) !== sceneDesignPrototype || !Array.isArray(shots)) return run();
+      return guard(scope, () => {
+        check(scope);
+        const cuts = frozenCuts(scope), scenes = scope.contract?.scenes;
+        if (!cuts || !scenes || scenes.length !== cuts.count || shots.length !== scenes.length
+          || !shots.every((shot, i) => shot?.shotId === scenes[i]!.id && shot.duration === scenes[i]!.duration
+            && shot.duration === cuts.secondsPerSegment)) return run();
+        return primarySceneDesign.run({ scope, receiver: this, shotIds: scenes.map(scene => scene.id), started: false }, run);
+      });
+    });
+  }
   if (structuredAgent) add(fusionPrototype, "_fuseSingleShot", original => function (shotValue, ...args) {
     const scope = productionScope(this, false);
     const run = () => Reflect.apply(original, this, [shotValue, ...args]);
@@ -1365,9 +1424,13 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       if (typeof prompt !== "string" || typeof systemPrompt !== "string") {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 缺少完整原生提示词`);
       }
-      const fullPrompt = `${systemPrompt}\n\n${prompt}`;
       const validate = method(this, "_validateSchema");
       const options = requirementRecord(optionsValue, "制作模型调用配置");
+      const sceneCall = primarySceneDesign.getStore();
+      const sceneDesign = sceneCall?.scope === scope && sceneCall.receiver === this && !sceneCall.started ? sceneCall : undefined;
+      if (sceneDesign) sceneDesign.started = true;
+      const schemaDigest = sceneDesign ? requirementHash(schema) : undefined;
+      const fullPrompt = `${systemPrompt}\n\n${prompt}${sceneDesign ? "\n\n" + SCENE_DESIGN_JSON_PRESENTATION : ""}`;
       const fusion = primaryFusion.getStore();
       const primary = fusion?.scope === scope && fusion.receiver === this && !fusion.started ? fusion : undefined;
       if (primary) primary.started = true;
@@ -1380,12 +1443,13 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       const callTimeout = options.fastMode && typeof options.fastTimeoutMs === "number"
         ? Math.min(requestedTimeout, Math.max(options.fastTimeoutMs, ceiling * 0.3))
         : requestedTimeout;
+      const sceneDeadline = Math.min(deadline, now + callTimeout);
       const maxAttempts = Number(options.maxRetries ?? this.llmMaxRetries);
       if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 未获制作调用次数`);
       }
-      const remaining = () => {
-        const ms = Math.floor(Math.min(callTimeout, deadline - Date.now()));
+      const remaining = (limit = deadline) => {
+        const ms = Math.floor(Math.min(callTimeout, limit - Date.now()));
         if (!Number.isFinite(ms) || ms < 5_000) prdFail("PRD_PRODUCTION_MODEL_DEADLINE", `${name} 制作调用剩余时间不足`);
         return ms;
       };
@@ -1394,36 +1458,59 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         if (scope.system?.llmEngine !== engine || !WorkloomLLMEngine.supportsStructuredReviewProof(engine)) {
           prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 宿主模型身份已变化`);
         }
+        if (sceneDesign && (Object.getPrototypeOf(this) !== sceneDesignPrototype || this._validateSchema !== validate
+          || !sceneDesignPrototype || !sceneDesignValidator || validate !== sceneDesignValidator.value
+          || !descriptorEqual(Object.getOwnPropertyDescriptor(sceneDesignPrototype, "_validateSchema"), sceneDesignValidator)
+          || requirementHash(schema) !== schemaDigest)) {
+          prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", "原生场景设计校验器或本次镜头结构已变化");
+        }
       };
-      const invoke = (text: string, originalBlank?: LLMReasonResult) => structuredAgent.limiter.withLimit(async () => {
+      const invoke = (text: string, originalBlank?: LLMReasonResult, limit = deadline) => structuredAgent.limiter.withLimit(async () => {
         checkEngine();
         if (originalBlank && !nativeBlankJsonRouteCurrent(engine, originalBlank)) {
           prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 空 JSON 修正的原生模型路径已变化`);
         }
-        const timeoutMs = remaining();
+        const timeoutMs = remaining(limit);
         const response = await engine.reasonStructured(text, schema, { timeoutMs, signal: AbortSignal.timeout(timeoutMs) });
         checkEngine();
         return response;
-      }, remaining());
+      }, remaining(limit));
       const valid = (value: unknown) => requirementRecord(Reflect.apply(validate, this, [value, schema]), "原生制作响应校验").valid === true;
       const first = await invoke(fullPrompt);
       const completed = nativeReasonCompleted(first);
-      const blank = primary && options.critical === true && !first.success && !completed && nativeReasonBlankJson(first) ? primary : undefined;
+      const blank = (primary || sceneDesign) && options.critical === true && !first.success && !completed && nativeReasonBlankJson(first);
+      const sceneBlank = blank ? sceneDesign : undefined;
       if (!completed && !blank) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 未取得已完成且有计量的原生模型回复`);
       }
-      if (first.success && valid(first.data)) return { result: first.data, degraded: false, degradeReason: null, attempts: 1 };
-      if (maxAttempts < 2 || (blank ? blankCorrectionUsed.has(scope) : !first.success && nativeReasonFailure(first) !== "json-syntax")) {
+      const strictObject = (answer: LLMReasonResult) => {
+        const parsed = typeof answer.content === "string" ? parseStrictSceneJsonObject(answer.content) : undefined;
+        return parsed !== undefined && requirementHash(parsed) === requirementHash(answer.data);
+      };
+      if (first.success && valid(first.data)) {
+        if (sceneDesign && !strictObject(first)) prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", "原生场景设计正文未通过严格 JSON 校验");
+        return { result: first.data, degraded: false, degradeReason: null, attempts: 1 };
+      }
+      const used = sceneBlank ? sceneDesignBlankCorrectionUsed : blankCorrectionUsed;
+      if (maxAttempts < 2 || (blank ? used.has(scope) : !first.success && nativeReasonFailure(first) !== "json-syntax")) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 的原生制作响应未通过校验`);
       }
-      if (blank) blankCorrectionUsed.add(scope);
+      if (blank) used.add(scope);
       const correction = first.success ? "原回复缺失或不符合目标字段结构。" : "原回复不是合法 JSON。";
-      const instruction = blank ? FUSION_BLANK_JSON_CORRECTION
+      const instruction = sceneBlank ? SCENE_DESIGN_BLANK_JSON_CORRECTION : blank ? FUSION_BLANK_JSON_CORRECTION
         : `## 完整结构修正\n${correction}重新按上文完整任务和同一目标结构生成一次完整 JSON。保留每个镜头、事实与约束；不要引用原错误内容，不要缩减任务或字段。`;
-      const second = await invoke(`${fullPrompt}\n\n${instruction}`, blank ? first : undefined);
+      const second = await invoke(`${fullPrompt}\n\n${instruction}`, blank ? first : undefined, sceneBlank ? sceneDeadline : deadline);
       if (!nativeReasonCompleted(second) || !second.success || !valid(second.data)
-        || (blank && (!nativeBlankJsonCorrected(first, second) || !exactFusionCorrection(second.data, schema, blank.shotId)))) {
+        || (sceneDesign && !sceneBlank && !strictObject(second))
+        || (blank && primary && (!nativeBlankJsonCorrected(first, second) || !exactFusionCorrection(second.data, schema, primary.shotId)))) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 的一次完整结构修正未通过校验`);
+      }
+      if (sceneBlank) {
+        const correctedShots = (second.data as { shots: Array<{ shotId: string }> }).shots;
+        if (Date.now() >= sceneDeadline || !nativeBlankJsonObjectCorrected(first, second)
+          || correctedShots.some((shot, i) => shot.shotId !== sceneBlank.shotIds[i])) {
+          prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", "场景设计的原生空 JSON 修正未通过本次镜头合同");
+        }
       }
       return { result: second.data, degraded: false, degradeReason: null, attempts: 2 };
     });
@@ -1859,6 +1946,7 @@ export function installVendorPrdProductionBridge(constructor: { prototype: objec
     return installPrdProductionBridge({ systemPrototype: requirementRecord(constructor.prototype, "受控 system prototype"),
       productionPrototype: load("engines/production-engine/production-engine.js", "ProductionEngine"),
       phase1Prototype: load("engines/production-engine/phases/phase-1-scene-design.js", "Phase1SceneDesign"),
+      sceneDesignPrototype: load("engines/production-engine/agents/scene-design-agent.js", "SceneDesignAgent"),
       refinerPrototype: load("engines/production-engine/agents/field-content-refiner.js", "FieldContentRefiner"),
       costumePrototype: load("engines/character-system/character-costume-prompter.js", "CharacterCostumePrompter"),
       fieldGuardPrototype: load("engines/field-guard.js", "FieldGuard"),
