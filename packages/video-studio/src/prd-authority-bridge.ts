@@ -12,7 +12,7 @@ import {
   validatePrdDelivery, validatePrdModelPayload, validatePrdProduction, type PrdAuthority
 } from "./prd-authority.js";
 import { marketingPrdReferenceView, normalizeMarketingPrdContract } from "./marketing-prd-contract.js";
-import { verifyPrdPortraitSources } from "./prd-portrait-source.js";
+import { preparePrdPortraitReferenceSelection, verifyPrdPortraitSources } from "./prd-portrait-source.js";
 import { assertNoSpokenPromptPackage } from "./frozen-speech-policy.js";
 import { isNoSpeechDeclaration } from "./dialogue-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
@@ -1006,6 +1006,7 @@ export function bindApprovedPrdPortraitSelection(prompts: RequirementRecord[]): 
       || requirementHash(scope.reviewedContent) !== scope.portraitReviewArtifactHash) {
       prdFail("PRD_REVIEW_UNVERIFIED", "定妆参考选择尚未进入本次批准的 G4 审核材料");
     }
+    preparePrdPortraitReferenceSelection(selection, scope.authority.portraitSources ?? []);
     verifyPrdPortraitSources(scope.authority.portraitSources);
     const scenes = scope.contract.scenes;
     const shotIds = prompts.map(shot => String(shot.shotId ?? shot.shot_id ?? ""));
@@ -1248,7 +1249,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       return { result: second.data, degraded: false, degradeReason: null, attempts: 2 };
     });
   });
-  const inspect = (shotsValue: unknown, context: unknown, noTitle: boolean) => {
+  const inspect = (shotsValue: unknown, context: unknown, noTitle: boolean, bindLayer2Portraits = false) => {
     if (!Array.isArray(shotsValue) || shotsValue.length === 0) prdFail("PRD_PRODUCTION_INVALID", "制作镜头必须为非空数组");
     const shots = (shotsValue as unknown[]).map(value => {
       const raw = requirementRecord(value, "当前制作镜头"), normalized = standardizeShot(raw);
@@ -1267,9 +1268,20 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       if (Object.hasOwn(raw, "fields")) shot.fields = structuredClone(raw.fields);
       if (typeof raw.prompt === "string") shot.prompt = raw.prompt;
       if (typeof raw.sceneType === "string") shot.sceneType = raw.sceneType;
+      if (bindLayer2Portraits) {
+        const rawId = raw.shotId ?? raw.shot_id;
+        if (typeof rawId !== "string" || rawId !== shot.shotId
+          || (Object.hasOwn(raw, "shotId") && Object.hasOwn(raw, "shot_id") && raw.shotId !== raw.shot_id)) {
+          prdFail("PRD_SCENE_UNVERIFIED", "字段标准化改变了本次冻结镜头的身份，或原始镜号存在冲突");
+        }
+      }
       shot._context = context;
       return shot;
     });
+    // The complete Layer2 shot array is the first strict field check. Apply
+    // the approved candidates after vendor normalization, which can duplicate
+    // references. G6 still binds the separate prompt array and verifies copies.
+    if (bindLayer2Portraits) bindApprovedPrdPortraitSelection(shots);
     const details = shots.map(shot => {
       const native = validateShot(shot);
       const missing = fields.filter(key => !(key === "dialogue" && (shot.dialogueFree === true
@@ -1579,7 +1591,10 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, [shots, context, ...args]);
     return guard(scope, () => {
       check(scope);
-      const result = inspect(shots, context, true);
+      const bindLayer2Portraits = key === "normalizeAndValidate" && context === "Layer2-Production"
+        && scope.authority.profile.speechPolicy === "none"
+        && scope.authority.portraitReferenceSelection?.angles.length === 2 && frozenCuts(scope) !== undefined;
+      const result = inspect(shots, context, true, bindLayer2Portraits);
       if (key !== "check" && !result.report.passed) {
         const error = new Error(`PRD_PRODUCTION_FIELDS_INVALID: ${result.report.errors.join("; ")}`);
         Object.assign(error, { report: result.report });
