@@ -524,17 +524,18 @@ function approvedExecutionChecks(
       // an entire pass completed as soon as the two vehicle noses cross.
       const partial = /(?:车头|前轮)[^。；\n]{0,18}(?:越过|超过|领先于)[^。；\n]{0,16}(?:对手|对方)[^。；\n]{0,8}(?:车头|前轮)\s*[，,]?\s*(?:就|即|形成|取得|标志|完成)[^。；\n]{0,26}(?:领先|超越|超车)/u;
       const complete = /(?:整车|全车|整个(?:车身|车体)|车尾)[^。；\n]{0,24}(?:越过|超过|领先|脱离)|(?:拉开|领先)[^。；\n]{0,9}(?:一个|半个|[0-9.]+个)?车身/u;
+      const shoulderEndsPass = /(?:肩线|肩部)[^。；，\n]{0,12}(?:越过|超过)[^。；，\n]{0,16}(?:对手|对方)(?:的|车)?前轮\s*[，,]\s*(?:(?:即|就|便|随即)\s*)?(?:完成|形成|取得)[^。；\n]{0,40}(?:完全领先|完整超(?:车|越)|第[一二]次超车)/u;
       const endsAtNose = distinctRivalPassEndsAtNose(interval.brief, raw, field, interval.endSec - interval.startSec)
         ?? (partial.test(raw) && !complete.test(raw));
-      if (endsAtNose) findings.push({ id, field, pass: false, failureCode: "APPROVED_FULL_PASS_NOT_VISIBLE",
-        evidence: "本镜把前轮或车头越过对手车头直接当作已完成超越，未体现整个车身已经越过。",
+      if (endsAtNose || shoulderEndsPass.test(raw)) findings.push({ id, field, pass: false, failureCode: "APPROVED_FULL_PASS_NOT_VISIBLE",
+        evidence: "本镜把前轮、车头或肩线越过对手的部分位置直接当作已完成超越，未体现整个车身已经越过。",
         repair: "保留已审超车顺序、每辆车的身份与先冲线后减速。在本字段写清可见的从后追近、并排、整车越过及领先车位，不改变时长或剪辑。" });
     }
   }
 
   const transition = fieldValueFromSource(source, "transition");
   const explicit = typeof transition === "string"
-    ? [...transition.matchAll(/(?:^|[，；。])\s*硬切\s*(?:[，、,:：]\s*|(?:过渡|持续|耗时|用时|时长)\s*(?:为|[:：])?\s*)(\d+(?:\.\d+)?)\s*(?:秒|帧)/gu)] : [];
+    ? [...transition.matchAll(/(?:^|[，；。])\s*硬切(?:进入|切入|接入|入镜|转场)?\s*(?:[，、,:：]\s*)?(?:(?:过渡|持续|耗时|用时|时长)\s*(?:为|[:：])?\s*)?(\d+(?:\.\d+)?)\s*(?:秒|帧)(?=\s*(?:$|[，、,；;。.]|\n))/gu)] : [];
   if (explicit.some(([, duration]) => Number(duration) > 0)) {
     findings.push({ id: "SQ5_PURPOSE", field: "transition", pass: false, failureCode: "TRANSITION_DURATION_BREAKS_HARDCUT",
       evidence: "转场字段把已审硬切写成正时长过渡。", repair: "保留已审切点、落幅和相邻位置，写成无过渡时长的直接硬切。" });
