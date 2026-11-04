@@ -20,8 +20,11 @@ const TIMELINE_DENSITY = "TIMELINE_ACTION_DENSITY_EXCEEDS_DURATION";
 const HELMET_HANDOFF = "HELMET_HANDOFF_CONFLICTS_WITH_TROPHY";
 const MISSING_ACTION_HANDOFF = "ACTION_PROP_HANDOFF_MISSING";
 const MISSING_TIMELINE_HANDOFF = "TIMELINE_PROP_HANDOFF_MISSING";
+const ACTION_ARM_CUSTODY_UNCLEAR = "ACTION_HELMET_CUSTODY_ARM_UNCLEAR";
+const TIMELINE_ARM_CUSTODY_UNCLEAR = "TIMELINE_HELMET_CUSTODY_ARM_UNCLEAR";
 const UNUSABLE_TIMELINE_CLOCK = "APPROVED_MOTION_TIMELINE_CLOCK_UNUSABLE";
-const HELMET_FINDINGS = new Set([HELMET_HANDOFF, MISSING_ACTION_HANDOFF, MISSING_TIMELINE_HANDOFF]);
+const HELMET_FINDINGS = new Set([HELMET_HANDOFF, MISSING_ACTION_HANDOFF, MISSING_TIMELINE_HANDOFF,
+  ACTION_ARM_CUSTODY_UNCLEAR, TIMELINE_ARM_CUSTODY_UNCLEAR]);
 const ENDING_CAMERA_CHEST = "APPROVED_ENDING_CAMERA_CHEST_BEFORE_ACTION";
 const ENDING_CAMERA_HELMET = "APPROVED_ENDING_CAMERA_HELMET_WINDOW_SPILLS";
 const ENDING_CAMERA_PODIUM = "APPROVED_ENDING_CAMERA_PODIUM_BEFORE_ACTION";
@@ -194,6 +197,51 @@ function trophyHandWithHelmetSupport(value: unknown): "左" | "右" | undefined 
   return matches.length === 1 ? matches[0]!.trophy : undefined;
 }
 
+type Arm = NonNullable<SemanticQualityCheck["helmetCustodyArm"]>;
+const HELMET_PROP_STATUS = /(?:头盔|全盔)[（(]([^（）()]{1,80})[）)]/gu;
+const ARM_CUSTODY = /(?:头盔|全盔|盔)(?:夹在|夹稳在|夹紧在|稳夹在|固定在)([左右])(?:臂弯|臂|肘侧|肘弯|腋下)/gu;
+const ARM_NEGATION = /(?:未(?:曾|能)?|不(?:再|会|能|可|许|要|得)?|无须)(?=\s*(?:把|将)?(?:头盔|全盔|盔)?(?:夹(?:在|稳|紧)|固定在))/gu;
+const TROPHY_HAND = /([左右])手[^，。；、]{0,12}?(?:取(?:起|下)?|拿(?:起|下)?|拾起|捧起|托起|举起?)[^，。；、]{0,16}(?:奖杯|杯)/gu;
+const HELMET_OTHER_CUSTODY = /(?:持着|抱着|握住|拿着|提着|挂着|交给|递给|放下)(?:头盔|全盔|盔)|(?:头盔|全盔|盔)[^，。；、]{0,12}(?:夹|抱|持|握|拿着|提着|交给|递给|放下|放到|放在|安放|搁|挂|置于|换手|固定在)/u;
+
+function propHelmetArm(props: unknown, authority: readonly unknown[], approvedProps: readonly { name?: unknown; description?: unknown }[]): Arm | undefined {
+  const approvedHelmets = approvedProps.filter(prop => typeof prop?.name === "string" && /头盔|全盔/u.test(prop.name));
+  if (typeof props !== "string" || approvedHelmets.length !== 1) return undefined;
+  const statuses = [...props.matchAll(HELMET_PROP_STATUS)];
+  if (statuses.length !== 1) return undefined;
+  const [prop, status] = statuses[0]!;
+  const match = /^(?:被)?双手(?:从头顶)?(?:抬离|摘下)后夹在([左右])臂(?:弯)?$/u.exec(status!);
+  if (!match || !affirmativeMotion(props).includes(prop)
+    || /或者|或(?:把|将|夹|放|置|挂|[左右](?:臂|手))/u.test(props)
+    || HELMET_OTHER_CUSTODY.test(props.replace(prop, ""))) return undefined;
+  const arm = match[1] as Arm;
+  // This new binding only fills in a compatible execution detail. Explicit
+  // custody choreography in the frozen or approved source keeps its own gate.
+  const constrained = [...authority, approvedHelmets[0]!.description].some(value => typeof value === "string"
+    && (HELMET_RELEASED.test(value) || HELMET_HELD.test(value) || HELMET_OTHER_CUSTODY.test(value)
+      || BOTH_HANDS_ON_TROPHY.test(affirmativeMotion(value))
+      || [...value.matchAll(TROPHY_HAND)].some(match => match[1] === arm)));
+  return constrained ? undefined : arm;
+}
+
+function keepsArmForOppositeHand(value: unknown, arm: Arm): boolean {
+  if (typeof value !== "string" || UNRESOLVED_OPTION.test(value) || /或(?:是|[左右](?:臂|肘|腋|手))/u.test(value)) return false;
+  const text = affirmativeMotion(value.replace(ARM_NEGATION, "禁止"));
+  const removal = REMOVE_HELMET.exec(text);
+  if (!removal) return false;
+  const afterRemoval = text.slice(removal.index + removal[0].length);
+  const take = TAKE_TROPHY.exec(afterRemoval);
+  if (!take || BOTH_HANDS_ON_TROPHY.test(afterRemoval)) return false;
+  const supports = [...afterRemoval.matchAll(ARM_CUSTODY)];
+  if (!supports.length || supports[0]!.index >= take.index || supports.some(match => match[1] !== arm)
+    || HELMET_RELEASED.test(afterRemoval) || HELMET_HELD.test(afterRemoval)
+    || HELMET_OTHER_CUSTODY.test(afterRemoval.replace(ARM_CUSTODY, ""))
+    || /换手|改由|松开|放下/u.test(afterRemoval.slice(supports[0]!.index))) return false;
+  const hands = [...afterRemoval.matchAll(TROPHY_HAND)];
+  return hands.every(match => match[1] !== arm)
+    && hands.some(match => match.index <= take.index && match.index + match[0].length >= take.index + take[0].length);
+}
+
 export function isApprovedMotionFinding(check: SemanticQualityCheck): boolean {
   return check.failureCode === TIMELINE_DENSITY || check.failureCode === UNUSABLE_TIMELINE_CLOCK
     || check.failureCode === ENDING_CAMERA_CHEST || check.failureCode === ENDING_CAMERA_HELMET
@@ -217,6 +265,8 @@ function nativeHelmetCustodyFinding(check: SemanticQualityCheck): boolean {
 export function approvedMotionObligations(input: {
   frozenBrief: unknown; approvedActions: readonly { actorId?: unknown; description?: unknown }[];
   action: unknown; timeline: unknown; cameraMovement?: unknown; duration: number; nativeChecks?: readonly SemanticQualityCheck[];
+  props?: unknown; approvedProps?: readonly { name?: unknown; description?: unknown }[];
+  approvedPurpose?: unknown; approvedVisualRequirements?: readonly unknown[];
 }): SemanticQualityCheck[] {
   const people = input.approvedActions.filter(row => typeof row?.actorId === "string" && row.actorId && !row.actorId.startsWith("$"));
   if (new Set(people.map(row => row.actorId)).size !== 1) return [];
@@ -238,6 +288,9 @@ export function approvedMotionObligations(input: {
 
   const timelineMotion = timedAction(input.timeline);
   const action = handoff(input.action), timeline = handoff(timelineMotion);
+  const arm = input.nativeChecks?.some(check => !check.pass && check.field === "props") ? undefined
+    : propHelmetArm(input.props, [input.frozenBrief, input.approvedPurpose, ...people.map(row => row.description),
+      ...(input.approvedVisualRequirements ?? [])], input.approvedProps ?? []);
   const linked = input.nativeChecks?.some(nativeHelmetCustodyFinding) === true;
   if (linked && (typeof input.timeline !== "string" || !completeLocalClock(localWindows(input.timeline), input.duration))) {
     findings.push({ id: "SQ3_CAMERA_FEASIBLE", pass: false, field: "timeline", failureCode: UNUSABLE_TIMELINE_CLOCK,
@@ -245,6 +298,15 @@ export function approvedMotionObligations(input: {
       repair: "保留本镜原时长与切点，用连续的段内时间窗写清已审动作和头盔实际交接。" });
   }
   for (const [field, state] of [["action", action], ["timeline", timeline]] as const) {
+    if (arm) {
+      if (!keepsArmForOppositeHand(field === "action" ? input.action : timelineMotion, arm)) {
+        findings.push({ id: "SQ2_SCENE_PROPS", pass: false, field, helmetCustodyArm: arm,
+          failureCode: field === "action" ? ACTION_ARM_CUSTODY_UNCLEAR : TIMELINE_ARM_CUSTODY_UNCLEAR,
+          evidence: `只读道具已明确摘下的全盔夹在${arm}臂；本字段没有一致落实同一支撑及对侧单手自取奖杯。`,
+          repair: `保留${arm}臂夹盔，在本字段写明由对侧手单独取杯并举杯，保持已审顺序。` });
+      }
+      continue;
+    }
     if (state === "held") findings.push({ id: "SQ2_SCENE_PROPS", pass: false, field, failureCode: HELMET_HANDOFF,
       evidence: "本字段明确写了摘下后仍持盔，接着双手举杯，未交代盔如何稳妥安置或双手如何腾出。",
       repair: "写清从持盔到双手取杯之前的可拍交接，并与另一字段及本镜已审动作顺序一致；不增加角色、段落或总时长。" });
@@ -296,9 +358,13 @@ export function approvedMotionRepairDrift(input: {
     }
   }
   const timeline = timedAction(input.timeline);
+  const arm = input.findings.find(check => check.helmetCustodyArm)?.helmetCustodyArm;
+  if (arm && (!keepsArmForOppositeHand(input.action, arm) || !keepsArmForOppositeHand(timeline, arm))) {
+    return "APPROVED_MOTION_HELMET_REPAIR_DRIFT";
+  }
   const actionTrophyHand = trophyHandWithHelmetSupport(input.action), timelineTrophyHand = trophyHandWithHelmetSupport(timeline);
   const missingHandoff = input.findings.some(check => {
-    if (check.failureCode === undefined || !HELMET_FINDINGS.has(check.failureCode)) return false;
+    if (check.helmetCustodyArm || check.failureCode === undefined || !HELMET_FINDINGS.has(check.failureCode)) return false;
     const field = check.field === "action" ? input.action : timeline;
     return handoff(field) !== "secured";
   });

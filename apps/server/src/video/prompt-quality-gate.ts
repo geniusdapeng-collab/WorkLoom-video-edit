@@ -79,6 +79,8 @@ export interface SemanticQualityCheck {
   failureCode?: string;
   evidence: string;
   repair?: string;
+  /** Issued by the verified host check, never parsed from model output. */
+  helmetCustodyArm?: "左" | "右";
 }
 export interface SemanticQualityReview {
   shotId: string;
@@ -111,6 +113,7 @@ interface SemanticRepairContext extends SemanticReviewContext {
   findings: SemanticQualityCheck[];
   allowedFields: string[];
   helmetCustodyFields?: ReturnType<typeof approvedHelmetCustodyFields>;
+  helmetCustodyArm?: SemanticQualityCheck["helmetCustodyArm"];
   finalPromptLength?: FinalPromptLength;
   finalPromptFieldBudget?: FinalPromptFieldBudget;
 }
@@ -491,7 +494,7 @@ function approvedExecutionChecks(
   if (!hasCurrentG4Shot(upstream, shotId)) return findings;
   const plan = upstream!.approvedProductionPlan as { scenes: Array<{
     shotId: string; interval?: { startSec?: unknown; endSec?: unknown; brief?: unknown };
-    approvedScene: { purpose?: unknown; actions: Array<{ actorId?: unknown; description?: unknown } | null> };
+    approvedScene: { purpose?: unknown; actions: Array<{ actorId?: unknown; description?: unknown } | null>; props?: unknown };
     verificationPlan: { visualRequirements: unknown[] };
   }> };
   const scene = plan.scenes.find(scene => scene?.shotId === shotId)!;
@@ -502,6 +505,9 @@ function approvedExecutionChecks(
   findings.push(...approvedMotionObligations({ frozenBrief: interval.brief, approvedActions: scene.approvedScene.actions.filter(action => action !== null),
     action: fieldValueFromSource(source, "action"), timeline: fieldValueFromSource(source, "timeline"),
     cameraMovement: shotId === "ending" ? fieldValueFromSource(source, "camera_movement") : undefined,
+    props: fieldValueFromSource(source, "props"), approvedPurpose: scene.approvedScene.purpose,
+    approvedProps: Array.isArray(scene.approvedScene.props) ? scene.approvedScene.props : undefined,
+    approvedVisualRequirements: scene.verificationPlan.visualRequirements,
     duration: interval.endSec - interval.startSec, nativeChecks }));
   findings.push(...approvedRaceCameraChecks({ frozenBrief: interval.brief, purpose: scene.approvedScene.purpose,
     visualRequirements: scene.verificationPlan.visualRequirements, camera: fieldValueFromSource(source, "camera_movement"),
@@ -701,6 +707,7 @@ function repairPrompt(
   finalPromptLength?: FinalPromptLength,
   finalPromptFieldBudget?: FinalPromptFieldBudget,
   helmetCustodyFields?: SemanticRepairContext["helmetCustodyFields"],
+  helmetCustodyArm?: SemanticRepairContext["helmetCustodyArm"],
 ): string {
   const fields = contract.bindings.map(({ field }) => ({ field, value: fieldValueFromSource(source, field) }));
   const writable = new Set(allowedFields);
@@ -722,7 +729,9 @@ function repairPrompt(
     ] : []),
     ...(helmetCustodyFields?.length ? [
       `本次必须在每个指定字段内补全头盔交接：${JSON.stringify(helmetCustodyFields)}。在摘盔之后、取杯之前写明一个可见且已落实的头盔去向，不能依赖另一个字段来交代。`,
-      "沿用本镜已审动作和道具。若取杯需要双手，写清头盔先放稳在现有的哪一处支撑面，再腾出双手，例如「头盔放稳在车座上，空出双手」；若已审允许单手取杯，写清头盔由哪只手持续持住及对侧手取起并举杯，例如「左手提着头盔，右手举起奖杯」。例句中的位置和左右手须按本镜已有条件确定；在输出中只落实一种去向，不写备选。",
+      helmetCustodyArm
+        ? `本镜只读道具已确定摘盔后把头盔夹在${helmetCustodyArm}臂。保留这一支撑至取杯，明确用${helmetCustodyArm === "左" ? "右" : "左"}手单独取起并举起奖杯。道具不可改写，头盔不移到别处，不写双手取杯或备选。`
+        : "沿用本镜已审动作和道具。若取杯需要双手，写清头盔先放稳在现有的哪一处支撑面，再腾出双手，例如「头盔放稳在车座上，空出双手」；若已审允许单手取杯，写清头盔由哪只手持续持住及对侧手取起并举杯，例如「左手提着头盔，右手举起奖杯」。例句中的位置和左右手须按本镜已有条件确定；在输出中只落实一种去向，不写备选。",
       "时间轴的交接写进实际发生的段内时窗，保留完整原时长、切点和已审动作顺序，运镜及动作字段须与之相容。",
     ] : []),
     "只输出 JSON：changes[]，每项必须有 field、value、reason；至少产生一个变化。",
@@ -755,7 +764,7 @@ export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): Semant
     async repair(context) {
       const result = await llm.reasonStructured(
         repairPrompt(context.contract, context.shot, context.findings, context.allowedFields, context.upstreamContext,
-          context.finalPromptLength, context.finalPromptFieldBudget, context.helmetCustodyFields),
+          context.finalPromptLength, context.finalPromptFieldBudget, context.helmetCustodyFields, context.helmetCustodyArm),
         repairSchema(context),
         { scene: "preproduction", maxTokens: 1200, temperature: 0 },
       );
@@ -1309,6 +1318,8 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           const actualFindings = finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [];
           const { executionFindings } = firstShot;
           const helmetCustodyFields = approvedHelmetCustodyFields(executionFindings).filter(field => shotAllowedFields.includes(field));
+          const helmetCustodyArm = executionFindings.find(check => check.helmetCustodyArm)?.helmetCustodyArm;
+          if (helmetCustodyArm && shotAllowedFields.includes("props")) throw new Error("APPROVED_MOTION_HELMET_REPAIR_DRIFT");
           const scopedFindings = executionFindings
             .filter(check => !actualFindings.some(actual => actual.field === check.field && actual.failureCode === check.failureCode));
           const changesRaw = await reviewer.repair({
@@ -1319,7 +1330,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
             upstreamContext: input.upstreamContext,
             findings: [...actualFindings, ...scopedFindings],
             allowedFields: [...shotAllowedFields],
-            ...(helmetCustodyFields.length ? { helmetCustodyFields } : {}),
+            ...(helmetCustodyFields.length ? { helmetCustodyFields, helmetCustodyArm } : {}),
             ...(finalPromptLength ? { finalPromptLength: { ...finalPromptLength } } : {}),
             ...(fieldBudget ? { finalPromptFieldBudget: structuredClone(fieldBudget) } : {}),
           });
