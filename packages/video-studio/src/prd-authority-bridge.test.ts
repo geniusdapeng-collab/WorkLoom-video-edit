@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpenAiCompatibleProvider, resetCircuit, type ChatMessage, type ChatOptions, type ModelProvider } from "@workloom/base/model-router";
 import { bindRequirementContract, requirementCast, requirementHash, requirementRecord, type RequirementContract, type RequirementRecord } from "./requirement-contract.js";
-import { effectivePrdModelSchema, prdAuthorityPrompt, preparePrdAuthority } from "./prd-authority.js";
+import { effectivePrdModelSchema, prdAuthorityPrompt, prdContractExecutionView, preparePrdAuthority } from "./prd-authority.js";
 import { assertPrdAuthorityBridge, bindApprovedPrdPortraitSelection, installPrdAuthorityBridge, installPrdProductionBridge, productionModelInput, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { WorkloomLLMEngine } from "./llm-adapter.js";
 import { readPortraitArtifact } from "./character-archive.js";
@@ -95,7 +95,7 @@ function expectCompletePrompt(prompt: string, kind: "creative" | "production", v
   expect(prompt.split(JSON.stringify(expected))).toHaveLength(2);
   expect(prompt.split(prdAuthorityPrompt(value.authority, value.contract))).toHaveLength(2);
   expect(prompt).toContain(JSON.stringify(value.metadata.brief));
-  expect(prompt).toContain(JSON.stringify(value.contract));
+  expect(prompt.includes(JSON.stringify(prdContractExecutionView(value.authority, value.contract)))).toBe(true);
   expect(prompt).toContain(value.content);
 }
 function lengthenAuthority(value: ReturnType<typeof prdFixture>) {
@@ -1315,6 +1315,81 @@ describe("native truth-check preserves verdicts and scopes internal fact use to 
 });
 
 describe("PRD failures remain fatal through native catches", () => {
+  it.each([
+    "corrected", "normal", "same-id", "twice-malformed", "blank-first", "unmeasured-first",
+    "invalid-correction-schema", "duplicate-key-correction", "transport-error", "nonfrozen",
+  ] as const)("uses only one fully bound native Agent2 correction: %s", async mode => {
+    vi.useRealTimers();
+    const value = fixture(`PRD-CREATIVE-SYNTAX-${mode}`, [10, 10, 10]);
+    lengthenAuthority(value);
+    const intervals = ["第一段完整输入", "第二段完整输入", "第三段完整输入"];
+    if (mode !== "nonfrozen") requirementRecord(value.metadata.brief, "brief").segmentContract = {
+      count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+      intervals: intervals.map((brief, index) => ({ startSec: index * 10, endSec: (index + 1) * 10, brief })),
+    };
+    declareDelivery(value, { speechPolicy: "none" });
+    value.discovery._originalStoryText = "完整原始动作、首尾切点和声音要求，不能用截取的草案替代。";
+    const h = harness(), run = h.make(value);
+    const baseUrl = "https://prd-creative-recovery.invalid/v1";
+    const requests: Array<{ url: string; messages: ChatMessage[]; options: RequirementRecord }> = [];
+    const invalid = '{"private":"PRIVATE_PREVIOUS_CREATIVE_DRAFT" "missingComma":1}';
+    const creative = JSON.stringify(value.creative);
+    const fetchImpl: typeof fetch = async (url, init) => {
+      const { messages, ...options } = JSON.parse(String(init?.body));
+      requests.push({ url: String(url), messages, options });
+      const ordinal = requests.length;
+      if (mode === "transport-error") return new Response("fixture upstream unavailable", { status: 503 });
+      const text = ordinal === 1 ? mode === "normal" ? creative : mode === "blank-first" ? " " : invalid
+        : mode === "twice-malformed" ? '{"broken" false}'
+          : mode === "invalid-correction-schema" ? '{"coreTheme":"only"}'
+            : mode === "duplicate-key-correction" ? '{"\\u0063oreTheme":"hidden duplicate",' + creative.slice(1) : creative;
+      return Response.json({
+        ...(mode === "unmeasured-first" && ordinal === 1 ? {} : { id: `native-creative-${mode === "same-id" ? 1 : ordinal}` }),
+        object: "chat.completion", model: "deepseek-flash",
+        choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: text } }],
+        usage: { prompt_tokens: 300, completion_tokens: 100, total_tokens: 400, completion_tokens_details: { reasoning_tokens: 1 } },
+      });
+    };
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl, apiKey: "fixture-only", fetchImpl });
+    requirementRecord(run.generator.agent2, "agent2")._llmEngine = new WorkloomLLMEngine({
+      baseUrl, apiKey: "fixture-only", model: "deepseek-flash", scene: "preproduction",
+      router: { providers: new Map([[provider.modelId, provider]]), sink: {
+        recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
+      } },
+    });
+    const accepted = mode === "corrected" || mode === "normal";
+    const operation = withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run);
+      await h.review(run, prd);
+      return h.success(prd);
+    });
+    if (accepted) await expect(operation).resolves.toMatchObject({ success: true });
+    else await expect(operation).rejects.toThrow();
+    const expectedCalls = ["normal", "blank-first", "unmeasured-first", "transport-error", "nonfrozen"].includes(mode) ? 1 : 2;
+    expect(requests).toHaveLength(expectedCalls);
+    const first = requests[0]!;
+    const firstText = first.messages.find(message => message.role === "user")!.content as string;
+    expectCompletePrompt(firstText, "creative", value);
+    expect(first.url).toBe(`${baseUrl}/chat/completions`);
+    expect(first.options).toMatchObject({ model: "deepseek-flash", max_tokens: 393_216, response_format: { type: "json_object" } });
+    if (requests.length === 2) {
+      const next = requests[1]!;
+      const corrected = next.messages.find(message => message.role === "user")!.content as string;
+      const adapterSuffix = firstText.slice(firstText.lastIndexOf("\n\n【硬性输出要求】"));
+      const [base, correction] = corrected.split("\n\n## 本次原生创意核心 JSON 格式修正\n");
+      expect(digest(base + adapterSuffix)).toBe(digest(firstText));
+      expect(correction).toContain("同一实际 schema");
+      expect(corrected.endsWith(adapterSuffix)).toBe(true);
+      expectCompletePrompt(corrected, "creative", value);
+      expect(corrected).not.toContain("PRIVATE_PREVIOUS_CREATIVE_DRAFT");
+      expect(next.messages.filter(message => message.role !== "user")).toEqual(first.messages.filter(message => message.role !== "user"));
+      expect(next.options).toEqual(first.options);
+      expect(next.url).toBe(first.url);
+    }
+    expect(run.calls.map(call => call.agent)).toEqual(accepted ? ["agent3"] : []);
+    expect(run.system.minimalCalls).toBe(0);
+  });
+
   it.each(["corrected", "still-invalid", "unmeasured-retry"])("uses one native complete Agent3 retry for a closed character shape, %s", async mode => {
     vi.useRealTimers();
     const value = fixture(`PRD-CHAR-RETRY-${mode}`), h = harness(), run = h.make(value);
