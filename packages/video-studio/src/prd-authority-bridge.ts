@@ -18,6 +18,7 @@ import { isNoSpeechDeclaration } from "./dialogue-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { parseStrictSceneJsonObject } from "./scene-json-comma-recovery.js";
 import { splitShotAssertions } from "./shot-intent.js";
+import { nativeFieldRepairSynchronizer } from "./native-field-repair-sync.js";
 import {
   bindRivalAuthorityIdentity, bindRivalFusionIdentity, bindRivalRepairIdentity, reviewedRivalIdentity, rivalIdentityFormatIssues,
   type RivalIdentityScope,
@@ -1417,8 +1418,11 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     const scope = frozenFieldScope(this, shot);
     const identity = scope && Array.isArray(requestedFields) && requestedFields.includes("character_constraint")
       ? rivalIdentity(scope, shot as RequirementRecord) : undefined;
-    if (!scope || !Array.isArray(requestedFields) || (!requestedFields.some(authoredField) && !identity)) return Reflect.apply(original, this, [shot, issues, requestedFields, ...args]);
+    if (!scope) return Reflect.apply(original, this, [shot, issues, requestedFields, ...args]);
     return awaited(scope, async () => {
+      const synchronize = nativeFieldRepairSynchronizer(shot, requestedFields,
+        [...fieldGroups.p0, ...fieldGroups.p1, ...fieldGroups.p2, ...fieldGroups.p3]);
+      if (!Array.isArray(requestedFields)) prdFail("PRD_FIELD_REPAIR_SCOPE", "原生字段修复缺少本批字段列表");
       const engine = requirementRecord(this.llm, "原生字段修复模型");
       const reason = method(engine, "reason"), truncate = method(this, "_smartTruncate");
       const engineView = Object.create(engine) as RequirementRecord, receiver = Object.create(this) as RequirementRecord;
@@ -1452,7 +1456,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       receiver._smartTruncate = (text: unknown, limit: unknown) => {
         return typeof text === "string" && preservedValues.has(text) ? text : Reflect.apply(truncate, receiver, [text, limit]);
       };
-      return Reflect.apply(original, receiver, [shot, issues, requestedFields, ...args]);
+      return synchronize(await Reflect.apply(original, receiver, [shot, issues, requestedFields, ...args]));
     });
   });
   if (deps.ruleRepairPrototype) {

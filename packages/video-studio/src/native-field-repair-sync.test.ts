@@ -129,7 +129,7 @@ describe("native successful field repair synchronization", () => {
       const final = expectCurrentAliases(result, "character_constraint", repairedText);
       const compiled = compilePromptShot(final as PromptCompileShot, { titleCard: false,
         delivery: { aspectRatio: "9:16", resolution: "1080p", fps: 30, format: "mp4", generateAudio: true },
-        model: { modelId: "fixture-video", provider: "fixture", providerModel: "fixture", maxPromptChars: 3000,
+        model: { version: "fixture/v1", modelId: "fixture-video", provider: "fixture", providerModel: "fixture", maxPromptChars: 3000,
           durationSec: { min: 1, max: 15 }, aspectRatios: ["9:16"], resolutions: ["1080p"], modes: ["text"], maxReferenceImages: 2 } });
       expect(compiled.fieldValues.character_constraint).toBe(repairedText);
       expect(compiled.contract.request.technical.character_constraint).toBe(repairedText);
@@ -147,6 +147,18 @@ describe("native successful field repair synchronization", () => {
   it("synchronizes a field without an underscore rather than retaining a top-level prior value", async () => {
     const h = harness(), native = repairer([{ costume: "完整防护服保持相同，左右护具与靴子完整" }]);
     await h.accepted(async () => { expectCurrentAliases(await batch(native.repairer, shot(), ["costume"]), "costume", "完整防护服保持相同，左右护具与靴子完整"); });
+  });
+
+  it("updates a current flat native shot without manufacturing a nested field collection", async () => {
+    const h = harness(), source = shot(), native = repairer([{ character_constraint: repairedText }]);
+    delete source.fields;
+    await h.accepted(async () => {
+      const result = await batch(native.repairer, source, ["character_constraint"]);
+      const final = requirementRecord(result.repaired, "flat native result");
+      expect(final.character_constraint).toBe(repairedText);
+      expect(final.characterConstraint).toBe(repairedText);
+      expect(Object.hasOwn(final, "fields")).toBe(false);
+    });
   });
 
   it("starts a subsequent batch from the same accepted field version", async () => {
@@ -168,6 +180,20 @@ describe("native successful field repair synchronization", () => {
   it("rejects an unknown field accepted by the permissive native parser", async () => {
     const h = harness(), native = repairer([{ character_constraint: repairedText, another_character: "未声明人物" }]);
     await expect(h.accepted(async () => { await batch(native.repairer, shot(), ["character_constraint"]); })).rejects.toThrow(/PRD_FIELD_REPAIR_SCOPE/);
+  });
+
+  it("rejects conflicting native snake and camel repairs of the same requested field", async () => {
+    const h = harness(), native = repairer([{ character_constraint: repairedText, characterConstraint: "相互冲突的另一个人物约束" }]);
+    await expect(h.accepted(async () => { await batch(native.repairer, shot(), ["character_constraint"]); })).rejects.toThrow(/PRD_FIELD_REPAIR_SCOPE/);
+  });
+
+  it("rejects a nested source replacement while the native model response is pending", async () => {
+    const h = harness(), source = shot();
+    const native = new LLMRepairer({ reason: async () => {
+      source.fields = { ...requirementRecord(source.fields, "source fields"), mood: "异步替换的另一版" };
+      return { success: true, content: JSON.stringify({ repaired_fields: { character_constraint: repairedText } }) };
+    } });
+    await expect(h.accepted(async () => { await batch(native, source, ["character_constraint"]); })).rejects.toThrow(/PRD_FIELD_REPAIR_SCOPE/);
   });
 
   it("does not synthesize a repair for a no-op response", async () => {
