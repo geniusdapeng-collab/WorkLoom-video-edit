@@ -17,6 +17,7 @@ import { assertNoSpokenPromptPackage } from "./frozen-speech-policy.js";
 import { isNoSpeechDeclaration } from "./dialogue-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { parseStrictSceneJsonObject } from "./scene-json-comma-recovery.js";
+import { splitShotAssertions } from "./shot-intent.js";
 import {
   nativeBlankJsonCorrected, nativeBlankJsonObjectCorrected, nativeBlankJsonRouteCurrent,
   nativeChatJsonObjectCorrected, nativeChatJsonObjectRouteCurrent,
@@ -1250,6 +1251,45 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       || (Object.hasOwn(shot, "shotId") && Object.hasOwn(shot, "shot_id") && shot.shotId !== shot.shot_id)) return undefined;
     return scope.contract?.scenes.some(scene => scene.id === id && scene.duration === shot.duration) ? scope : undefined;
   };
+  const coveredSuit = (value: unknown): value is string => typeof value === "string" && /全覆[^，。；\n]{0,30}赛车服/u.test(value);
+  const mentionsWardrobe = (text: string, id: string) => text.match(/[A-Za-z0-9][A-Za-z0-9_-]*/gu)?.includes(id) === true;
+  const approvedSuit = (scope: Scope, shot: RequirementRecord) => {
+    const id = shot.shotId ?? shot.shot_id;
+    const cuts = frozenCuts(scope), contract = scope.contract;
+    const scene = contract?.scenes.find(scene => scene.id === id);
+    if (!cuts || !contract || !scene || !scope.reviewedResult) return undefined;
+    const actors = contract.cast.characters.filter(actor => scene.actions.some(action => action.actorId === actor.id));
+    if (actors.length !== 1) return undefined;
+    const actor = actors[0]!;
+    const garments = Array.isArray(actor.wardrobe) ? actor.wardrobe : [];
+    const ownerText = cuts.intervals.flatMap(interval => splitShotAssertions(interval.brief).positive.split("；"))
+      .filter(clause => clause.includes("同一套") && coveredSuit(clause));
+    const chosen = garments.filter(({ id, detail }) => typeof id === "string" && coveredSuit(detail)
+      && ownerText.some(clause => mentionsWardrobe(clause, id)));
+    if (chosen.length !== 1 || typeof chosen[0]!.id !== "string") return undefined;
+    const wardrobeId = chosen[0]!.id;
+    const plan = requirementRecord(scope.reviewedResult.characterSystem, "已审服装人物").characters as RequirementRecord[];
+    const item = plan.find(item => item.characterId === actor.id && item.name === actor.name);
+    const costume = item?.costume;
+    if (!coveredSuit(costume) || !splitShotAssertions(costume).positive.split("；")
+      .some(clause => coveredSuit(clause) && mentionsWardrobe(clause, wardrobeId))) return undefined;
+    return scene;
+  };
+  const costumeLayerIssue = (value: unknown): boolean => {
+    const issue = requirementRecord(value, "原生服装结构诊断");
+    return issue.fieldEn === "costume" && issue.issueType === "incomplete"
+      && typeof issue.description === "string" && /^服装字段层次不足：当前覆盖 [012]\/4 项（外套\/内搭\/下装\/鞋履）$/u.test(issue.description);
+  };
+  if (deps.ruleCheckPrototype) add(deps.ruleCheckPrototype, "_checkStructure", original => function (shot, ...args) {
+    const scope = frozenFieldScope(this, shot);
+    const current = shot as RequirementRecord;
+    if (!scope || !coveredSuit(current.costume) || !approvedSuit(scope, current)) return Reflect.apply(original, this, [shot, ...args]);
+    return guard(scope, () => {
+      const issues = Reflect.apply(original, this, [shot, ...args]);
+      if (!Array.isArray(issues)) prdFail("PRD_VENDOR_UNAVAILABLE", "原生结构检查缺少诊断列表");
+      return issues.filter(issue => !costumeLayerIssue(issue));
+    });
+  });
   const nativeOverflow = (value: unknown, shot: RequirementRecord) => {
     const issue = requirementRecord(value, "原生字段超长诊断"), field = issue.fieldEn;
     if (!frozenField(field) || issue.issueType !== "over_length") return false;
@@ -1327,6 +1367,12 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     for (const key of ["_generateDefault", "_completeElements"]) {
       add(ruleRepair, key, original => function (field, ...args) {
         if (key === "_completeElements" && frozenField(field) && frozenFieldScope(this, args[3])) return null;
+        if (field === "costume") {
+          const shot = key === "_completeElements" ? args[3] : args[1];
+          const scope = frozenFieldScope(this, shot);
+          if (scope && approvedSuit(scope, shot as RequirementRecord) && (key === "_generateDefault"
+            || (coveredSuit(args[0]) && costumeLayerIssue(args[1])))) return null;
+        }
         const scope = field === "camera_movement" ? productionScope(this) : undefined;
         if (!scope) return Reflect.apply(original, this, [field, ...args]);
         return guard(scope, () => {
@@ -1706,8 +1752,22 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
           `\n5. dialogue 固定为"无台词"。已授权的叙事信息通过物理动作、画面或后期画面文字传达。${FROZEN_FUSION_SPEECH_RULE}\n`);
         const example = bindFusionSpeechRule(dialogue, '示例角色站立讲台前,自然手势讲解',
           "示例角色站立讲台前,转身提起道具并示意");
-        return source + bindFusionSpeechRule(example, '\n3. 【台词】字段必须独立,角色直接对镜头说话,不要写"画外音""旁白"\n',
+        const fused = source + bindFusionSpeechRule(example, '\n3. 【台词】字段必须独立,角色直接对镜头说话,不要写"画外音""旁白"\n',
           '\n3. 【台词】字段必须独立，值为"无台词"，其余字段同样不得安排说话或口型同步。\n');
+        if (!Array.isArray(args[0]) || args[0].length !== 1) return fused;
+        const shot = args[0][0] as RequirementRecord;
+        const owner = frozenFieldScope(this, shot);
+        const suit = owner && approvedSuit(owner, shot);
+        if (!suit) return fused;
+        const cuts = frozenCuts(scope)!;
+        const sceneIndex = scope.contract!.scenes.findIndex(scene => scene.id === suit.id);
+        const framedContours = (text: unknown): text is string => typeof text === "string"
+          && /胸线/u.test(text) && /臀部/u.test(text) && /轮廓/u.test(text);
+        if (!framedContours(cuts.intervals[sceneIndex]?.brief)) return fused;
+        const plan = requirementRecord(scope.reviewedResult!.scenePlan, "已审构图计划").scenes as RequirementRecord[];
+        const scene = plan.find(scene => scene.sceneId === suit.id);
+        const framing = Array.isArray(scene?.visualRequirements) ? scene.visualRequirements.filter(framedContours) : [];
+        return framing.length === 1 ? fused + `\n\n## 本镜已审防护造型与构图\n服装以本片已审全覆赛车服为准，不加其它衣层。只在现有 composition 字段写出以下经 G4 批准的构图如何在完整动作中可见：\n${framing[0]}\n` : fused;
       });
     });
     add(fusionPrototype, "_buildFillPrompt", original => function (...args) {

@@ -13,6 +13,7 @@ import {
   promptFieldPolicy,
   promptContractManifestHash,
   sha256Json,
+  splitShotAssertions,
   validatePromptContract,
   WorkloomLLMEngine,
   type CompiledPromptShot,
@@ -95,6 +96,7 @@ interface FinalPromptFieldBudget extends FinalPromptLength {
   maxEditableValueChars: number;
   targetEditableValueChars: number;
   semanticFields: string[];
+  descriptiveFieldBudgets: Array<{ field: string; currentValueChars: number; maxChangedValueChars: number }>;
 }
 
 interface SemanticRepairContext extends SemanticReviewContext {
@@ -163,6 +165,10 @@ export interface PromptQualityRepairAttempt {
   changes: Array<{ shotId: string; field: string; reason: string }>;
   status: "applied" | "stalled";
   reason?: string;
+  lengthDiagnostic?: {
+    shotId: string; field: string; kind: "nontext-or-empty" | "not-shorter" | "field-marker";
+    beforeChars: number | null; proposedChars: number | null;
+  };
 }
 
 export type PromptQualityStatus = "passed" | "rejected" | "stalled" | "shadow" | "unverified";
@@ -389,6 +395,36 @@ function hasCurrentG4Shot(upstream: Record<string, unknown> | undefined, shotId:
     && bound[0].approvedScene.actions.length > 0 && Array.isArray(bound[0].verificationPlan?.visualRequirements);
 }
 
+function affirmativeOutlineClauses(text: string): string[] {
+  // Keep an enumerated pair inside the same clause, and teach the shared
+  // splitter the direct visibility and protective-wear negations used here.
+  const directNegation = /(?:不(?:允许|应当|应|宜|会|再|易|可|必)?|未(?:能)?|无法|无从)(?=\s*(?:(?:清楚|清晰|完整|自然|单独|被)\s*)?(?:呈现|展示|展现|显示|看清|看见|可见|入镜|穿戴|佩戴|戴|穿))|(?:看|拍|辨)不(?:清|见|到)|不以|不通过|不借助|不用|不把|不让|而非|并非|不是/gu;
+  return splitShotAssertions(text.replaceAll("、", "与").replace(directNegation, "禁止")).positive.split("；");
+}
+
+/** A specifically approved, covered silhouette needs affirmative framing evidence for both named areas. */
+function missingProtectedOutline(
+  upstream: Record<string, unknown> | undefined, shotId: string, source: Record<string, unknown>,
+): SemanticQualityCheck | undefined {
+  if (!hasCurrentG4Shot(upstream, shotId)) return undefined;
+  const plan = upstream!.approvedProductionPlan as { scenes: Array<{
+    shotId: string; verificationPlan: { visualRequirements: unknown[] };
+  }> };
+  const approved = plan.scenes.find(scene => scene?.shotId === shotId)!.verificationPlan.visualRequirements
+    .filter((value): value is string => typeof value === "string").flatMap(affirmativeOutlineClauses);
+  const chest = /胸(?:线|部|廓)/u, hips = /臀(?:线|部|廓)/u;
+  const visible = /呈现|展示|展现|显示|看清|看见|可见(?!度)|入镜/u;
+  if (!approved.some(note => chest.test(note) && hips.test(note) && visible.test(note))
+    || !approved.some(note => /全覆|全套护具|完整护具/u.test(note))) return undefined;
+  const framing = ["composition", "camera_movement", "action"].map(field => fieldValueFromSource(source, field))
+    .filter((value): value is string => typeof value === "string").flatMap(affirmativeOutlineClauses)
+    .filter(clause => visible.test(clause)).join("；");
+  if (chest.test(framing) && hips.test(framing)) return undefined;
+  return { id: "SQ4_LIGHT_COLOR", pass: false, field: "composition", failureCode: "APPROVED_PROTECTED_OUTLINE_MISSING",
+    evidence: "当前构图、运镜和动作字段没有落实本镜已审的两项全覆防护服下轮廓。",
+    repair: "只在本镜构图说明中补齐已审的自然胸线和臀部轮廓，保留完整护具、动作连贯及无孤立局部特写。" };
+}
+
 function semanticQuestions(upstream: Record<string, unknown> | undefined, shotId: string) {
   if (!hasCurrentG4Shot(upstream, shotId)) return SEMANTIC_QUALITY_QUESTION;
   return {
@@ -512,6 +548,8 @@ function semanticPrompt(
       "SQ4 核对构图是否实际能看到 G4 明确要求的部位、护具、动作或可见细节；不能用无关特写、遮挡或通用形容词代替。SQ5 关键目的与相邻镜头交接必须有本镜的字段证据。",
       ...(hasCurrentG4Shot(upstreamContext, contract.shotId) ? [
         "SQ2 角色占用双手的道具必须实际放稳、交接或有明确可行的后续动作，不能从仍握住道具直接跳到双手使用另一道具。",
+        "已审规格要求连续多个关键动作时，逐个核对每次的起点、过程、完整完成和前一动作应保留的连续状态，不能用只写部分动作或成功结果代替。",
+        "SQ4 必须为本镜已审明确要求的每一项可见细节单独找镜头内证据。仅证明光线、奖杯或脸部清楚，不能替代护具内的自然轮廓或规定的完整动作。",
         "SQ5 仅当本镜转场文字确有冲突时可指向 transition。按实际已审切点和末态复核：自然微动不能改成冻结或定格；稳定机位、自然微动和冻结画面是不同的制作行为。",
       ] : []),
       "用本镜真实字段片段作证据；缺项时摘录跳过该动作、只呈现完成状态或明确遮挡的原文，不得用 G4 文字冒充本镜证据。",
@@ -561,6 +599,7 @@ function repairPrompt(
     ...(finalPromptFieldBudget ? [
       `实际编译中固定部分已占 ${finalPromptFieldBudget.fixedChars} 字；所有可写字段修复后的值总长（含未改可写字段）最多 ${finalPromptFieldBudget.maxEditableValueChars} 字，建议不超过 ${finalPromptFieldBudget.targetEditableValueChars} 字。请在本次响应内核算全部可写字段的总长，留出安全余量。`,
       `必须同时解决正式评审指出的语义缺陷。仅以下字段可按对应 findings 补齐或调整制作语义：${JSON.stringify(finalPromptFieldBudget.semanticFields)}；其余可写字段只能缩写。保持演员身份、资产、服装、声场、技术规格和每镜总时长；不得省略已审动作或增加段落。`,
+      ...(finalPromptLength ? ["descriptiveFieldBudgets 给出每个纯描述字段的现长及改写后单字段上限（UTF-16）。不要返回没变的字段；可保持短字段原样，只提交足够达到合计预算的真实缩写。不得返回空值、占位内容或与原值等长的替换。"] : []),
       ...(finalPromptFieldBudget.semanticFields.includes("timeline")
         ? ["时间轴也在诊断范围时，按本镜已审动作和现有时长重排镜内时点，运镜、动作、道具交接与时间轴必须互相对应，不得改变镜头切点。"] : []),
     ] : []),
@@ -649,7 +688,12 @@ function promptFieldBudget(contract: PromptContract, source: Record<string, unkn
   // The smaller target is advice; the exact compiled native cap remains the only hard limit.
   const headroom = Math.min(96, Math.floor(Math.max(0, maxEditableValueChars - fields.length) * 0.12));
   return { actualChars: contract.prompt.length, maxFinalPromptChars: limit, fixedChars, maxEditableValueChars,
-    targetEditableValueChars: maxEditableValueChars - headroom, semanticFields };
+    targetEditableValueChars: maxEditableValueChars - headroom, semanticFields,
+    descriptiveFieldBudgets: fields.flatMap((field, index) => {
+      if (semanticFields.includes(field)) return [];
+      const currentValueChars = emittedValueLengths[index]!;
+      return [{ field, currentValueChars, maxChangedValueChars: currentValueChars - 1 }];
+    }) };
 }
 
 function repairRequestHash(contract: PromptContract, allowReviewedTimeline: boolean): string {
@@ -1006,6 +1050,8 @@ async function evaluateCompiledShots(
       if (check.pass) continue;
       findings.push(semanticFinding(item.source, item.compiled.contract, check));
     }
+    const visible = missingProtectedOutline(input.upstreamContext, item.shotId, item.source);
+    if (visible) findings.push(semanticFinding(item.source, item.compiled.contract, visible));
   }
   return { compiled, reports, findings };
 }
@@ -1086,6 +1132,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
         requiresApproval: false,
         status: "running",
       };
+      let lengthDiagnostic: PromptQualityRepairAttempt["lengthDiagnostic"];
       try {
         const patchedSources = new Map<string, Parameters<typeof evaluateCompiledShots>[2][number]>(
           input.shots.map(item => [String(item.source.shotId), item]));
@@ -1093,19 +1140,22 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
         const changes: Array<{ shotId: string; field: string; value: unknown; reason: string }> = [];
         for (const { firstShot, fields: shotAllowedFields, finalPromptLength, fieldBudget, semanticFields } of repairs) {
           const shotId = firstShot.shotId;
+          const visible = missingProtectedOutline(input.upstreamContext, shotId, firstShot.source);
           const changesRaw = await reviewer.repair({
             projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
             shot: finalPromptLength ? structuredClone(firstShot.source) : firstShot.source,
             contract: finalPromptLength ? structuredClone(firstShot.compiled.contract) : firstShot.compiled.contract,
             attempt: 1,
             upstreamContext: input.upstreamContext,
-            findings: finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [],
+            findings: [...(finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? []),
+              ...(visible ? [visible] : [])],
             allowedFields: [...shotAllowedFields],
             ...(finalPromptLength ? { finalPromptLength: { ...finalPromptLength } } : {}),
             ...(fieldBudget ? { finalPromptFieldBudget: structuredClone(fieldBudget) } : {}),
           });
-          const shotChanges = validateRepairChanges(changesRaw, shotAllowedFields);
-          if (new Set(shotChanges.map((change) => change.field)).size !== shotChanges.length) throw new Error("REPAIR_CHANGE_DUPLICATE");
+          const parsedChanges = validateRepairChanges(changesRaw, shotAllowedFields);
+          if (new Set(parsedChanges.map((change) => change.field)).size !== parsedChanges.length) throw new Error("REPAIR_CHANGE_DUPLICATE");
+          let shotChanges = parsedChanges;
           const reviewedTransition = shotChanges.find(change => change.field === "transition");
           if (reviewedTransition) {
             const prior = fieldValueFromSource(firstShot.source, "transition");
@@ -1116,16 +1166,31 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
             }
           }
           if (finalPromptLength) {
-            for (const change of shotChanges) {
+            shotChanges = parsedChanges.filter(change => {
               const prior = fieldValueFromSource(firstShot.source, change.field);
-              if (typeof prior !== "string" || typeof change.value !== "string" || !change.value.trim()) {
+              const proposed = change.value;
+              const beforeChars = typeof prior === "string" ? prior.trim().length : null;
+              const proposedChars = typeof proposed === "string" ? proposed.trim().length : null;
+              if (typeof prior !== "string" || typeof proposed !== "string"
+                || beforeChars === null || proposedChars === null || proposedChars === 0) {
+                lengthDiagnostic = { shotId, field: change.field, kind: "nontext-or-empty", beforeChars, proposedChars };
                 throw new Error("FINAL_PROMPT_REPAIR_NOT_SHORTER");
               }
-              if (!semanticFields.includes(change.field) && change.value.trim().length >= prior.trim().length) {
-                throw new Error("FINAL_PROMPT_REPAIR_NOT_SHORTER");
+              if (!semanticFields.includes(change.field)) {
+                // An exact no-op preserves the source field and its digest.
+                if (proposed.trim() === prior.trim()) return false;
+                if (proposedChars >= beforeChars) {
+                  lengthDiagnostic = { shotId, field: change.field, kind: "not-shorter", beforeChars, proposedChars };
+                  throw new Error("FINAL_PROMPT_REPAIR_NOT_SHORTER");
+                }
               }
-              if (/【[^】]+】/u.test(change.value)) throw new Error("FINAL_PROMPT_REPAIR_FIELD_MARKER");
-            }
+              if (/【[^】]+】/u.test(proposed)) {
+                lengthDiagnostic = { shotId, field: change.field, kind: "field-marker", beforeChars, proposedChars };
+                throw new Error("FINAL_PROMPT_REPAIR_FIELD_MARKER");
+              }
+              return true;
+            });
+            if (shotChanges.length === 0) throw new Error("REPAIR_CHANGES_MISSING");
             proofs?.delete(shotId);
           }
           const patched = patchSource(firstShot.source, shotChanges);
@@ -1186,6 +1251,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           changes: [],
           status: "stalled",
           reason: errorText(error),
+          ...(lengthDiagnostic ? { lengthDiagnostic } : {}),
         };
       }
     }
