@@ -581,7 +581,7 @@ describe("prompt semantic quality gate", () => {
     expect(result.shotContracts[0]!.contract.request.parameters).toEqual(initial.request.parameters);
   });
 
-  it.each(["nose-reset", "nose-claimed-complete", "same-window-clearance", "finish", "foreign", "unapproved", "wrong-duration"] as const)(
+  it.each(["nose-reset", "nose-claimed-complete", "nose-ordinal", "same-window-clearance", "finish", "foreign", "unapproved", "wrong-duration"] as const)(
     "keeps clearance local to the same rival in the approved cut (%s)", async mode => {
       const checked = currentG4();
       const row = checked.approvedProductionPlan.scenes[0]!;
@@ -593,7 +593,7 @@ describe("prompt semantic quality gate", () => {
         approvedScene: { ...row.approvedScene, purpose },
       }] } };
       const first = "第一辆对手车被整车越过，主车拉开一个车身。";
-      const second = "追到第二辆对手车后方，从外线并排，";
+      const second = mode === "nose-ordinal" ? "追到第二辆后方，对方封内线，改外线并排，" : "追到第二辆对手车后方，从外线并排，";
       const clear = "随后主车车尾完全越过第二辆对手车前轮。";
       const finish = "主车前轮先压过终点线，再收油减速。";
       const nose = mode === "nose-claimed-complete" ? "前轮先越过对手车头，完成第二次超越。" : "车头完全越过对手前轮后回正。";
@@ -613,7 +613,7 @@ describe("prompt semantic quality gate", () => {
       const before = compilePromptPackage({ shots: [shot] })[0]!.contract;
       const result = await evaluatePromptPackage({ ...input({ review: async () => passReview(), repair }), shots: [shot], upstreamContext });
       expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
-      expect(repair).toHaveBeenCalledTimes(mode === "nose-reset" || mode === "nose-claimed-complete" ? 1 : 0);
+      expect(repair).toHaveBeenCalledTimes(mode.startsWith("nose-") ? 1 : 0);
       expect(result.shotContracts[0]!.contract.request.parameters).toEqual(before.request.parameters);
     });
 
