@@ -31,6 +31,7 @@ import {
   type StructuredReviewDispatchProof,
 } from "@hyperreality/video-studio";
 import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
+import { approvedMotionObligations, approvedMotionRepairDrift, isApprovedMotionFinding } from "./g6-motion-obligations.js";
 import type { readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 
 export const SEMANTIC_QUALITY_POLICY_VERSION = "workloom.video-prompt-quality/v2" as const;
@@ -486,15 +487,18 @@ function approvedExecutionChecks(
   if (!hasCurrentG4Shot(upstream, shotId)) return findings;
   const plan = upstream!.approvedProductionPlan as { scenes: Array<{
     shotId: string; interval?: { startSec?: unknown; endSec?: unknown; brief?: unknown };
-    approvedScene?: { purpose?: unknown };
+    approvedScene: { purpose?: unknown; actions: Array<{ actorId?: unknown; description?: unknown } | null> };
   }> };
-  const scene = plan.scenes.find(scene => scene?.shotId === shotId);
-  const interval = scene?.interval;
+  const scene = plan.scenes.find(scene => scene?.shotId === shotId)!;
+  const interval = scene.interval;
   if (!interval || typeof interval.startSec !== "number" || typeof interval.endSec !== "number"
     || !Number.isFinite(interval.startSec) || !Number.isFinite(interval.endSec) || interval.startSec < 0
     || interval.endSec - interval.startSec !== Number(contract.request.parameters.duration_sec)) return findings;
+  findings.push(...approvedMotionObligations({ frozenBrief: interval.brief, approvedActions: scene.approvedScene.actions.filter(action => action !== null),
+    action: fieldValueFromSource(source, "action"), timeline: fieldValueFromSource(source, "timeline"),
+    duration: interval.endSec - interval.startSec }));
 
-  const overtaking = [scene?.approvedScene?.purpose, interval.brief].filter((value): value is string => typeof value === "string")
+  const overtaking = [scene.approvedScene.purpose, interval.brief].filter((value): value is string => typeof value === "string")
     .flatMap(value => splitShotAssertions(value).positive.split("；"));
   if (overtaking.some(clause => /(?:对手|车后|车辆)/u.test(clause) && /(?:完整超(?:车|越)|完全领先|全车超越)/u.test(clause))) {
     for (const [field, id] of [["action", "SQ1_SUBJECT_ACTION"], ["timeline", "SQ2_SCENE_PROPS"]] as const) {
@@ -1276,7 +1280,8 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
         for (const { firstShot, fields: shotAllowedFields, finalPromptLength, fieldBudget, semanticFields } of repairs) {
           const shotId = firstShot.shotId;
           const actualFindings = finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [];
-          const scopedFindings = approvedExecutionChecks(input.upstreamContext, firstShot.compiled.contract, firstShot.source)
+          const executionFindings = approvedExecutionChecks(input.upstreamContext, firstShot.compiled.contract, firstShot.source);
+          const scopedFindings = executionFindings
             .filter(check => !actualFindings.some(actual => actual.field === check.field && actual.failureCode === check.failureCode));
           const changesRaw = await reviewer.repair({
             projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
@@ -1331,8 +1336,15 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           }
           const patched = patchSource(firstShot.source, shotChanges);
           const allowReviewedTimeline = semanticFields.includes("timeline") && shotChanges.some(change => change.field === "timeline");
+          const motionFindings = executionFindings.filter(isApprovedMotionFinding);
+          if (motionFindings.length) {
+            const drift = approvedMotionRepairDrift({ findings: motionFindings, action: fieldValueFromSource(patched, "action"),
+              timeline: fieldValueFromSource(patched, "timeline"), duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
+              revisedTimeline: allowReviewedTimeline, revisedAction: shotChanges.some(change => change.field === "action") });
+            if (drift) throw new Error(drift);
+          }
           patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,
-            ...(finalPromptLength || reviewedTransition ? { expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
+            ...(finalPromptLength || reviewedTransition || motionFindings.length ? { expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline),
               allowReviewedTimeline } : {}) });
           changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
         }
