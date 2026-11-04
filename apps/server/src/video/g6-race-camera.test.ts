@@ -193,3 +193,68 @@ it("does not add a repair field from a foreign G4 scene", async () => {
   expect((await evaluatePromptPackage(fixture.input)).g6Eligible).toBe(true);
   expect(fixture.repair).not.toHaveBeenCalled();
 });
+
+const middleFinish = "黑白方格纹进入画面下方，前轮先压过涂装，推进几乎不松。";
+const halfNose = "车头拉开半个车身。";
+const partialMiddleAction = "李英子起初仍在第二辆对手车正后方，压住车尾贴住其尾流，随后从车侧探出、贴住对手车身完成侧向超越；她继续在弯心内侧压低上身贴住油箱，双膝夹紧车体，护膝擦过路缘，前轮咬住弯心内侧白线边缘，手腕稳住油门、车身扶正抢先出弯，车头拉开半个车身，直冲黑白方格纹并让前轮先压过涂装，最后轻收油门，车身由倾倒回正、速度自然收住。";
+const partialMiddleTimeline = "T00:00–T00:02：从第二辆对手车后方起幅，先交代车后车位差；李英子贴住其尾流，镜头缓慢推近。"
+  + "T00:02–T00:05：她从车侧探出，倾倒角度压到极限，双膝夹紧油箱，前轮咬住弯心内侧白线边缘，由并排推进到完全领先。"
+  + `T00:05–T00:08：车身扶正抢先出弯，${halfNose}${middleFinish}T00:08–T00:10：轻收油门，落幅保持向右前方滑行。`;
+const secondGapShape = { ...middleShape, camera: revisedMiddleCamera, action: partialMiddleAction, timeline: partialMiddleTimeline };
+const secondClearance = "随后主车车尾完整越过第二辆对手车前轮。";
+const fixedGapAction = partialMiddleAction.replace("车头拉开半个车身，", secondClearance + halfNose);
+const fixedGapTimeline = partialMiddleTimeline.replace(halfNose, secondClearance + halfNose);
+
+it("scopes the actual #46 partial second clearance to the two independently proved fields", () => {
+  expect(approvedRaceCameraChecks(secondGapShape).map(({ field, failureCode }) => [field, failureCode])).toEqual([
+    ["action", "APPROVED_SECOND_PASS_FINISH_BEFORE_WHOLE_CLEARANCE"],
+    ["timeline", "APPROVED_SECOND_PASS_FINISH_BEFORE_WHOLE_CLEARANCE"],
+  ]);
+});
+
+it("allows a later partial nose gap when the whole second clearance was already visible", () => {
+  expect(approvedRaceCameraChecks({ ...secondGapShape, action: fixedGapAction, timeline: fixedGapTimeline })).toEqual([]);
+});
+
+it.each([
+  partialMiddleAction.replace("第二辆对手车", "第一辆对手车"),
+  partialMiddleAction.replace("车头拉开半个车身", "两车均持续前进"),
+  partialMiddleAction.replace("黑白方格纹并让前轮先压过涂装", "直道远处"),
+])("leaves a different rival, ordinary crossing, or generic nose gap alone", action => {
+  expect(approvedRaceCameraChecks({ ...secondGapShape, action, timeline: fixedGapTimeline })).toEqual([]);
+});
+
+it.each([
+  secondClearance.replace("第二辆", "第一辆"),
+  secondClearance.replace("完整越过", "未完整越过"),
+  "目的是让主车车尾完整越过第二辆对手车前轮。",
+])("does not borrow non-executed or different-rival clearance", prefix => {
+  const action = partialMiddleAction.replace("车头拉开半个车身，", prefix + halfNose);
+  expect(approvedRaceCameraChecks({ ...secondGapShape, action, timeline: fixedGapTimeline })).toEqual([
+    expect.objectContaining({ field: "action", failureCode: "APPROVED_SECOND_PASS_FINISH_BEFORE_WHOLE_CLEARANCE" }),
+  ]);
+});
+
+it("uses the existing repair for both diagnosed fields and rejects an erased finish before review", async () => {
+  for (const reject of [false, true]) {
+    const fixture = packageFixture(secondGapShape, { reviseTimeline: false });
+    fixture.repair.mockResolvedValue({ changes: [
+      { field: "action", value: reject ? "同向驶入下一段。" : fixedGapAction, reason: "写明第二辆整车超越" },
+      { field: "timeline", value: fixedGapTimeline, reason: "同场同一对手，整车越过后再压线" },
+    ] });
+    const result = await evaluatePromptPackage(fixture.input);
+    expect(fixture.repair).toHaveBeenCalledTimes(1);
+    expect(fixture.repair.mock.calls[0]![0].allowedFields).toEqual(["action", "timeline"]);
+    expect(fixture.review).toHaveBeenCalledTimes(reject ? 1 : 2);
+    expect(result.g6Eligible).toBe(!reject);
+    expect(result.renderEligible).toBe(false);
+    if (reject) expect(result.repairAttempt?.reason).toBe("APPROVED_RACE_REPAIR_DRIFT");
+  }
+});
+
+it("keeps an earlier first-rival pronoun out of the later second clearance", () => {
+  const action = "先追近第一辆对手车，主车车尾完整越过该对手车。" + partialMiddleAction;
+  expect(approvedRaceCameraChecks({ ...secondGapShape, action, timeline: fixedGapTimeline })).toEqual([
+    expect.objectContaining({ field: "action", failureCode: "APPROVED_SECOND_PASS_FINISH_BEFORE_WHOLE_CLEARANCE" }),
+  ]);
+});

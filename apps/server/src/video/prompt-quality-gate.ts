@@ -1405,7 +1405,8 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
           }
           if (raceFindings.length && approvedRaceRepairDrift({ findings: raceFindings, openingDeadline,
             duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
-            timeline: fieldValueFromSource(patched, "timeline"), camera: fieldValueFromSource(patched, "camera_movement") })) {
+            action: fieldValueFromSource(patched, "action"), timeline: fieldValueFromSource(patched, "timeline"),
+            camera: fieldValueFromSource(patched, "camera_movement") })) {
             throw new Error("APPROVED_RACE_REPAIR_DRIFT");
           }
           patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,

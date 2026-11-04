@@ -6,6 +6,7 @@ const CAMERA_START = "APPROVED_RACE_CAMERA_START_MISMATCH";
 const SECOND_CLEARANCE = "APPROVED_SECOND_RIVAL_CLEARANCE_MISSING";
 const OPENING_DEADLINE = "APPROVED_OPENING_FIRST_PASS_AFTER_DEADLINE";
 const SECOND_CAMERA_START = "APPROVED_SECOND_PASS_CAMERA_START_MISMATCH";
+const SECOND_FINISH_BEFORE_CLEARANCE = "APPROVED_SECOND_PASS_FINISH_BEFORE_WHOLE_CLEARANCE";
 const BOTH_RIVALS = /两次超车针对两辆不同对手车[^。；]*；每次从车后到完全领先/u;
 const FIRST_THEN_SECOND = /先[^；]{0,22}第一辆对手车[^；]{0,46}；(?:再|随即|随后)[^；]{0,24}第二辆对手车/u;
 const COMPLETE_BOTH = /两次超车[^；]{0,12}从(?:对手)?(?:车后|后方)(?:到|至)完全领先/u;
@@ -27,6 +28,36 @@ const FIRST_PASS_LIMIT = /前\s*([1-9一二三四五六七八九])\s*秒(?:之?�
 const SECOND_APPROVED_FROM_REAR = /第二辆(?:不同的|虚构)?对手车[^；。]{0,16}从(?:对手)?(?:车后(?:方)?|后方)(?:到|至)完全领先/u;
 const PAIR_ALIGNED_AT_START = /(?:^|；)起幅(?:贴住|紧贴|落在|从|以|对准|拍到|为)(?:同框的)?两车(?:(?:齐平|并排)的(?:车头|前轮)|(?:车头|前轮)(?:齐平|并排))/u;
 const SECOND_REAR_AT_START = /(?:^|；)起幅(?:从|位于|落在|保留|对准|看清|记录|交代)(?:仍在|仍处于|主车在)?第二辆(?:不同的|虚构)?(?:对手)?车(?:的)?(?:后方|车后|车尾|尾流)/u;
+
+const SECOND_FINISH_INTENT = /(?:压过|越过)[^；。]{0,24}方格(?:纹|线|旗)/u;
+const NOSE_HALF_GAP = /(?:车头|前轮)(?:仅|只)?(?:拉开|领先)(?:了)?半(?:个)?车身/u;
+const STRIPE_CROSSING = /(?:前轮|车头|主车)?先(?:于(?:对手|对方))?(?:压过|越过)(?:(?:黑白)?方格(?:纹)?(?:终点)?线|(?:黑白)?方格纹(?:路面涂装)?|涂装)/u;
+const CHECKERED_MARKING = /(?:黑白)?方格(?:纹|线|旗)/u;
+const SAME_SECOND_CLEARED = /(?:整车|全车|车尾)(?:(?:已经|已|从侧面|完整|完全)\s*)*(?:越过|超越|超过|脱离|完全领先(?:于)?)(?:第二辆(?:不同的|虚构)?对手车|该(?:辆)?对手车)/gu;
+const FIRST_RIVAL_APPROACH = /(?:从|贴住|贴近|追近)第一辆(?:虚构)?对手车/u;
+const SCOPED_NEGATION = /(?:未(?:曾|能)?|并非|不(?:会|曾)?)(?=(?:(?:已经|已|完整|完全)\s*)*(?:越过|超越|超过|脱离|领先))/gu;
+
+function secondPassAtStripe(value: unknown, field: "action" | "timeline", duration: number) {
+  if (typeof value !== "string") return undefined;
+  const windows = field === "timeline" ? localWindows(value) : undefined;
+  if (windows && !completeLocalClock(windows, duration)) return undefined;
+  const body = windows ? windows.map(window => window.text).join("；") : value;
+  const text = productionText(body.replace(SCOPED_NEGATION, "禁止"));
+  const crossing = STRIPE_CROSSING.exec(text);
+  if (!crossing || !CHECKERED_MARKING.test(text.slice(0, crossing.index + crossing[0].length))) return undefined;
+  const beforeStripe = text.slice(0, crossing.index);
+  const second = SECOND_RIVAL.exec(beforeStripe);
+  if (!second) return undefined;
+  const noseGap = NOSE_HALF_GAP.exec(beforeStripe);
+  const sameSecondGap = noseGap && noseGap.index > second.index
+    && !FIRST_RIVAL_APPROACH.test(beforeStripe.slice(second.index + second[0].length, noseGap.index));
+  const whole = [...beforeStripe.matchAll(SAME_SECOND_CLEARED)].some(clearance => {
+    const lastFirst = beforeStripe.slice(0, clearance.index).lastIndexOf("第一辆");
+    const lastSecond = beforeStripe.slice(0, clearance.index).lastIndexOf("第二辆");
+    return SECOND_RIVAL.test(clearance[0]) || (lastSecond >= 0 && lastSecond > lastFirst);
+  });
+  return { partial: !!sameSecondGap, whole };
+}
 
 export function approvedOpeningFirstPassDeadline(purpose: unknown): number | undefined {
   if (typeof purpose !== "string") return undefined;
@@ -56,7 +87,7 @@ function cameraStart(value: unknown, duration: number | undefined): string {
 }
 
 export function approvedRaceRepairDrift(input: {
-  findings: readonly SemanticQualityCheck[]; openingDeadline?: number; duration: number; timeline: unknown; camera: unknown;
+  findings: readonly SemanticQualityCheck[]; openingDeadline?: number; duration: number; timeline: unknown; camera: unknown; action?: unknown;
 }): boolean {
   if (input.findings.some(check => check.failureCode === OPENING_DEADLINE)) {
     const completion = firstPassCompletion(input.timeline, input.duration);
@@ -64,9 +95,11 @@ export function approvedRaceRepairDrift(input: {
   }
   if (input.findings.some(check => check.failureCode === SECOND_CAMERA_START)) {
     const start = cameraStart(input.camera, input.duration);
-    return PAIR_ALIGNED_AT_START.test(start) || STARTS_ALONGSIDE_SECOND.test(start) || !SECOND_REAR_AT_START.test(start);
+    if (PAIR_ALIGNED_AT_START.test(start) || STARTS_ALONGSIDE_SECOND.test(start) || !SECOND_REAR_AT_START.test(start)) return true;
   }
-  return false;
+  return input.findings.some(check => check.failureCode === SECOND_FINISH_BEFORE_CLEARANCE
+    && (check.field === "action" || check.field === "timeline")
+    && !secondPassAtStripe(input[check.field], check.field, input.duration)?.whole);
 }
 
 function reachesFinishFromAlongside(value: unknown): boolean {
@@ -80,7 +113,8 @@ function reachesFinishFromAlongside(value: unknown): boolean {
 
 export function isApprovedRaceFinding(check: SemanticQualityCheck): boolean {
   return check.failureCode === CAMERA_START || check.failureCode === SECOND_CLEARANCE
-    || check.failureCode === OPENING_DEADLINE || check.failureCode === SECOND_CAMERA_START;
+    || check.failureCode === OPENING_DEADLINE || check.failureCode === SECOND_CAMERA_START
+    || check.failureCode === SECOND_FINISH_BEFORE_CLEARANCE;
 }
 
 /** Scope every finding to the actual current approved cut and its named opponent. */
@@ -101,12 +135,25 @@ export function approvedRaceCameraChecks(input: {
   const bothRivals = BOTH_RIVALS.test(productionText(input.frozenBrief));
   const purpose = productionText(input.purpose);
   if (input.shotId === "scene-1" && bothRivals && SECOND_APPROVED_FROM_REAR.test(purpose)) {
+    const approvedSecondFinishes = !FIRST_RIVAL.test(purpose) && SECOND_FINISH_INTENT.test(purpose);
     const start = cameraStart(input.camera, input.duration);
     if (PAIR_ALIGNED_AT_START.test(start) || STARTS_ALONGSIDE_SECOND.test(start)) findings.push({
       id: "SQ3_CAMERA_FEASIBLE", pass: false, field: "camera_movement", failureCode: SECOND_CAMERA_START,
       evidence: "本镜当前已审第二辆超车从车后开始；运镜却把同一对手与主车的齐平位置写作起幅。",
-      repair: "明确起幅从第二辆对手车后方跟随，随后才见并排、整车越过和冲线，保持本镜总时长、方向和切点。",
+      repair: approvedSecondFinishes
+        ? "明确起幅从第二辆对手车后方跟随，随后才见并排、主车车尾完整越过第二辆对手车前轮、最后压过方格终点线，保持本镜总时长、方向和切点。"
+        : "明确起幅从第二辆对手车后方跟随，随后才见并排、整车越过和冲线，保持本镜总时长、方向和切点。",
     });
+    if (input.duration !== undefined && approvedSecondFinishes) {
+      for (const [field, id] of [["action", "SQ1_SUBJECT_ACTION"], ["timeline", "SQ2_SCENE_PROPS"]] as const) {
+        const pass = secondPassAtStripe(input[field], field, input.duration);
+        if (pass?.partial && !pass.whole) findings.push({
+          id, pass: false, field, failureCode: SECOND_FINISH_BEFORE_CLEARANCE,
+          evidence: "本字段写明第二辆对手的超越，却只看见主车车头或前轮拉开半个车身，随即压过方格纹。未写同一第二辆车的整车完全越过。",
+          repair: "在同一字段按从第二辆对手后方、同向并排、主车车尾完整越过第二辆对手车前轮、先压方格终点线、之后减速的顺序明确写出可见事件。保持本镜总时长、既定方向和切点。",
+        });
+      }
+    }
   }
   if (!bothRivals || !FIRST_THEN_SECOND.test(purpose)
     || !input.visualRequirements.some(value => COMPLETE_BOTH.test(productionText(value)))) return findings;
