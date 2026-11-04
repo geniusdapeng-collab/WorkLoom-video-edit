@@ -1,5 +1,7 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { approvedRaceCameraChecks } from "./g6-race-camera.js";
+import { compilePromptPackage, evaluatePromptPackage, SEMANTIC_QUALITY_CHECK_IDS, type SemanticQualityReviewer } from "./prompt-quality-gate.js";
+import type { PromptCompileOptions } from "@hyperreality/video-studio";
 
 const frozenBrief = "两次超车针对两辆不同对手车，每次从车后到完全领先，第一辆已超车继续在后。两次可集中或跨切。";
 const purpose = "先把第一辆对手车压到身后并让它继续留在后视方向，再在最后一弯内侧贴着第二辆对手车完成第二次超车，随后冲线。";
@@ -52,4 +54,142 @@ it.each([
 ])("leaves unrelated scope and an ordinary front-wheel finish alone", override => {
   expect(approvedRaceCameraChecks({ frozenBrief, purpose, visualRequirements, camera: badCamera,
     timeline: finish, ...override })).toEqual([]);
+});
+
+const openingPurpose = "第一帧已在虚构封闭赛道高速追击，前三秒内完成第一辆对手车从车后到完全领先的超车。";
+const openingBrief = "第一帧直接高速追击。前两段共同完成两次清楚超车再冲线，不预设每段各几次。";
+const openingTimeline = "T00:00–T00:02 从车尾右后侧贴上。T00:02–T00:04 车头推到前车后轮齐平。"
+  + "T00:04–T00:07 车身沿边线继续送出，画面进入两车并排。T00:07–T00:09 整车从侧面完全领先，被超掉的第一辆对手车被甩到画面后方。"
+  + "T00:09–T00:10 落幅保留前方第二辆车。";
+const correctedOpeningTimeline = "T00:00–T00:03 主车从第一辆对手车后方追近并排，整车从侧面完全领先，被超掉的第一辆对手车继续留在后方。"
+  + "T00:03–T00:10 同向追向第二辆车。";
+const openingShape = { shotId: "opening", duration: 10, frozenBrief: openingBrief, purpose: openingPurpose,
+  visualRequirements: ["第一辆对手车从车后到完全领先的并排瞬间在段内完成，车位与前进方向不跳变。"],
+  camera: "起幅从第一辆对手车后方跟拍。", action: "整车越过第一辆对手车。", timeline: openingTimeline };
+
+const middlePurpose = "李英子在弯心内侧对第二辆对手车完成从车后到完全领先的超车，随即先于对手压过方格旗对应的终点线，再收油减速。";
+const actualMiddleCamera = "缓慢推近，速度均匀偏慢，起幅贴住两车齐平的车头并保留半个车身环境，随着倾倒角度加大持续向车头接触点推进。";
+const middleTimeline = "T00:00–T00:02：起幅贴住两车齐平的车头。T00:02–T00:05：车头一点点探出。"
+  + "T00:05–T00:08：车头拉开半个车身，前轮先压过黑白方格纹。T00:08–T00:10：轻收油门。";
+const revisedMiddleTimeline = "T00:00–T00:02：从第二辆对手车后方起幅。T00:02–T00:05：由并排推进到完全领先。"
+  + "T00:05–T00:08：主车车尾越过第二辆对手车前轮，前轮先压过方格线。T00:08–T00:10：轻收油门。";
+const middleShape = { ...openingShape, shotId: "scene-1", purpose: middlePurpose, frozenBrief,
+  visualRequirements: ["弯心内侧轮对轮近景，两车车头几乎齐平后拉开差距，方格纹路面涂装作为压线唯一参照。"],
+  camera: actualMiddleCamera, action: "贴住第二辆对手车的侧面，车头拉开半个车身。", timeline: middleTimeline };
+const revisedMiddleCamera = "保持同向，起幅从第二辆对手车后方跟随，随后才拍两车齐平的过程。";
+
+it("recognizes first whole clearance at 7–9 against the current approved opening maximum of three seconds", () => {
+  expect(approvedRaceCameraChecks(openingShape)).toEqual([
+    expect.objectContaining({ field: "timeline", failureCode: "APPROVED_OPENING_FIRST_PASS_AFTER_DEADLINE",
+      evidence: expect.stringMatching(/3.*7–9/u) }),
+  ]);
+});
+
+it.each([
+  ["no authorized deadline", { purpose: openingPurpose.replace("前三秒内", "") }],
+  ["only a hook deadline", { purpose: "前三秒内抓眼。完成第一辆对手车从车后到完全领先的超车。" }],
+  ["negated opening deadline", { purpose: "不要求在前三秒内完成第一辆对手车从车后到完全领先的超车。" }],
+  ["different approved deadline", { purpose: openingPurpose.replace("前三秒内", "前9秒内") }],
+  ["different shot", { shotId: "ending" }],
+  ["qualifying same-action subwindow", { timeline: correctedOpeningTimeline }],
+  ["partial or unlabeled completion", { timeline: openingTimeline.replace("整车从侧面完全领先", "车头从侧面先过") }],
+  ["no affirmative first-rival event", { timeline: openingTimeline.replace("整车从侧面完全领先", "不得整车从侧面完全领先") }],
+  ["malformed local clock", { timeline: openingTimeline.replace("T00:04–T00:07", "T00:05–T00:07") }],
+  ["second rival only", { timeline: openingTimeline.replace("第一辆对手车", "第二辆对手车") }],
+])("does not invent or transfer an opening deadline with %s", (_label, change) => {
+  expect(approvedRaceCameraChecks({ ...openingShape, ...change })).toEqual([]);
+});
+
+it("recognizes the middle start mismatch from the approved plan before and after a timeline-only repair", () => {
+  for (const timeline of [middleTimeline, revisedMiddleTimeline]) {
+    expect(approvedRaceCameraChecks({ ...middleShape, timeline })).toEqual([
+      expect.objectContaining({ field: "camera_movement", failureCode: "APPROVED_SECOND_PASS_CAMERA_START_MISMATCH" }),
+    ]);
+  }
+});
+
+it.each([
+  { camera: revisedMiddleCamera },
+  { camera: "起幅不要贴住两车齐平的车头，保留后方车位。" },
+  { camera: "T00:00–T00:02 后方机位保留前车距离。T00:02–T00:06 起幅贴住两车齐平的车头。T00:06–T00:10 同向跟随。" },
+  { camera: "T00:00–T00:03 起幅贴住两车齐平的车头。T00:04–T00:10 同向跟随。" },
+  { purpose: "两辆虚构车保持并排，记录冲线。" },
+  { frozenBrief: "两车同向冲线。" },
+])("keeps the middle camera read-only for an unrelated or later event", override => {
+  expect(approvedRaceCameraChecks({ ...middleShape, ...override })).toEqual([]);
+});
+
+const compile: PromptCompileOptions = {
+  delivery: { aspectRatio: "9:16", resolution: "1080p", fps: 30, format: "mp4", generateAudio: true },
+  model: { modelId: "fixture", provider: "seedance", providerModel: "fixture", version: "fixture",
+    modes: ["r2v"], durationSec: { min: 4, max: 15 }, aspectRatios: ["9:16"], resolutions: ["1080p"],
+    maxReferenceImages: 2, maxPromptChars: 4000 },
+  assets: [{ field: "portraits", role: "reference_image", sha256: "a".repeat(64), bytes: 1, mediaType: "image/png", sourceRef: "portrait.png" }],
+};
+
+function packageFixture(shape: typeof openingShape, { foreign = false, reviseTimeline = true }: { foreign?: boolean; reviseTimeline?: boolean } = {}) {
+  const { shotId, duration, frozenBrief: brief, purpose, visualRequirements, camera, action, timeline } = shape;
+  const fields = { director_instruction: "商业广告，封闭赛道。", constraint: "9:16画幅，1080x1920，30fps，MP4格式。",
+    baseline: "保持写实。", scene: "虚构封闭赛道弯道。", lighting: "冷白侧光。", camera_movement: camera,
+    character: "穿全覆赛车服的赛车手。", action, portraits: "image://portrait.png", dialogue: "无台词。",
+    negative: "无文字和商标。", consistency: "同一角色同一全覆服装。", composition: "两车同框。",
+    color_palette: "冷白赛道。", depth_of_field: "两车车位清晰。", timeline, mood: "冷酷克制。",
+    bright_constraint: "全盔轮廓清楚。", character_constraint: "同一赛车手。", costume: "全覆防护服。",
+    props: "两辆虚构对手车。", pacing: "动作连贯。", audio: "原生轮胎声。", makeup: "自然妆面。", transition: "零秒硬切。",
+  };
+  const startSec = shotId === "opening" ? 0 : 10;
+  const upstreamContext = { approvedProductionPlan: { g4ArtifactSha256: "b".repeat(64), requirementContractHash: "c".repeat(64),
+    scenes: [{ shotId, sceneId: foreign ? "foreign" : shotId, interval: { startSec, endSec: startSec + duration, brief },
+      approvedScene: { purpose, actions: [{ actorId: "lead", description: purpose }] }, verificationPlan: { visualRequirements } }] } };
+  const review = vi.fn<SemanticQualityReviewer["review"]>(async ({ shot }) => {
+    const current = shot.fields as typeof fields;
+    return { shotId, checks: SEMANTIC_QUALITY_CHECK_IDS.map(id => {
+      const field = id === "SQ3_CAMERA_FEASIBLE" ? "camera_movement" : id === "SQ4_LIGHT_COLOR" ? "lighting" : "scene";
+      if (reviseTimeline && shotId === "scene-1" && id === "SQ2_SCENE_PROPS" && current.timeline === timeline) {
+        return { id, pass: false, field: "timeline", evidence: timeline, failureCode: "TIMELINE_STARTS_LEVEL", repair: "从第二辆后方起幅。" };
+      }
+      return { id, pass: true, field, evidence: current[field] };
+    }) };
+  });
+  const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>();
+  return { review, repair, input: { projectId: "P", runId: "R", stageRunId: "S", mode: "enforce" as const,
+    revision: 1, maxFinalPromptChars: 3000, upstreamContext, reviewer: { review, repair },
+    shots: [{ source: { shotId, duration, fields, portraits: fields.portraits }, compile }] } };
+}
+
+it.each([openingShape, middleShape])("uses a single current-shot repair and retains immutable request channels for $shotId", async shape => {
+  const fixture = packageFixture(shape);
+  const original = compilePromptPackage(fixture.input)[0]!.contract;
+  const changes = [{ field: "timeline", value: shape.shotId === "opening" ? correctedOpeningTimeline : revisedMiddleTimeline, reason: "按已审时序修复" }];
+  if (shape.shotId === "scene-1") changes.push({ field: "camera_movement", value: revisedMiddleCamera, reason: "起幅位于同一对手后方" });
+  fixture.repair.mockResolvedValue({ changes });
+  const result = await evaluatePromptPackage(fixture.input);
+  expect(fixture.repair).toHaveBeenCalledTimes(1);
+  expect(fixture.repair.mock.calls[0]![0].allowedFields).toEqual(changes.map(row => row.field));
+  expect(fixture.review).toHaveBeenCalledTimes(2);
+  expect(result.g6Eligible, result.repairAttempt?.reason).toBe(true);
+  expect(result.renderEligible).toBe(false);
+  const current = result.shotContracts[0]!.contract;
+  expect(current.request).toEqual({ ...original.request, technical: { ...original.request.technical, timeline: changes[0]!.value } });
+});
+
+it.each([
+  [openingShape, "timeline", "T00:00–T00:10 侧跟两辆虚构对手，保持方向。"],
+  [openingShape, "timeline", "T00:00–T00:04 整车从侧面完全领先，被超掉的第一辆对手车在后。T00:04–T00:10 继续追击。"],
+  [middleShape, "camera_movement", "长焦保持同向缓慢推近。"],
+  [middleShape, "camera_movement", actualMiddleCamera],
+] as const)("rejects a repair that drops the scoped positive proof on $shotId", async (shape, field, value) => {
+  const fixture = packageFixture(shape, { reviseTimeline: false });
+  fixture.repair.mockResolvedValue({ changes: [{ field, value, reason: "尝试修复" }] });
+  const result = await evaluatePromptPackage(fixture.input);
+  expect(fixture.repair).toHaveBeenCalledTimes(1);
+  expect(fixture.review).toHaveBeenCalledTimes(1);
+  expect(result.g6Eligible).toBe(false);
+  expect(result.repairAttempt?.reason).toBe("APPROVED_RACE_REPAIR_DRIFT");
+});
+
+it("does not add a repair field from a foreign G4 scene", async () => {
+  const fixture = packageFixture(openingShape, { foreign: true });
+  expect((await evaluatePromptPackage(fixture.input)).g6Eligible).toBe(true);
+  expect(fixture.repair).not.toHaveBeenCalled();
 });
