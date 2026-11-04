@@ -24,6 +24,7 @@ import {
   type TextScenePolicy,
   type ThinkingEffort,
 } from "./deepseek-policy.js";
+import { isRiskResponsesJsonSchema, RISK_RESPONSES_SCHEMA_NAME, riskResponsesJsonSchema } from "./risk-responses-schema.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -57,6 +58,9 @@ export type NativeSceneResponseSource = Readonly<{
   responseSha256: string;
   schemaSha256: string;
 }>;
+
+/** The original final text of one measured, completed Risk Responses dispatch. */
+export type NativeRiskResponseSource = NativeSceneResponseSource;
 
 export interface ChatResult {
   text: string;
@@ -384,6 +388,7 @@ const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiDispatch & {
   finalJson?: boolean;
   finalJsonText?: string;
   sceneResponse?: NativeSceneResponseSource;
+  riskResponse?: NativeRiskResponseSource;
 }>();
 const nativeBlankJsonErrors = new WeakMap<ModelProviderError, NativeBlankJsonReceipt>();
 const nativeBlankJsonDispatches = new WeakMap<NativeBlankJsonReceipt, BlankJsonDispatch>();
@@ -446,6 +451,16 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     const dispatched = openAiTransportReceipts.get(receipt);
     if (dispatched?.provider === this && dispatched.sceneResponse && !types.isProxy(this)
       && this.#matchesTransport(dispatched, DEEPSEEK_RESPONSES_PATH)) return dispatched.sceneResponse;
+    return undefined;
+  }
+
+  /** Risk proof is bound to this dispatch and its exact outbound schema. */
+  readNativeRiskResponseSource(receipt: ChatResult): NativeRiskResponseSource | undefined {
+    const dispatched = openAiTransportReceipts.get(receipt);
+    const source = dispatched?.riskResponse;
+    if (dispatched?.provider === this && source && !types.isProxy(this)
+      && source.rawText.trim() === receipt.text && source.requestSha256 === receipt.requestHash && source.responseSha256 === receipt.responseHash
+      && this.#matchesTransport(dispatched, DEEPSEEK_RESPONSES_PATH)) return source;
     return undefined;
   }
 
@@ -542,11 +557,12 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         || typeof system.content !== "string" || !system.content.trim()
         || typeof user.content !== "string" || !user.content.trim()
         || typeof name !== "string" || !/^[a-zA-Z0-9_-]{1,64}$/.test(name)
-        || !objectRecord(responses.schema)) {
+        || !objectRecord(responses.schema) || (name === RISK_RESPONSES_SCHEMA_NAME && !isRiskResponsesJsonSchema(responses))) {
         throw new ModelProviderError("模型 Responses 结构化请求参数无效", "protocol");
       }
       // The planner and HTTP request must use the same schema snapshot.
-      const schema = objectRecord(JSON.parse(JSON.stringify(responses.schema)));
+      const schema = name === RISK_RESPONSES_SCHEMA_NAME ? riskResponsesJsonSchema.schema
+        : objectRecord(JSON.parse(JSON.stringify(responses.schema)));
       if (!schema) throw new ModelProviderError("模型 Responses 结构化请求参数无效", "protocol");
       structuredRequest = {
         instructions: system.content,
@@ -766,18 +782,28 @@ export class OpenAiCompatibleProvider implements ModelProvider {
       const completeNativeHttp = attempt === 1 && response.status === 200 && !response.redirected && !signal.aborted;
       const finalJson = !structuredRequest && responseFormat?.type === "json_object" && completeNativeHttp
         && isNativeEndpoint(transport.endpoint, DEEPSEEK_CHAT_PATH) && isNativeChatJsonMessage(data);
-      const echoedFormat = objectRecord(objectRecord(objectRecord(decoded)?.text)?.format);
+      const responseObject = objectRecord(decoded);
+      const echoedFormat = objectRecord(objectRecord(responseObject?.text)?.format);
       const rawText = choice.message?.content;
-      const sceneResponse = completeNativeHttp && structuredRequest?.format.name === SCENE_RESPONSES_SCHEMA_NAME
-        && echoedFormat?.type === "json_schema" && echoedFormat.name === SCENE_RESPONSES_SCHEMA_NAME
-        && typeof rawText === "string" && isNativeEndpoint(transport.endpoint, DEEPSEEK_RESPONSES_PATH)
-        ? Object.freeze({
+      const nativeFormat = completeNativeHttp && structuredRequest && echoedFormat?.type === "json_schema"
+        && echoedFormat.name === structuredRequest.format.name && typeof rawText === "string"
+        && isNativeEndpoint(transport.endpoint, DEEPSEEK_RESPONSES_PATH) ? structuredRequest.format : undefined;
+      const scene = nativeFormat?.name === SCENE_RESPONSES_SCHEMA_NAME;
+      const echoedEffort = objectRecord(responseObject?.reasoning)?.effort;
+      const echoedOutputCeiling = responseObject?.max_output_tokens;
+      const risk = nativeFormat?.name === RISK_RESPONSES_SCHEMA_NAME
+        // The response format name is attested. The documented response does not require schema bytes to be echoed.
+        && (!Object.hasOwn(echoedFormat!, "schema") || isRiskResponsesJsonSchema({ name: echoedFormat?.name, schema: echoedFormat?.schema }))
+        && (echoedEffort === undefined || echoedEffort === effort)
+        && (echoedOutputCeiling === undefined || echoedOutputCeiling === plan.outputCeiling);
+      const source = nativeFormat && typeof rawText === "string" && (scene || risk) ? Object.freeze({
             rawText, requestSha256: requestHash, responseSha256: responseHash,
-            schemaSha256: createHash("sha256").update(JSON.stringify(structuredRequest.format.schema)).digest("hex"),
+            schemaSha256: createHash("sha256").update(JSON.stringify(nativeFormat.schema)).digest("hex"),
           })
         : undefined;
       openAiTransportReceipts.set(receipt, { ...transport, provider: this, finalJson,
-        finalJsonText: finalJson && typeof rawText === "string" ? rawText : undefined, sceneResponse });
+        finalJsonText: finalJson && typeof rawText === "string" ? rawText : undefined,
+        sceneResponse: scene ? source : undefined, riskResponse: risk ? source : undefined });
       return receipt;
     }
     throw new ModelProviderError("模型调用重试耗尽", "http", { retryable: false, receipt: { attempts } });

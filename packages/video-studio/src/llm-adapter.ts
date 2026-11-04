@@ -23,6 +23,7 @@ import {
   DEEPSEEK_FLASH_MODEL_ID,
   DEEPSEEK_RESPONSES_PATH,
   GatewayEventSink,
+  isRiskResponsesJsonSchema,
   OpenAiCompatibleProvider,
   resolveScene,
   resolveTextScenePolicy,
@@ -35,6 +36,7 @@ import {
   type EventSink,
   type ModelPolicy,
   type NativeBlankJsonReceipt,
+  type NativeRiskResponseSource,
   type NativeSceneResponseSource,
   type ModelProvider,
   type PlanId,
@@ -96,16 +98,20 @@ const nativeStructuredChatRoutes = new WeakMap<object, {
   current: () => boolean;
 }>();
 const nativeSceneResponseSources = new WeakMap<object, NativeSceneResponseSource>();
-const nativeSceneResponseRoutes = new WeakMap<object, {
+type NativeResponsesRoute = {
   engine: WorkloomLLMEngine;
   binding: ReviewDispatchBinding;
   receipt: ChatResult;
   schemaSha256: string;
   current: () => boolean;
-}>();
+};
+const nativeSceneResponseRoutes = new WeakMap<object, NativeResponsesRoute>();
+const nativeRiskResponseSources = new WeakMap<object, NativeRiskResponseSource>();
+const nativeRiskResponseRoutes = new WeakMap<object, NativeResponsesRoute>();
 const checkBlankTransport = OpenAiCompatibleProvider.prototype.matchesNativeBlankJsonTransport;
 const checkBlankCorrection = OpenAiCompatibleProvider.prototype.matchesNativeBlankJsonCorrection;
 const readSceneResponseSource = OpenAiCompatibleProvider.prototype.readNativeSceneResponseSource;
+const readRiskResponseSource = OpenAiCompatibleProvider.prototype.readNativeRiskResponseSource;
 
 export function nativeReasonFailure(value: unknown): "json-syntax" | "unavailable" | undefined {
   return value !== null && typeof value === "object" ? reasonFailures.get(value) : undefined;
@@ -135,12 +141,39 @@ export function nativeSceneResponseRouteCurrent(value: unknown): boolean {
 export function sameNativeSceneResponseRoute(left: unknown, right: unknown): boolean {
   if (left === null || typeof left !== "object" || right === null || typeof right !== "object") return false;
   const first = nativeSceneResponseRoutes.get(left), next = nativeSceneResponseRoutes.get(right);
+  return sameDistinctResponses(first, next) && nativeSceneResponseRouteCurrent(left) && nativeSceneResponseRouteCurrent(right);
+}
+
+function sameDistinctResponses(first: NativeResponsesRoute | undefined, next: NativeResponsesRoute | undefined): boolean {
   return !!first && !!next && first.engine === next.engine
     && first.schemaSha256 === next.schemaSha256 && sameReviewDispatch(first.binding, next.binding)
     && first.receipt.outputCeiling === next.receipt.outputCeiling
     && first.receipt.responseId !== next.receipt.responseId
-    && first.receipt.requestHash !== next.receipt.requestHash && first.receipt.responseHash !== next.receipt.responseHash
-    && nativeSceneResponseRouteCurrent(left) && nativeSceneResponseRouteCurrent(right);
+    && first.receipt.requestHash !== next.receipt.requestHash && first.receipt.responseHash !== next.receipt.responseHash;
+}
+
+/** Private raw output provenance from the exact, measured Risk response only. */
+export function nativeRiskResponseSource(value: unknown): NativeRiskResponseSource | undefined {
+  return value !== null && typeof value === "object" ? nativeRiskResponseSources.get(value) : undefined;
+}
+
+/** Recheck the live engine, route controls, provider, schema and measured response. */
+export function nativeRiskResponseRouteCurrent(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  const proof = nativeRiskResponseRoutes.get(value);
+  if (!proof || dataMember(value, "success") !== !reasonFailures.has(value)
+    || dataMember(value, "content") !== proof.receipt.text) return false;
+  const usage = dataMember(value, "usage");
+  return !!usage && typeof usage === "object" && !types.isProxy(usage)
+    && dataMember(usage, "promptTokens") === proof.receipt.promptTokens
+    && dataMember(usage, "completionTokens") === proof.receipt.completionTokens && proof.current();
+}
+
+/** Pair distinct Risk responses with unchanged native route controls, schema and output window. */
+export function sameNativeRiskResponseRoute(left: unknown, right: unknown): boolean {
+  if (left === null || typeof left !== "object" || right === null || typeof right !== "object") return false;
+  return sameDistinctResponses(nativeRiskResponseRoutes.get(left), nativeRiskResponseRoutes.get(right))
+    && nativeRiskResponseRouteCurrent(left) && nativeRiskResponseRouteCurrent(right);
 }
 
 function nativeChatResultCurrent(value: LLMReasonResult, proof: NonNullable<ReturnType<typeof nativeStructuredChatRoutes.get>>): boolean {
@@ -552,6 +585,8 @@ export class WorkloomLLMEngine {
       const sceneRoute = opts.forceJson && opts.responsesJsonSchema?.name === "workloom_scene_architect"
         ? describeRouteControls()
         : undefined;
+      const riskRoute = opts.forceJson && isRiskResponsesJsonSchema(opts.responsesJsonSchema)
+        ? describeRouteControls(true) : undefined;
       const chatIdentity = opts.forceJson && opts.responsesJsonSchema === undefined ? opts[structuredChatIdentity]?.() : undefined;
       const chatRoute = chatIdentity ? describeRouteControls(true) : undefined;
       const result = await routeSmart(task, providers, sink, { policy });
@@ -596,6 +631,19 @@ export class WorkloomLLMEngine {
                 && digestPattern.test(source.schemaSha256) && digestPattern.test(receipt.requestHash) && digestPattern.test(receipt.responseHash)
                 && current()) {
                 nativeSceneResponseRoutes.set(answer, { engine: this, binding: sceneRoute, receipt, schemaSha256: source.schemaSha256, current });
+              }
+            }
+            const risk = readRiskResponseSource.call(nativeProvider, receipt);
+            if (risk) {
+              nativeRiskResponseSources.set(answer, risk);
+              const current = () => Boolean(riskRoute && isRiskResponsesJsonSchema(opts.responsesJsonSchema)
+                && sameReviewDispatch(riskRoute, describeRouteControls(true))
+                && readRiskResponseSource.call(nativeProvider, receipt) === risk);
+              if (riskRoute && receipt.scene === scene && receipt.mode === riskRoute.thinkingMode && receipt.effort === riskRoute.thinkingEffort
+                && receipt.policyVersion === TEXT_PRIMARY_POLICY_VERSION && receipt.registryVersion === TEXT_PRIMARY_REGISTRY_VERSION
+                && digestPattern.test(risk.schemaSha256) && digestPattern.test(receipt.requestHash) && digestPattern.test(receipt.responseHash)
+                && current()) {
+                nativeRiskResponseRoutes.set(answer, { engine: this, binding: riskRoute, receipt, schemaSha256: risk.schemaSha256, current });
               }
             }
           }
@@ -669,6 +717,10 @@ export class WorkloomLLMEngine {
         if (source) nativeSceneResponseSources.set(failure, source);
         const route = nativeSceneResponseRoutes.get(result);
         if (route) nativeSceneResponseRoutes.set(failure, route);
+        const risk = nativeRiskResponseSources.get(result);
+        if (risk) nativeRiskResponseSources.set(failure, risk);
+        const riskRoute = nativeRiskResponseRoutes.get(result);
+        if (riskRoute) nativeRiskResponseRoutes.set(failure, riskRoute);
         const chat = nativeStructuredChatRoutes.get(result);
         if (chat) nativeStructuredChatRoutes.set(failure, chat);
         return failure;
