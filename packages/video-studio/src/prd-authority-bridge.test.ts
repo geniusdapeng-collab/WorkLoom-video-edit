@@ -302,12 +302,27 @@ import { OpenAiCompatibleProvider, resetCircuit } from ${JSON.stringify(repo + "
 const { LLMEngine } = createRequire(${JSON.stringify(repo + "package.json")})(${JSON.stringify(repo + "vendor/supermickey/systems/llm-reasoning-engine.js")});
 const cases = ["normal", "character", "audio", "creative", "repeat-invalid", "duplicate-key", "same-id",
   "unmeasured", "unmeasured-correction", "nonfrozen", "forged", "shadow", "proxy", "stale", "detached",
-  "uninstalled", "foreign", "late", "late-correction", "unknown"];
+  "uninstalled", "foreign", "late", "late-correction", "unknown",
+  "facts-corrected", "facts-clean", "facts-repeat", "facts-no-policy", "facts-unmeasured", "facts-duplicate",
+  "facts-same-id", "facts-bad-shape", "facts-then-syntax", "facts-after-syntax", "facts-unknown", "facts-late-first", "facts-late-second",
+  "facts-key-message", "facts-authority-drift"];
 globalThis.fetch = () => { throw new Error("Unexpected external network"); };
 const outcomes = [];
 for (const mode of cases) {
   resetCircuit("preproduction");
   const value = prdFixture("VENDOR-NATIVE-" + mode, [10, 10, 10]);
+  const factCase = mode.startsWith("facts-");
+  if (factCase && mode !== "facts-no-policy") {
+    value.metadata.brief.requirements = "保留完整客户原文。商品事实仅限本次 G1 核实的身份与用途。比赛、车辆和获胜均为虚构演绎。";
+  }
+  const invalidCreative = { ...value.creative,
+    coreTheme: "以两次超越收束冲线，另声称22度前倾角与24.6度转向。SYNTHETIC_REJECTED_VALUE" };
+  const cleanCreative = { ...value.creative, coreTheme: "30秒里以机位22度前倾角跟住两次超越，镜头转向45度；不要使用实车前倾角24.6度做卖点。" };
+  if (mode === "facts-bad-shape") invalidCreative.unknownFixtureKey = true;
+  if (mode === "facts-key-message") {
+    invalidCreative.coreTheme = cleanCreative.coreTheme;
+    invalidCreative.keyMessages = ["P0：" + "保留动作".repeat(90) + "，商品转向角为20度。SYNTHETIC_REJECTED_VALUE"];
+  }
   if (mode !== "nonfrozen") {
     value.metadata.brief.productionRequirements.speechPolicy = "none";
     value.metadata.brief.segmentContract = { count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
@@ -334,14 +349,25 @@ for (const mode of cases) {
     const count = calls[kind].length;
     assert(count <= 2);
     if (mode === "unknown" && kind === "production") return new Response("fixture HTTP 502", { status: 502 });
-    const firstInvalid = !["normal", "creative", "unknown"].includes(mode);
-    const payload = kind === "creative" ? value.creative
+    if (mode === "facts-unknown" && kind === "creative") return new Response("fixture HTTP 502", { status: 502 });
+    const firstInvalid = !factCase && !["normal", "creative", "unknown"].includes(mode);
+    const payload = kind === "creative" ? (factCase
+      ? mode === "facts-clean" || (count === 2 && !["facts-repeat", "facts-after-syntax"].includes(mode)) ? cleanCreative : invalidCreative
+      : value.creative)
       : (count === 1 && firstInvalid) || mode === "repeat-invalid" ? invalid : value.production;
     let content = JSON.stringify(payload);
+    if (mode === "facts-repeat" && kind === "creative" && count === 2) {
+      content = JSON.stringify({ ...value.creative, coreTheme: "用实车２４．６度转向来解释赛道获胜。" });
+    }
     if (mode === "creative" && kind === "creative" && count === 1) content = '{"coreTheme":"SYNTHETIC_REJECTED_VALUE"';
+    if (kind === "creative" && ((mode === "facts-then-syntax" && count === 2) || (mode === "facts-after-syntax" && count === 1))) {
+      content = '{"coreTheme":"SYNTHETIC_REJECTED_VALUE"';
+    }
+    if (mode === "facts-duplicate" && kind === "creative") content = '{"coreTheme":"duplicate",' + content.slice(1);
     if (mode === "duplicate-key" && kind === "production") content = '{"visualSpecification":null,' + content.slice(1);
-    const id = kind + "-" + (mode === "same-id" && kind === "production" ? 1 : count);
-    const unmeasured = kind === "production" && (mode === "unmeasured" || (mode === "unmeasured-correction" && count === 2));
+    const id = kind + "-" + ((mode === "same-id" && kind === "production") || (mode === "facts-same-id" && kind === "creative") ? 1 : count);
+    const unmeasured = (kind === "production" && (mode === "unmeasured" || (mode === "unmeasured-correction" && count === 2)))
+      || (mode === "facts-unmeasured" && kind === "creative");
     return Response.json({ ...(unmeasured ? {} : { id }),
       object: "chat.completion", model: "deepseek-flash",
       choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }],
@@ -349,6 +375,7 @@ for (const mode of cases) {
         completion_tokens_details: { reasoning_tokens: 4500 } } });
   } });
   const disposers = [];
+  let authorityDrift = false;
   const start = performance.now.bind(performance);
   const router = { scene: "preproduction", providers: new Map([[provider.modelId, provider]]), sink: {
     recordModelTrace: async () => {
@@ -361,6 +388,10 @@ for (const mode of cases) {
       if ((mode === "late" && count === 1) || (mode === "late-correction" && count === 2)) {
         Object.defineProperty(performance, "now", { configurable: true, value: () => start() + 200000 });
       }
+      if ((mode === "facts-late-first" && calls.creative.length === 1) || (mode === "facts-late-second" && calls.creative.length === 2)) {
+        Object.defineProperty(performance, "now", { configurable: true, value: () => start() + 200000 });
+      }
+      if (mode === "facts-authority-drift" && calls.creative.length === 1) authorityDrift = true;
     },
     recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
   } };
@@ -419,26 +450,44 @@ for (const mode of cases) {
       const prd = await generator.generate(value.discovery);
       await system._confirmPRD(generator.generateMarkdown(prd), prd);
       return { success: true, stages: { prdGeneration: { data: prd } } };
-    });
+    }, () => { if (authorityDrift) throw new Error("fixture original G1 changed"); });
   } catch (error) { failure = error.message; }
   finally {
     for (const dispose of disposers.reverse()) dispose();
-    if (mode === "late" || mode === "late-correction") delete performance.now;
+    if (["late", "late-correction", "facts-late-first", "facts-late-second"].includes(mode)) delete performance.now;
     timerHook.disable();
     for (const timer of timers) clearTimeout(timer);
     value.cleanup();
   }
-  const accepted = ["normal", "character", "audio", "creative"].includes(mode);
+  const accepted = ["normal", "character", "audio", "creative", "facts-corrected", "facts-clean", "facts-no-policy", "facts-key-message"].includes(mode);
   assert.equal(Boolean(result), accepted, mode + ": " + failure);
-  assert.equal(calls.creative.length, mode === "creative" ? 2 : 1, mode);
+  const repeatedCreative = ["creative", "facts-corrected", "facts-repeat", "facts-same-id", "facts-then-syntax", "facts-after-syntax", "facts-late-second", "facts-key-message"].includes(mode);
+  assert.equal(calls.creative.length, repeatedCreative ? 2 : 1, mode);
   const shouldRepeat = ["character", "audio", "repeat-invalid", "same-id", "unmeasured-correction", "late-correction"].includes(mode);
   const unsafeReceiver = ["forged", "shadow", "proxy", "detached", "uninstalled", "foreign"].includes(mode);
-  assert.equal(calls.production.length, unsafeReceiver ? 0 : shouldRepeat ? 2 : 1, mode);
+  assert.equal(calls.production.length, unsafeReceiver || (factCase && !accepted) ? 0 : shouldRepeat ? 2 : 1, mode);
+  if (factCase && mode !== "facts-no-policy") {
+    assert(calls.creative[0].prompt.includes("## 本次创意商品事实边界"), mode);
+    assert(calls.creative[0].prompt.includes(value.metadata.brief.requirements), mode);
+    assert(calls.creative[0].prompt.includes(value.content), mode);
+  }
+  if (["facts-clean", "facts-corrected", "facts-key-message"].includes(mode)) {
+    assert.deepEqual(result.stages.prdGeneration.data.creativeCore, cleanCreative, mode);
+    assert(calls.production[0].prompt.includes(cleanCreative.coreTheme), mode);
+    assert(!calls.production[0].prompt.includes("SYNTHETIC_REJECTED_VALUE"), mode);
+  }
+  if (mode === "facts-no-policy") {
+    assert.equal(result.stages.prdGeneration.data.creativeCore.coreTheme, invalidCreative.coreTheme);
+    assert(!calls.creative[0].prompt.includes("## 本次创意商品事实边界"));
+  }
+  if (mode === "facts-authority-drift") assert.match(failure, /fixture original G1 changed/);
   if (unsafeReceiver || mode === "stale") assert.match(failure, /PRD_ENGINE_CHANGED/, mode);
   for (const [kind, requests] of Object.entries(calls)) {
     const [first, next] = requests;
     if (!next) continue;
-    const heading = kind === "creative" ? "\\n\\n## 本次原生创意核心 JSON 格式修正\\n" : "\\n\\n## 上一次原生制作规格结构校验反馈\\n";
+    const heading = kind === "creative"
+      ? (factCase && mode !== "facts-after-syntax" ? "\\n\\n## 本次原生创意核心商品事实修正\\n" : "\\n\\n## 本次原生创意核心 JSON 格式修正\\n")
+      : "\\n\\n## 上一次原生制作规格结构校验反馈\\n";
     const start = next.prompt.lastIndexOf(heading);
     const end = next.prompt.lastIndexOf("\\n\\n【硬性输出要求】");
     assert(start > 0 && end > start, mode);
@@ -457,9 +506,9 @@ console.log("RESULT " + JSON.stringify(outcomes));
       cwd: repo, timeout: 40_000, encoding: "utf8", maxBuffer: 2 * 1024 * 1024,
     });
     const outcomes = JSON.parse(stdout.split("\n").find(line => line.startsWith("RESULT "))!.slice(7));
-    expect(outcomes).toHaveLength(20);
+    expect(outcomes).toHaveLength(35);
     expect(outcomes.filter((row: RequirementRecord) => row.accepted).map((row: RequirementRecord) => row.mode))
-      .toEqual(["normal", "character", "audio", "creative"]);
+      .toEqual(["normal", "character", "audio", "creative", "facts-corrected", "facts-clean", "facts-no-policy", "facts-key-message"]);
   }, 45_000);
 
   it("the direct HTTP path carries the same private context and returns the exact raw response", async () => {
