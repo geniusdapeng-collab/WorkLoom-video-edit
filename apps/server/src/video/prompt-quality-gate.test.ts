@@ -172,7 +172,7 @@ it("uses only the ordered explicit selections from a verified native archive bin
 
 const repairedCamera = "固定机位，缓慢推近一个动作";
 
-function workerModelFixture() {
+function workerModelFixture({ rejectDuplicates = false } = {}) {
   vi.stubEnv("LLM_PROVIDER", "deepseek");
   vi.stubEnv("LLM_BASE_URL", "http://g6-fixture.invalid/v1");
   vi.stubEnv("LLM_API_KEY", "fixture-only");
@@ -185,7 +185,9 @@ function workerModelFixture() {
   const onReview = vi.fn();
   vi.stubGlobal("fetch", vi.fn(async (url: unknown, init?: RequestInit) => {
     expect(String(url)).toBe("http://g6-fixture.invalid/v1/chat/completions");
-    requests.push(String(init?.body));
+    const request = String(init?.body);
+    const duplicate = requests.includes(request);
+    requests.push(request);
     const { messages, model } = JSON.parse(requests.at(-1)!);
     const prompt = String(messages.at(-1).content);
     const section = prompt.split("\n\n【硬性输出要求】", 1)[0]!;
@@ -193,6 +195,7 @@ function workerModelFixture() {
     const context = JSON.parse(section.slice(repairing ? section.indexOf("镜头：{") + 3 : section.indexOf("\n{\n") + 1));
     const shotId = String(context.shotId);
     calls.push(`${repairing ? "repair" : "review"}:${shotId}`);
+    if (rejectDuplicates && duplicate) return new Response("duplicate provider request denied", { status: 409 });
     const review = passReview();
     review.shotId = shotId;
     const camera = context.fields?.find((entry: { field: string }) => entry.field === "camera_movement")?.value;
@@ -204,8 +207,8 @@ function workerModelFixture() {
     const payload = repairing ? onRepair(context, fallback) ?? fallback : onReview(context, fallback) ?? fallback;
     if (payload instanceof Response) return payload;
     return Response.json({
-      id: `g6-fixture-${calls.length}`, model,
-      choices: [{ finish_reason: "stop", message: { content: JSON.stringify(payload) } }],
+      id: `g6-fixture-${calls.length}`, model, object: "chat.completion",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: typeof payload === "string" ? payload : JSON.stringify(payload) } }],
       usage: { prompt_tokens: 300, completion_tokens: 100, total_tokens: 400 },
     });
   }));
@@ -232,6 +235,79 @@ function workerModelFixture() {
 }
 
 describe("G6 同次修复的真实模型路由", () => {
+  it.each([
+    ["JSON 语法", '{"fixture_private_previous_payload":', "SEMANTIC_REVIEW_JSON_SYNTAX"],
+    ["评审契约", { shotId: "S02", checks: [] }, "SEMANTIC_REVIEW_CONTRACT_INVALID"],
+  ])("首轮%s失败仅作一次有区别的技术纠正，并复用未变镜头的通过证明", async (_label, malformed, failure) => {
+    const fixture = workerModelFixture({ rejectDuplicates: true });
+    let first = true;
+    fixture.onReview.mockImplementation((_context: unknown, review: SemanticQualityReview) => {
+      if (review.shotId === "S02" && first) { first = false; return malformed; }
+      return review;
+    });
+    const result = await evaluatePromptPackage(fixture.evaluation);
+    expect(fixture.calls).toEqual(["review:S01", "review:S02", "review:S02", "repair:S01", "review:S01"]);
+    expect(result).toMatchObject({ status: "passed", g6Eligible: true, renderEligible: false });
+    expect(result.semanticReports[1]).toMatchObject({ valid: true, technicalFailure: failure,
+      proofReuse: { sourceTechnicalRetry: 1, sourceRequestSha256: fixture.traces[2]!.requestHash } });
+    const initial = JSON.parse(fixture.requests[1]!);
+    const corrected = JSON.parse(fixture.requests[2]!);
+    expect(corrected.messages.at(-1).content).toMatch(/^【G6 评审响应技术纠正】\n/u);
+    expect(corrected.messages.at(-1).content.endsWith(initial.messages.at(-1).content)).toBe(true);
+    expect(corrected.messages.at(-1).content).not.toContain("fixture_private_previous_payload");
+    expect(JSON.stringify(result.semanticReports)).not.toContain("fixture_private_previous_payload");
+    const messages = corrected.messages.map((message: { role: string; content: string }, i: number) =>
+      i === corrected.messages.length - 1 ? { ...message, content: initial.messages.at(-1).content } : message);
+    expect({ ...corrected, messages }).toEqual(initial);
+  });
+
+  it.each([
+    ["传输失败", () => new Response("offline", { status: 503 })],
+    ["原样重复被拒绝", () => new Response("duplicate", { status: 409 })],
+    ["完整空白", () => "   "],
+    ["缺少真实身份的语法错误", () => Response.json({
+      model: "deepseek-flash", choices: [{ finish_reason: "stop", message: { content: "{" } }],
+      usage: { prompt_tokens: 300, completion_tokens: 100, total_tokens: 400 },
+    })],
+    ["无计量的评审契约错误", () => Response.json({
+      id: "g6-unmeasured", model: "deepseek-flash", object: "chat.completion",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: '{"shotId":"S01","checks":[]}' } }],
+    })],
+    ["有重复键的评审契约错误", () => '{"shotId":"S01","checks":[],"checks":[]}'],
+  ])("首答%s不获得技术纠正资格", async (_label, makeResponse) => {
+    const fixture = workerModelFixture({ rejectDuplicates: true });
+    fixture.onReview.mockImplementation(makeResponse);
+    const result = await evaluatePromptPackage(input(fixture.reviewer));
+    expect(fixture.calls).toEqual(["review:S01"]);
+    expect(result).toMatchObject({ status: "stalled", g6Eligible: false, renderEligible: false });
+    expect(result.semanticReports[0]).toMatchObject({ valid: false, technicalRetry: 0 });
+  });
+
+  it.each([
+    ["纠正再收到坏语法", () => '{"prior_private_payload":', "SEMANTIC_REVIEW_CORRECTION_INVALID"],
+    ["纠正缺少当前镜号", () => ({ checks: passReview().checks }), "SEMANTIC_REVIEW_CORRECTION_INVALID"],
+    ["纠正后路由漂移", ({ llm, router }: ReturnType<typeof workerModelFixture>) => {
+      llm.attachRouter(router);
+      return passReview();
+    }, "SEMANTIC_REVIEW_CORRECTION_UNPROVEN"],
+    ["纠正重放了原响应身份", () => Response.json({
+      id: "g6-fixture-1", model: "deepseek-flash", object: "chat.completion",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(passReview()) } }],
+      usage: { prompt_tokens: 300, completion_tokens: 100, total_tokens: 400 },
+    }), "SEMANTIC_REVIEW_CORRECTION_UNPROVEN"],
+  ])("%s即停止，并保留安全的首次失败", async (_label, makeResponse, error) => {
+    const fixture = workerModelFixture({ rejectDuplicates: true });
+    fixture.onReview.mockReturnValueOnce('{"first_private_payload":');
+    fixture.onReview.mockImplementationOnce(() => makeResponse(fixture));
+    const result = await evaluatePromptPackage(input(fixture.reviewer));
+    expect(fixture.calls).toEqual(["review:S01", "review:S01"]);
+    expect(result).toMatchObject({ status: "stalled", g6Eligible: false, renderEligible: false });
+    expect(result.semanticReports[0]).toMatchObject({ valid: false, technicalRetry: 1, technicalFailure: "SEMANTIC_REVIEW_JSON_SYNTAX",
+      errors: ["SEMANTIC_REVIEW_JSON_SYNTAX", error] });
+    expect(JSON.stringify(result.semanticReports)).not.toContain("private_payload");
+  });
+
+
   it("只缩短超长镜头的美术字段，保留另一镜原有运镜修复及未变化镜头证明", async () => {
     const fixture = workerModelFixture();
     const longShot = shotAtFinalLength(3001, "S02");
@@ -398,13 +474,13 @@ describe("G6 同次修复的真实模型路由", () => {
     expect(result.semanticReports.every((report) => report.proofReuse === undefined)).toBe(true);
   });
 
-  it("新鲜复验传输故障保留原重试且发生路由故障时不消费证明", async () => {
+  it("新鲜复验传输故障不作技术纠正，路由故障后不消费旧证明", async () => {
     const fixture = workerModelFixture();
     fixture.onReview.mockImplementation((context: { fields: Array<{ value: string }> }, response: SemanticQualityReview) =>
       response.shotId === "S01" && context.fields.some((field) => field.value === repairedCamera)
         ? new Response("offline transport failure", { status: 503 }) : response);
     const result = await evaluatePromptPackage(fixture.evaluation);
-    expect(fixture.calls).toEqual(["review:S01", "review:S02", "repair:S01", "review:S01", "review:S01", "review:S02"]);
+    expect(fixture.calls).toEqual(["review:S01", "review:S02", "repair:S01", "review:S01", "review:S02"]);
     expect(result).toMatchObject({ status: "stalled", g6Eligible: false });
     expect(result.semanticReports[1]!.proofReuse).toBeUndefined();
   });

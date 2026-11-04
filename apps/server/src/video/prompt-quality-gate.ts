@@ -16,6 +16,11 @@ import {
   splitShotAssertions,
   validatePromptContract,
   WorkloomLLMEngine,
+  nativeChatJsonObjectCorrected,
+  nativeChatJsonObjectRouteCurrent,
+  nativeChatJsonSyntaxCorrected,
+  nativeChatJsonSyntaxRouteCurrent,
+  nativeReasonFailure,
   type CompiledPromptShot,
   type PromptCompileAsset,
   type PromptCompileOptions,
@@ -143,8 +148,15 @@ interface PassedSemanticReviewProof {
   dependenciesSha256: string;
   review: SemanticQualityReview;
   technicalRetry: number;
+  technicalFailure?: SemanticReviewCorrection;
   dispatch: StructuredReviewDispatchProof;
 }
+
+const SEMANTIC_REVIEW_CORRECTIONS = {
+  SEMANTIC_REVIEW_JSON_SYNTAX: "上一答复不是可直接解析的 JSON 对象。请仅重做下方原评审，返回一个完整、可由 JSON.parse 直接解析的 JSON 对象。",
+  SEMANTIC_REVIEW_CONTRACT_INVALID: "上一答复未满足评审契约。请仅重做下方原评审，逐项返回五个唯一检查，严格使用当前镜号、允许字段和字段原文证据；按 pass 值决定是否提供 failureCode 与 repair。",
+} as const;
+type SemanticReviewCorrection = keyof typeof SEMANTIC_REVIEW_CORRECTIONS;
 
 export interface PromptQualityFinding {
   code: string;
@@ -193,6 +205,7 @@ export interface PromptQualityResult {
     valid: boolean;
     errors: string[];
     technicalRetry: number;
+    technicalFailure?: SemanticReviewCorrection;
     proofReuse?: ReusedSemanticReview;
   }>;
   findings: PromptQualityFinding[];
@@ -666,6 +679,11 @@ function semanticReviewRequest(context: SemanticReviewContext) {
   return [semanticPrompt(context.contract, context.shot, context.upstreamContext), semanticSchema(context.contract.shotId), options] as const;
 }
 
+function correctedSemanticReviewRequest(request: ReturnType<typeof semanticReviewRequest>, failure: SemanticReviewCorrection) {
+  const [prompt, schema, options] = request;
+  return [`【G6 评审响应技术纠正】\n${SEMANTIC_REVIEW_CORRECTIONS[failure]}\n\n${prompt}`, schema, options] as const;
+}
+
 export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): SemanticQualityReviewer {
   const reviewer: SemanticQualityReviewer = {
     model: llm.model,
@@ -938,52 +956,85 @@ export function verifyCurrentPromptContracts(
   return { valid: reasons.length === 0, reasons: [...new Set(reasons)], contracts: compiled.map((item) => item.contract) };
 }
 
+interface TechnicalReviewResult {
+  review?: SemanticQualityReview;
+  errors: string[];
+  retries: number;
+  technicalFailure?: SemanticReviewCorrection;
+  dispatchProof?: StructuredReviewDispatchProof;
+  proofReuse?: ReusedSemanticReview;
+}
+
 async function reviewWithTechnicalRetry(
   reviewer: SemanticQualityReviewer,
   context: SemanticReviewContext,
   captureProof: boolean,
   prior?: PassedSemanticReviewProof,
-): Promise<{
-  review?: SemanticQualityReview;
-  errors: string[];
-  retries: number;
-  dispatchProof?: StructuredReviewDispatchProof;
-  proofReuse?: ReusedSemanticReview;
-}> {
+): Promise<TechnicalReviewResult> {
+  const native = proofReviewer(reviewer);
+  if (native) return reviewNativeWithCorrection(native.engine, context, captureProof, prior);
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const current = { ...context, attempt: attempt + 1 };
-      const native = captureProof || prior ? proofReviewer(reviewer) : undefined;
-      if (attempt === 0 && native && prior?.dispatch.matchesCurrent(...semanticReviewRequest(current))) {
-        const parsed = parseSemanticQualityReview(prior.review, current.contract, current.shot, current.upstreamContext);
-        if (parsed.valid && parsed.review?.checks.every((check) => check.pass)) {
-          const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = prior.dispatch;
-          return {
-            review: parsed.review, errors: [], retries: attempt,
-            proofReuse: { sourcePass: 1, sourceTechnicalRetry: prior.technicalRetry, inputSha256, dependenciesSha256: prior.dependenciesSha256,
-              sourceRequestSha256: requestSha256, sourceResponseSha256: responseSha256, modelId, policyVersion, registryVersion },
-          };
-        }
-      }
-      let value: unknown;
-      let dispatchProof: StructuredReviewDispatchProof | undefined;
-      if (native && captureProof) {
-        const { result, proof } = await native.engine.reasonStructuredWithProof(...semanticReviewRequest(current));
-        if (!result.success) throw new Error(result.error ?? "SEMANTIC_REVIEW_TRANSPORT_FAILED");
-        value = result.data ?? result.content;
-        dispatchProof = proof;
-      } else {
-        value = await reviewer.review(current);
-      }
+      const value = await reviewer.review(current);
       const parsed = parseSemanticQualityReview(value, current.contract, current.shot, current.upstreamContext);
-      if (parsed.valid && parsed.review) return { review: parsed.review, errors: [], retries: attempt, dispatchProof };
+      if (parsed.valid && parsed.review) return { review: parsed.review, errors: [], retries: attempt };
       lastError = parsed.errors.join(",");
     } catch (error) {
       lastError = errorText(error);
     }
   }
   return { errors: [lastError || "SEMANTIC_REVIEW_INVALID"], retries: 1, review: undefined };
+}
+
+async function reviewNativeWithCorrection(
+  engine: WorkloomLLMEngine, context: SemanticReviewContext, captureProof: boolean, prior?: PassedSemanticReviewProof,
+): Promise<TechnicalReviewResult> {
+  const parse = (value: unknown) => parseSemanticQualityReview(value, context.contract, context.shot, context.upstreamContext);
+  const dispatch = async (value: ReturnType<typeof semanticReviewRequest>): ReturnType<WorkloomLLMEngine["reasonStructuredWithProof"]> =>
+    captureProof ? engine.reasonStructuredWithProof(...value) : { result: await engine.reasonStructured(...value) };
+  let failure: SemanticReviewCorrection | undefined;
+  let errors: string[] = [];
+  let retries = 0;
+  try {
+    const request = semanticReviewRequest(context);
+    if (prior?.dispatch.matchesCurrent(...(prior.technicalFailure ? correctedSemanticReviewRequest(request, prior.technicalFailure) : request))) {
+      const parsed = parse(prior.review);
+      if (parsed.valid && parsed.review?.checks.every((check) => check.pass)) {
+        const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = prior.dispatch;
+        return {
+          review: parsed.review, errors: [], retries, technicalFailure: prior.technicalFailure,
+          proofReuse: { sourcePass: 1, sourceTechnicalRetry: prior.technicalRetry, inputSha256, dependenciesSha256: prior.dependenciesSha256,
+            sourceRequestSha256: requestSha256, sourceResponseSha256: responseSha256, modelId, policyVersion, registryVersion },
+        };
+      }
+    }
+    const { result: first, proof } = await dispatch(request);
+    const parsed = first.success ? parse(first.data ?? first.content) : undefined;
+    if (parsed?.valid && parsed.review) return { review: parsed.review, errors: [], retries, dispatchProof: proof };
+    failure = parsed ? "SEMANTIC_REVIEW_CONTRACT_INVALID" : nativeReasonFailure(first) === "json-syntax" ? "SEMANTIC_REVIEW_JSON_SYNTAX" : undefined;
+    errors = parsed?.errors ?? [failure ?? "SEMANTIC_REVIEW_NATIVE_UNAVAILABLE"];
+    if (!failure || !(parsed ? nativeChatJsonObjectRouteCurrent(engine, first) : nativeChatJsonSyntaxRouteCurrent(engine, first))) {
+      return { errors, retries, technicalFailure: failure };
+    }
+    retries = 1;
+    const { result: next, proof: correctedProof } = await dispatch(correctedSemanticReviewRequest(request, failure));
+    if (!next.success) {
+      const nextError = nativeReasonFailure(next) === "json-syntax" ? "SEMANTIC_REVIEW_CORRECTION_INVALID" : "SEMANTIC_REVIEW_CORRECTION_UNAVAILABLE";
+      return { errors: [...errors, nextError], retries, technicalFailure: failure };
+    }
+    if (!(parsed ? nativeChatJsonObjectCorrected(first, next) : nativeChatJsonSyntaxCorrected(first, next))) {
+      return { errors: [...errors, "SEMANTIC_REVIEW_CORRECTION_UNPROVEN"], retries, technicalFailure: failure };
+    }
+    const corrected = parse(next.data);
+    if (!corrected.valid || !corrected.review || (next.data as { shotId?: unknown }).shotId !== context.contract.shotId) {
+      return { errors: [...errors, "SEMANTIC_REVIEW_CORRECTION_INVALID"], retries, technicalFailure: failure };
+    }
+    return { review: corrected.review, errors: [], retries, technicalFailure: failure, dispatchProof: correctedProof };
+  } catch {
+    return { errors: [...errors, retries ? "SEMANTIC_REVIEW_CORRECTION_UNAVAILABLE" : "SEMANTIC_REVIEW_NATIVE_UNAVAILABLE"], retries, technicalFailure: failure };
+  }
 }
 
 function reviewDependencies(input: EvaluatePromptQualityInput, contract: PromptContract): string {
@@ -1074,7 +1125,7 @@ async function evaluateCompiledShots(
       prior && prior.dependenciesSha256 === dependencies ? prior : undefined);
     if (proofs?.phase === "capture" && dependencies && reviewed.dispatchProof && reviewed.review?.checks.every((check) => check.pass)) {
       proofs.byShot.set(item.shotId, { dependenciesSha256: dependencies, review: structuredClone(reviewed.review),
-        technicalRetry: reviewed.retries, dispatch: reviewed.dispatchProof });
+        technicalRetry: reviewed.retries, technicalFailure: reviewed.technicalFailure, dispatch: reviewed.dispatchProof });
     }
     reports.push({
       shotId: item.shotId,
@@ -1082,6 +1133,7 @@ async function evaluateCompiledShots(
       valid: Boolean(reviewed.review),
       errors: reviewed.errors,
       technicalRetry: reviewed.retries,
+      ...(reviewed.technicalFailure ? { technicalFailure: reviewed.technicalFailure } : {}),
       ...(reviewed.proofReuse ? { proofReuse: reviewed.proofReuse } : {}),
     });
     if (!reviewed.review) {
