@@ -35,6 +35,51 @@ const prdCreativeJsonPresentation = "\n\n## 原生创意核心 JSON 自检\n"
 const prdCreativeJsonCorrection = "\n\n## 本次原生创意核心 JSON 格式修正\n"
   + "第一次已完整返回，但正文没有通过 JSON 语法解析。请依据本次完整原始任务、已审材料和同一实际 schema 重新生成完整创意核心。"
   + "检查逗号、括号、引号和转义；只输出严格 JSON 对象，不输出代码围栏、解释、部分字段或上次草稿。";
+const prdCreativeFactBoundary = "\n\n## 本次创意商品事实边界\n"
+  + "客户只允许使用本次 G1 已核实的商品身份与用途。创意核心的主题、钩子、关键信息和高潮以已审可见动作、摄影和原生声音表达，"
+  + "不得使用实车前倾角、转向角等车辆规格或用数值性能解释胜负。G1 原件保留完整供核对，其中的其他参数不进入创意。"
+  + "照常保留原要求的片长、场景数、赛道动作和摄影角度。";
+const prdCreativeFactCorrection = "\n\n## 本次原生创意核心商品事实修正\n"
+  + "第一次已完整返回，但创意核心使用了当前 Brief 未授权的数值化车辆几何。请依据完整原始任务、已审材料和同一实际 schema 重写完整创意核心。"
+  + "商品事实仅使用已核实的身份与用途；以已审可见动作、摄影和原生声音表现创意，不复用任何上次草稿或车辆规格。只输出严格 JSON 对象。";
+
+function identityAndUseOnly(authority: PrdAuthority): boolean {
+  const { requirements } = requirementRecord(authority.metadata.brief, "本次创意 Brief");
+  return typeof requirements === "string"
+    && /(?:^|[。！？；\n])\s*商品事实仅限本次\s*G1\s*核实的身份与用途\s*(?:[。！？；\n]|$)/u.test(requirements);
+}
+
+const VEHICLE_GEOMETRY = /\d+(?:\.\d+)?\s*(?:°|度)\s*(?:前倾角|转向角)|(?:前倾角|转向角)\s*(?:约为|为|约|是|达到|设为|[:：])?\s*\d+(?:\.\d+)?\s*(?:°|度)/gu;
+const ABBREVIATED_ANGLE = /\d+(?:\.\d+)?\s*(?:°|度)\s*(?:前倾|转向)(?!角)|(?:前倾|转向)(?!角)\s*(?:为|约|[:：])?\s*\d+(?:\.\d+)?\s*(?:°|度)/gu;
+const ANGLE_SUBJECT = /(实车|量产车|商品|车款|前叉|车架|转向机构)|镜头|机位|摄影机|摄像机|云台|骑手|车手|主角|人物|身体|上身/gu;
+const ACTOR_OR_CAMERA_ANGLE = /(?:镜头|机位|摄影机|摄像机|云台|骑手|车手|主角|人物|身体|上身)(?:的|以|取|用|按|保持|采用)?\s*$/u;
+const ANGLE_AT_VEHICLE_LANDMARK = /(?:镜头|机位|摄影机|摄像机|云台|骑手|车手|主角|人物)(?:从|沿|绕|在|贴着)(?:实车|量产车|车架|前叉|车身)(?:的)?[前后左右上下内外侧方面边旁]{0,6}\s*$/u;
+const PARAMETER_NEGATION = /不(?:使用|采用|宣称|声称|展示|呈现|写入|引用)(?=[^，。；、]{0,30}(?:前倾|转向))/gu;
+
+function hasCreativeVehicleGeometry(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const { coreTheme, creativeHook, keyMessages, twistPoint } = value as RequirementRecord;
+  return [coreTheme, creativeHook, twistPoint, ...(Array.isArray(keyMessages) ? keyMessages : [])].some(field => {
+    if (typeof field !== "string") return false;
+    const text = splitShotAssertions(field.normalize("NFKC").replace(PARAMETER_NEGATION, "禁止")).positive;
+    return [...text.matchAll(VEHICLE_GEOMETRY)].some(({ index }) => {
+      const prefix = text.slice(0, index);
+      return !ACTOR_OR_CAMERA_ANGLE.test(prefix) && !ANGLE_AT_VEHICLE_LANDMARK.test(prefix);
+    })
+      || [...text.matchAll(ABBREVIATED_ANGLE)].some(({ index }) => {
+        const prefix = text.slice(Math.max(0, index - 24), index).split("；").at(-1)!;
+        // An abbreviated degree value only denotes product geometry when the
+        // nearest explicit subject in its clause is the vehicle or its hardware.
+        return !ANGLE_AT_VEHICLE_LANDMARK.test(prefix) && Boolean([...prefix.matchAll(ANGLE_SUBJECT)].at(-1)?.[1]);
+      });
+  });
+}
+
+function rejectCreativeVehicleGeometry(value: unknown): void {
+  if (hasCreativeVehicleGeometry(value)) {
+    prdFail("PRD_CREATIVE_FACT_UNVERIFIED", "原生创意核心未遵守本次商品事实仅限已核实身份与用途的要求");
+  }
+}
 type QualityThresholds = Record<typeof QUALITY_KEYS[number], number>;
 interface QualityPolicy {
   production: QualityThresholds;
@@ -580,6 +625,7 @@ export function installPrdAuthorityBridge(
       const contract = verifiedRequirementContract(scope.list, metadata, discovery);
       scope.contract = structuredClone(contract);
       const visualSegments = frozenVisualDiscoveryView(scope, discovery, contract);
+      const scopedIdentityAndUseOnly = visualSegments !== undefined && identityAndUseOnly(scope.authority);
       const tone = visualSegments ? requirementRecord(discovery.upstreamFields, "本次 G3 上游字段").tone : undefined;
       const references = marketingPrdReferenceView(discovery.referenceCases, scope.authority.metadata);
       // The original G3 review retains discovery advice. Its free text can
@@ -670,6 +716,7 @@ export function installPrdAuthorityBridge(
           method(agent, "fallback");
           const kind = number === 2 ? "creative" : "production";
           const scopedCreative = kind === "creative" && visualSegments !== undefined;
+          const scopedCreativeFacts = kind === "creative" && scopedIdentityAndUseOnly;
           const scopedProduction = kind === "production" && visualSegments !== undefined;
           const scopedAudio = scopedProduction && scope.authority.profile.nativeAudio === true;
           const effectiveSchema = effectivePrdModelSchema(kind, schema, contract);
@@ -683,6 +730,7 @@ export function installPrdAuthorityBridge(
             + (audioBounds ? `\n\naudioSpecification.audioReferences 必须是 ${audioBounds.min}–${audioBounds.max} 项。按声音手法分组写相关内容，提交前核对项目数；不得编造参考来源。\n`
               + (scope.authority.profile.speechPolicy === "none"
                 ? "沿用本次无对白要求，不能生成可辨识人声。没有明确要求的配乐不作为参考或占位配乐，原生环境和动作声音按已审要求保留。\n" : "") : "")
+            + (scopedCreativeFacts ? prdCreativeFactBoundary : "")
             + (scopedCreative ? prdCreativeJsonPresentation : "")
             + (number === 3 && visualSegments ? `\n场景的 scenePlan.scenes[].emotionalBeat 与当前创意弧线和实际 G3 节点逐项对应；用对应场景的动作安排表现节点内情绪变化。shotMapping.estimatedShots 每场写 1，摄影、剪辑和连续性计划遵守上述冻结切点。`
               + (typeof tone === "string" && tone.trim() ? `在 visualSpecification.colorPalette.mood 明写本次 G2 已审调性：${tone}；同一调性下可用本次动作、色彩和声音写出不同强度，不以新的调性或描述替换已审名称。\n` : "") : "");
@@ -691,7 +739,7 @@ export function installPrdAuthorityBridge(
           let modelAttempts = 0;
           let nativeCallActive = false;
           let correction: { prompt: string; argsHash: string; dispatched: boolean;
-            creativeSyntax?: { first: LLMReasonResult; inTime: () => boolean };
+            creative?: { first: LLMReasonResult; inTime: () => boolean; kind: "syntax" | "facts" };
             productionShape?: { first: LLMReasonResult; inTime: () => boolean; subject: "角色对象" | "音频参考" } } | undefined;
           agentView._getLLMEngine = function (this: RequirementRecord, ...args: unknown[]) {
             return guard(scope, () => {
@@ -725,7 +773,7 @@ export function installPrdAuthorityBridge(
                 const complete = guard(scope, () => {
                   check(scope); checkEngine();
                   if (creativeEngine && (!nativeCallActive || (modelAttempts > 0 && !correction))) {
-                    prdFail("PRD_MODEL_UNVERIFIED", "Agent2 没有可证明的已完成语法失败，不允许再次发出请求");
+                    prdFail("PRD_MODEL_UNVERIFIED", "Agent2 没有可证明的可修正原生响应，不允许再次发出请求");
                   }
                   if (scopedProduction && nativeEngine && (!nativeCallActive || (modelAttempts > 0 && !correction))) {
                     prdFail("PRD_MODEL_UNVERIFIED", "Agent3 没有可证明的已完成结构失败，不允许再次发出请求");
@@ -742,9 +790,13 @@ export function installPrdAuthorityBridge(
                     if (correction.dispatched || requirementHash(callArgs) !== correction.argsHash) {
                       prdFail("PRD_MODEL_UNVERIFIED", "本次修正次数或原生请求参数已变化");
                     }
-                    if (correction.creativeSyntax && (!creativeEngine || !correction.creativeSyntax.inTime()
-                      || !nativeChatJsonSyntaxRouteCurrent(creativeEngine, correction.creativeSyntax.first))) {
-                      prdFail("PRD_MODEL_UNVERIFIED", "Agent2 格式修正的原生路径已变化");
+                    if (correction.creative) {
+                      const { first, inTime, kind } = correction.creative;
+                      if (kind === "facts") scope.validateAuthority?.();
+                      const route = kind === "syntax" ? nativeChatJsonSyntaxRouteCurrent : nativeChatJsonObjectRouteCurrent;
+                      if (!creativeEngine || !inTime() || !route(creativeEngine, first)) {
+                        prdFail("PRD_MODEL_UNVERIFIED", "Agent2 修正的原生路径或原时限已变化");
+                      }
                     }
                     if (correction.productionShape && (!nativeEngine || !correction.productionShape.inTime()
                       || !nativeChatJsonObjectRouteCurrent(nativeEngine, correction.productionShape.first))) {
@@ -786,25 +838,40 @@ export function installPrdAuthorityBridge(
                 guard(scope, () => { check(scope); checkEngine(); });
                 if (creativeEngine) {
                   const response = result as LLMReasonResult;
-                  if (correction?.creativeSyntax && correction.dispatched) {
-                    const { first, inTime } = correction.creativeSyntax;
+                  if (correction?.creative && correction.dispatched) {
+                    const { first, inTime, kind: correctionKind } = correction.creative;
                     guard(scope, () => {
-                      if (!withinNativeTimeout() || !inTime() || !nativeChatJsonSyntaxCorrected(first, response)) {
-                        prdFail("PRD_MODEL_UNVERIFIED", "Agent2 格式修正未取得同一路径的新完整响应");
+                      if (correctionKind === "facts") scope.validateAuthority?.();
+                      const corrected = correctionKind === "syntax" ? nativeChatJsonSyntaxCorrected : nativeChatJsonObjectCorrected;
+                      if (!withinNativeTimeout() || !inTime() || !corrected(first, response)) {
+                        prdFail("PRD_MODEL_UNVERIFIED", "Agent2 修正未取得同一路径的新完整响应");
                       }
                       validatePrdModelPayload(response.data, kind, schema, contract, scope.authority.profile);
+                      if (scopedCreativeFacts) rejectCreativeVehicleGeometry(response.data);
                     });
                   } else if (!response.success && nativeReasonFailure(response) === "json-syntax") {
                     if (attempt === 1 && modelAttempts === 1 && nativeAttemptLimit >= 2 && withinNativeTimeout()
                       && nativeChatJsonSyntaxRouteCurrent(creativeEngine, response)) {
                       correction = { prompt: complete + prdCreativeJsonCorrection, argsHash: requirementHash(callArgs),
-                        dispatched: false, creativeSyntax: { first: response, inTime: withinNativeTimeout } };
+                        dispatched: false, creative: { first: response, inTime: withinNativeTimeout, kind: "syntax" } };
                       // Use the pinned BaseAgent's own PARSE retry slot. Its
                       // shortened draft is replaced by the original complete prompt.
                       throw new Error("Agent2 JSON 结构校验失败，进入一次原生格式修正");
                     }
                     // The vendor logs error strings; V8 can include private draft text.
                     return { success: false, retryable: false, error: "Agent2 原生创意正文未通过 JSON 语法校验" };
+                  } else if (scopedCreativeFacts && response.success && hasCreativeVehicleGeometry(response.data)) {
+                    guard(scope, () => {
+                      scope.validateAuthority?.();
+                      if (attempt !== 1 || modelAttempts !== 1 || nativeAttemptLimit < 2 || !withinNativeTimeout()
+                        || !nativeChatJsonObjectRouteCurrent(creativeEngine, response)) {
+                        prdFail("PRD_CREATIVE_FACT_UNVERIFIED", "Agent2 商品事实修正缺少本次原时限内的完整原生响应");
+                      }
+                      validatePrdModelPayload(response.data, kind, schema, contract, scope.authority.profile);
+                    });
+                    correction = { prompt: complete + prdCreativeFactCorrection, argsHash: requirementHash(callArgs),
+                      dispatched: false, creative: { first: response, inTime: withinNativeTimeout, kind: "facts" } };
+                    throw new Error("Agent2 JSON 内容校验失败，进入一次原生商品事实修正");
                   }
                 }
                 if (kind === "production") {
@@ -890,6 +957,7 @@ export function installPrdAuthorityBridge(
             return guard(scope, () => {
               check(scope);
               const raw = validatePrdModelPayload(value, kind, schema, contract, scope.authority.profile);
+              if (scopedCreativeFacts) rejectCreativeVehicleGeometry(typeof value === "string" ? raw : value);
               const parseInput = typeof value === "string" ? JSON.stringify(raw) : raw;
               const result = Reflect.apply(parse, this, [parseInput, ...args]);
               if (requirementHash(result) !== requirementHash(kind === "creative" ? { creativeCore: raw } : raw)) {
