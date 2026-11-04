@@ -736,7 +736,7 @@ export function installRequirementContractBridge(
               sceneDraft = Object.freeze({ body: nativeSceneBody, hash, ...(syntaxRecovery ? { recovery: syntaxRecovery } : {}) });
             }
           } catch (error) {
-            const feedback = structuredSceneFeedback(error);
+            const feedback = structuredSceneFeedback(error, segments);
             if (feedback && error instanceof RequirementContractError) {
               currentSceneFailure = error;
               pendingFeedback = feedback;

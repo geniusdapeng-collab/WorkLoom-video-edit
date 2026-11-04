@@ -42,16 +42,32 @@ function withValidationFacts(error: RequirementContractError, details: Requireme
 }
 
 /** Only facts produced by our validator can reach the next native attempt. */
-export function structuredSceneFeedback(error: unknown): string {
+export function structuredSceneFeedback(error: unknown, segments?: FrozenSegmentContract): string {
   const facts = error instanceof RequirementContractError ? validationFacts.get(error) : undefined;
   if (!facts) return "";
+  const feedback = `\n\n## 上一次原生场景校验反馈\n${JSON.stringify(facts)}\n仅依据这些校验事实重新生成完整合法响应；不复用或补填上次场景，不改变原有 schema、人物与时长约束。`;
+  if (segments) {
+    const slots = segments.intervals.map(({ startSec, endSec }, index) => ({
+      path: index === 0 ? "opening" : index === segments.count - 1 ? "ending" : `scenes[${index - 1}]`,
+      startSec, endSec, duration: segments.secondsPerSegment,
+      ...(index > 0 && index < segments.count - 1 ? { index } : {}),
+    }));
+    return feedback + `\n本次纠正的冻结 JSON 槽位：\n${JSON.stringify({
+      slots, scenesLength: segments.count - 2, sceneCount: segments.count, totalDuration: segments.totalSeconds,
+    })}\n`
+      + "opening 和 ending 只作为独立顶层对象，不能计入 scenes 数组；只填上述中间槽位，index 与 duration 必须逐槽一致。"
+      + "起止秒是现有区间定位，不是新增 JSON 字段。保留每段的全部动作、先后、可见状态和声场，不新增或拆分生成段。\n"
+      + "逐节点检查 productionContract：props 非空：完全省略 noPropsReason（不能给 null、空串或占位值）；"
+      + "props:[]：仅在确实没有可见道具时使用，并写至少 8 个字符的明确 noPropsReason。"
+      + "两种情况互斥，不为满足字段形状删掉可见道具或捏造无道具理由。";
+  }
   const duration = finiteNumber(facts.durationSum), target = finiteNumber(facts.targetDuration);
   const durationCorrection = duration !== null && target !== null
     && !withinTargetDurationTolerance(duration, target)
     ? `\n本次必须把 opening、scenes、ending 的 duration 合计${duration > target ? "减少" : "增加"} ${Math.abs(duration - target)} 秒，`
       + `并把 totalDuration 精确设为 ${target}；保持真实场景内容重新完整生成，不得复用或补填上一次节点。`
     : "";
-  return `\n\n## 上一次原生场景校验反馈\n${JSON.stringify(facts)}\n仅依据这些校验事实重新生成完整合法响应；不复用或补填上次场景，不改变原有 schema、人物与时长约束。${durationCorrection}`;
+  return feedback + durationCorrection;
 }
 
 /** Risk retries receive only our exact array-bound facts, never the prior response. */

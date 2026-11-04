@@ -1128,6 +1128,106 @@ describe("frozen SceneArchitect real loopback provider wire", () => {
   beforeEach(() => resetCircuit("preproduction"));
   afterEach(() => resetCircuit("preproduction"));
 
+  it.each(["canonical", "four nodes", "literal null", "unknown"] as const)(
+    "reissues one completed frozen structural response with exact slots and conditional props: %s", async outcome => {
+      installNativeDiscovery();
+      vi.stubEnv("WORKLOOM_VIDEO_SCENE_RESPONSE_FORMAT", "json_schema");
+      try {
+        const canonical = physicalScene([10, 10, 10]);
+        const empty = requirementRecord(requirementRecord(canonical.ending, "ending").productionContract, "ending props");
+        empty.props = [];
+        empty.noPropsReason = "末段仅展示封闭场地的环境光影，没有独立可见道具。";
+        const run = withFrozenSegmentBrief(privateRun(`scene-conditional-props-${outcome}`, 30, canonical));
+        const invalid = physicalScene([10, 10, 10]);
+        const physical = requirementRecord(requirementRecord(invalid.opening, "opening").productionContract, "opening props");
+        physical.noPropsReason = { unrecoverablePrivateValue: "UNTRUSTED-FAILED-SCENE" };
+        const literalNull = structuredClone(invalid);
+        requirementRecord(requirementRecord(literalNull.opening, "opening").productionContract, "opening props").noPropsReason = null;
+        const acceptedRaw = JSON.stringify(canonical, null, 2);
+        const sceneCalls: Array<{ input: string; [key: string]: unknown }> = [];
+        const downstream: string[] = [];
+        const slotHeading = "本次纠正的冻结 JSON 槽位：";
+        const provider = {
+          baseUrl: "http://127.0.0.1:1", apiKey: "synthetic-local-key",
+          fetchImpl: async (url, init) => {
+            const body = JSON.parse(String(init?.body));
+            if (new URL(String(url)).pathname === "/responses") {
+              const ordinal = sceneCalls.push(body);
+              if (outcome === "unknown") return Response.json({ error: "UNKNOWN-WIRE" }, { status: 502 });
+              const text = ordinal === 1 ? JSON.stringify(invalid)
+                : outcome === "canonical" && body.input.includes(slotHeading) ? acceptedRaw
+                : outcome === "literal null" ? JSON.stringify(literalNull) : JSON.stringify(physicalScene([10, 10, 10, 10]));
+              return Response.json({
+                id: `synthetic-frozen-schema-${ordinal}`, object: "response", status: "completed", model: "deepseek-flash",
+                text: { format: { type: "json_schema", name: "workloom_scene_architect" } },
+                output: [{ type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text }] }],
+                usage: { input_tokens: 100, output_tokens: 40, total_tokens: 140 },
+              });
+            }
+            expect(new URL(String(url)).pathname).toBe("/chat/completions");
+            const prompt: string = body.messages[1].content;
+            const module = prompt.slice(0, 180).includes("受众分析") ? "audience"
+              : prompt.slice(0, 180).includes("技术制片人") ? "risk" : "reference";
+            if (module !== "audience") downstream.push(prompt);
+            return Response.json({ id: `synthetic-${module}`, model: "deepseek-flash",
+              choices: [{ finish_reason: "stop", message: { content: JSON.stringify(run.modules[module]) } }],
+              usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 } });
+          },
+        } satisfies ConstructorParameters<typeof OpenAiCompatibleProvider>[1];
+        const adapter = new OpenAiCompatibleProvider("deepseek-flash", provider);
+        const engine = new WorkloomLLMEngine({ ...provider, model: "deepseek-flash", router: {
+          scene: "preproduction", forceModel: "deepseek-flash", providers: new Map([[adapter.modelId, adapter]]),
+          sink: { recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined },
+        } });
+        const result = runDiscovery(run, engine as unknown as RequirementRecord, new RequirementDiscoveryEngine({
+          llmEngine: engine as unknown as RequirementRecord, timeoutMs: 20_000, agentTimeoutMs: 4_000,
+        }));
+        if (outcome === "canonical") {
+          await expect(result).resolves.toMatchObject({ sceneStructure: canonical });
+          expect(downstream).toHaveLength(2);
+          for (const prompt of downstream) {
+            expect(prompt.split(acceptedRaw)).toHaveLength(2);
+            expect(prompt).not.toContain("UNTRUSTED-FAILED-SCENE");
+          }
+        } else {
+          await expect(result).rejects.toMatchObject({ code: "REQUIREMENT_SCENE_UNVERIFIED", ...(outcome === "four nodes" ? {
+            details: { kind: "schema", path: "SceneArchitect response/scenes", keyword: "maxItems", observed: 2, limit: 1 },
+          } : {}) });
+          expect(downstream).toHaveLength(0);
+        }
+        expect(sceneCalls).toHaveLength(outcome === "unknown" ? 1 : 2);
+        const [first, second] = sceneCalls;
+        expect(first).toMatchObject({ model: "deepseek-flash", max_output_tokens: 393_216,
+          reasoning: { effort: "high" }, stream: false,
+          text: { format: { type: "json_schema", name: "workloom_scene_architect" } } });
+        expect(first!.input).not.toContain(slotHeading);
+        for (const call of sceneCalls) expectCompleteSources(call.input, run);
+        if (!second) return;
+        expect({ ...second, input: undefined }).toEqual({ ...first, input: undefined });
+        const feedbackAt = second.input.indexOf(`\n\n${feedbackHeading}\n`);
+        const sourceAt = second.input.indexOf("\n\n## 📖 原始故事文本");
+        expect(feedbackAt).toBeGreaterThan(0);
+        expect(sourceAt).toBeGreaterThan(feedbackAt);
+        expect(second.input.slice(0, feedbackAt) + second.input.slice(sourceAt)).toBe(first!.input);
+        expect(promptJson(second.input, feedbackHeading)).toEqual({
+          kind: "schema", path: "SceneArchitect response/opening/productionContract/noPropsReason",
+          keyword: "type", observed: null, limit: null,
+        });
+        expect(promptJson(second.input, slotHeading)).toEqual({
+          slots: [
+            { path: "opening", startSec: 0, endSec: 10, duration: 10 },
+            { path: "scenes[0]", startSec: 10, endSec: 20, duration: 10, index: 1 },
+            { path: "ending", startSec: 20, endSec: 30, duration: 10 },
+          ], scenesLength: 1, sceneCount: 3, totalDuration: 30,
+        });
+        const feedback = second.input.slice(feedbackAt, sourceAt);
+        expect(feedback).toContain("props 非空：完全省略 noPropsReason");
+        expect(feedback).toContain("props:[]：仅在确实没有可见道具时使用");
+        expect(feedback).not.toContain("UNTRUSTED-FAILED-SCENE");
+      } finally { vi.unstubAllEnvs(); }
+    },
+  );
+
   it.each(["verified separator", "wrong duration", "missing native echo", "cloned G3 source"] as const)(
     "admits local comma recovery only with the native Responses proof and full frozen checks: %s",
     async outcome => {
