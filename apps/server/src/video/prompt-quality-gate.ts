@@ -32,6 +32,7 @@ import {
 } from "@hyperreality/video-studio";
 import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
 import { approvedMotionObligations, approvedMotionRepairDrift, distinctRivalPassEndsAtNose, isApprovedMotionFinding } from "./g6-motion-obligations.js";
+import { approvedSecondPassEndsHalfway } from "./g6-rival-pass.js";
 import type { readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 
 export const SEMANTIC_QUALITY_POLICY_VERSION = "workloom.video-prompt-quality/v2" as const;
@@ -488,6 +489,7 @@ function approvedExecutionChecks(
   const plan = upstream!.approvedProductionPlan as { scenes: Array<{
     shotId: string; interval?: { startSec?: unknown; endSec?: unknown; brief?: unknown };
     approvedScene: { purpose?: unknown; actions: Array<{ actorId?: unknown; description?: unknown } | null> };
+    verificationPlan: { visualRequirements: unknown[] };
   }> };
   const scene = plan.scenes.find(scene => scene?.shotId === shotId)!;
   const interval = scene.interval;
@@ -504,6 +506,13 @@ function approvedExecutionChecks(
     for (const [field, id] of [["action", "SQ1_SUBJECT_ACTION"], ["timeline", "SQ2_SCENE_PROPS"]] as const) {
       const raw = fieldValueFromSource(source, field);
       if (typeof raw !== "string") continue;
+      if (approvedSecondPassEndsHalfway({ frozenBrief: interval.brief, purpose: scene.approvedScene.purpose,
+        visualRequirements: scene.verificationPlan.visualRequirements, fieldValue: raw })) {
+        findings.push({ id, field, pass: false, failureCode: "APPROVED_RIVAL_PASS_NOT_VISIBLE",
+          evidence: "本字段从与第二辆并排推进半个车身直接进入冲线，未同时写清从该车后方追上与整车越过。",
+          repair: "在原有切点和总时长内写清本镜同一第二辆对手的从后方追近、并排、整车越过，再冲线后减速；第一辆保持在后方。" });
+        continue;
+      }
       // Crossing a finish line by the front wheel is distinct from declaring
       // an entire pass completed as soon as the two vehicle noses cross.
       const partial = /(?:车头|前轮)[^。；\n]{0,18}(?:越过|超过|领先于)[^。；\n]{0,16}(?:对手|对方)[^。；\n]{0,8}(?:车头|前轮)\s*[，,]?\s*(?:就|即|形成|取得|标志|完成)[^。；\n]{0,26}(?:领先|超越|超车)/u;
