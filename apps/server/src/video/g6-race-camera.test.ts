@@ -50,6 +50,6 @@ it.each([
   { visualRequirements: ["记录两辆对手冲线的顺序。"], action: second + finish },
   { camera: goodCamera, action: finish },
 ])("leaves unrelated scope and an ordinary front-wheel finish alone", override => {
-  expect(approvedRaceCameraChecks({ frozenBrief, purpose, visualRequirements, camera: badCamera, action: finish,
+  expect(approvedRaceCameraChecks({ frozenBrief, purpose, visualRequirements, camera: badCamera,
     timeline: finish, ...override })).toEqual([]);
 });
