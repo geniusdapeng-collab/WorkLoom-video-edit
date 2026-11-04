@@ -125,6 +125,9 @@ jobs:
           packages/video-studio/src/requirement-authority.test.ts
           packages/video-studio/src/prd-authority.test.ts
           packages/video-studio/src/prd-authority-bridge.test.ts
+          packages/video-studio/src/rival-identity-scope.test.ts
+          packages/video-studio/src/native-field-repair-sync.test.ts
+          packages/video-studio/src/frozen-complete-field-preservation.test.ts
           packages/video-studio/src/prd-portrait-source.test.ts
           packages/video-studio/src/production-structured-native.test.ts
           packages/video-studio/src/scene-design-source.test.ts
@@ -150,6 +153,7 @@ jobs:
           apps/server/src/video/g6-motion-obligations.test.ts
           apps/server/src/video/g6-rival-pass.test.ts
           apps/server/src/video/g6-race-camera.test.ts
+          apps/server/src/video/g6-event-witness.test.ts
           apps/server/src/video/production-authority.test.ts
           apps/server/src/video/production-authority.pg.test.ts
           apps/server/src/video/production-router.test.ts
