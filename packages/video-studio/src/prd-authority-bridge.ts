@@ -18,6 +18,11 @@ import { isNoSpeechDeclaration } from "./dialogue-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { parseStrictSceneJsonObject } from "./scene-json-comma-recovery.js";
 import { splitShotAssertions } from "./shot-intent.js";
+import { nativeFieldRepairSynchronizer } from "./native-field-repair-sync.js";
+import {
+  bindRivalAuthorityIdentity, bindRivalFusionIdentity, bindRivalRepairIdentity, reviewedRivalIdentity, rivalIdentityFormatIssues,
+  type RivalIdentityScope,
+} from "./rival-identity-scope.js";
 import {
   attestVendorStructuredRedirect,
   nativeBlankJsonCorrected, nativeBlankJsonObjectCorrected, nativeBlankJsonRouteCurrent,
@@ -118,6 +123,7 @@ interface Scope {
   truth?: TruthBoundary;
 }
 const scopes = new AsyncLocalStorage<Scope | undefined>();
+const rivalProduction = new AsyncLocalStorage<{ scope: Scope; receiver: RequirementRecord; identity: RivalIdentityScope }>();
 const systems = new WeakMap<object, Scope>();
 const generators = new WeakMap<object, Scope>();
 
@@ -211,11 +217,15 @@ export function productionModelInput(prompt: string): { prompt: string; verify: 
     ...scope.reviewedResult,
     _workloomRequirementContract: prdContractExecutionView(scope.authority, scope.contract!),
   } : scope.reviewedResult;
+  const rival = rivalProduction.getStore();
+  const sourceAuthority = prdAuthorityPrompt(scope.authority, scope.contract!);
+  const productionAuthority = rival?.scope === scope
+    ? guard(scope, () => bindRivalAuthorityIdentity(sourceAuthority)) : sourceAuthority;
   const addition = `\n\n## 本次宿主已审制作权威输入 ${scope.reviewedHash}\n`
     + `以下是当前运行的完整来源，不是新的创作稿或批准。客户完整 Brief 与 G1 的用途限定优先于通用模板、艺术参考和已审 PRD 中的创作句子。`
     + `G4 批准不把 PRD 新增的修辞、设计目的、未知颜色或部件推测升级为 G1 已接受事实。`
     + `后续剧本、场景、摄影、色彩、音频、融合、精炼、检查与修复都须按相同层级理解；本次模型自主生成内容，不能用规则补造缺失字段。\n`
-    + prdAuthorityPrompt(scope.authority, scope.contract!)
+    + productionAuthority
     + (scope.reviewedThemeHash ? `\n本次真实 G2 已审完整主题与原始裁决（SHA256 ${scope.reviewedThemeHash}）：\n${JSON.stringify(scope.reviewedTheme)}\n` : "")
     + `\n本次真实 G4 完整审核原文（SHA256 ${createHash("sha256").update(scope.reviewedContent!).digest("hex")}）：\n${scope.reviewedContent}\n`
     + `本次 G4 原始返回裁决（建议保持非阻断层级，不驱动额外调用）：\n${JSON.stringify(scope.reviewedVerdict)}\n`
@@ -1321,6 +1331,12 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   type FrozenField = keyof typeof frozenFieldLimits;
   const frozenField = (value: unknown): value is FrozenField =>
     typeof value === "string" && Object.hasOwn(frozenFieldLimits, value);
+  const authoredField = (value: unknown): value is string => typeof value === "string" && fields.includes(value);
+  const authoredAliases = new Map<string, string>();
+  for (const field of fields) {
+    authoredAliases.set(field, field);
+    authoredAliases.set(field.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), field);
+  }
   const frozenFieldScope = (receiver: RequirementRecord, shotValue: unknown): Scope | undefined => {
     const scope = productionScope(receiver, false);
     if (!scope || scope.g4Decision !== "approved" || scope.authority.profile.speechPolicy !== "none"
@@ -1331,6 +1347,21 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       || (Object.hasOwn(shot, "shotId") && Object.hasOwn(shot, "shot_id") && shot.shotId !== shot.shot_id)) return undefined;
     return scope.contract?.scenes.some(scene => scene.id === id && scene.duration === shot.duration) ? scope : undefined;
   };
+  const rivalIdentity = (scope: Scope, shot: RequirementRecord) => reviewedRivalIdentity({
+    contract: scope.contract!, cuts: frozenCuts(scope)!, reviewedPrd: scope.reviewedResult!,
+    shotId: String(shot.shotId ?? shot.shot_id), duration: shot.duration,
+  });
+  if (deps.ruleCheckPrototype) add(deps.ruleCheckPrototype, "_checkFormat", original => function (shot, ...args) {
+    const scope = frozenFieldScope(this, shot);
+    const identity = scope && rivalIdentity(scope, shot as RequirementRecord);
+    if (!scope || !identity) return Reflect.apply(original, this, [shot, ...args]);
+    return guard(scope, () => {
+      check(scope);
+      const issues = Reflect.apply(original, this, [shot, ...args]);
+      if (!Array.isArray(issues)) prdFail("PRD_VENDOR_UNAVAILABLE", "原生字段格式检查缺少诊断列表");
+      return rivalIdentityFormatIssues(issues, (shot as RequirementRecord).character_constraint, identity);
+    });
+  });
   const coveredSuit = (value: unknown): value is string => typeof value === "string" && /全覆[^，。；\n]{0,30}赛车服/u.test(value);
   const mentionsWardrobe = (text: string, id: string) => text.match(/[A-Za-z0-9][A-Za-z0-9_-]*/gu)?.includes(id) === true;
   const approvedSuit = (scope: Scope, shot: RequirementRecord) => {
@@ -1372,9 +1403,9 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   });
   const nativeOverflow = (value: unknown, shot: RequirementRecord) => {
     const issue = requirementRecord(value, "原生字段超长诊断"), field = issue.fieldEn;
-    if (!frozenField(field) || issue.issueType !== "over_length") return false;
+    if (!authoredField(field) || issue.issueType !== "over_length") return false;
     const text = shot[field];
-    return typeof text === "string" && text.length > frozenFieldLimits[field];
+    return typeof text === "string" && text.trim().length > 0;
   };
   if (deps.ruleCheckPrototype) add(deps.ruleCheckPrototype, "_checkLength", original => function (shot, ...args) {
     const scope = frozenFieldScope(this, shot);
@@ -1382,22 +1413,37 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     return guard(scope, () => {
       const issues = Reflect.apply(original, this, [shot, ...args]);
       if (!Array.isArray(issues)) prdFail("PRD_VENDOR_UNAVAILABLE", "原生字段长度检查缺少诊断列表");
-      // The assembled native cap still applies at G6. Do not ask the
-      // preliminary field repairer to cut these two authored fields in half.
+      // Native per-field budgets guide authoring. The complete assembled
+      // values reach G6, where the aggregate cap and bounded repair apply.
       return issues.filter(issue => !nativeOverflow(issue, shot as RequirementRecord));
     });
   });
   const extractFieldRepairJson = deps.extractFieldRepairJson;
-  if (deps.llmRepairPrototype && extractFieldRepairJson) add(deps.llmRepairPrototype, "_repairBatch", original => async function (shot, issues, fields, ...args) {
+  if (deps.llmRepairPrototype && extractFieldRepairJson) add(deps.llmRepairPrototype, "_repairBatch", original => async function (shot, issues, requestedFields, ...args) {
     const scope = frozenFieldScope(this, shot);
-    if (!scope || !Array.isArray(fields) || !fields.some(frozenField)) return Reflect.apply(original, this, [shot, issues, fields, ...args]);
+    const identity = scope && Array.isArray(requestedFields) && requestedFields.includes("character_constraint")
+      ? rivalIdentity(scope, shot as RequirementRecord) : undefined;
+    if (!scope) return Reflect.apply(original, this, [shot, issues, requestedFields, ...args]);
+    if (!Array.isArray(requestedFields)) prdFail("PRD_FIELD_REPAIR_SCOPE", "原生字段修复缺少本批字段列表");
     return awaited(scope, async () => {
+      check(scope);
+      const synchronize = nativeFieldRepairSynchronizer(shot, requestedFields,
+        [...fieldGroups.p0, ...fieldGroups.p1, ...fieldGroups.p2, ...fieldGroups.p3]);
+      const requestedCanonicalFields = new Set(requestedFields.map(field => authoredAliases.get(field)));
       const engine = requirementRecord(this.llm, "原生字段修复模型");
       const reason = method(engine, "reason"), truncate = method(this, "_smartTruncate");
       const engineView = Object.create(engine) as RequirementRecord, receiver = Object.create(this) as RequirementRecord;
-      const preservedValues = new Map<string, number>();
+      const preservedValues = new Set<string>();
       engineView.reason = async (...callArgs: unknown[]) => {
-        const reply = await Reflect.apply(reason, engine, callArgs);
+        if (identity) {
+          callArgs[0] = guard(scope, () => {
+            check(scope);
+            if (typeof callArgs[0] !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "原生角色字段修复缺少完整提示词");
+            return bindRivalRepairIdentity(callArgs[0], identity);
+          });
+        }
+        const invokeModel = () => Reflect.apply(reason, engine, callArgs);
+        const reply = identity ? await rivalProduction.run({ scope, receiver: this, identity }, invokeModel) : await invokeModel();
         if (!reply || typeof reply !== "object" || Array.isArray(reply)) return reply;
         const envelope = reply as RequirementRecord;
         if (envelope.success !== true || typeof envelope.content !== "string") return reply;
@@ -1405,21 +1451,23 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         if (parsed.ok !== true || !parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) return reply;
         const data = (parsed.data as RequirementRecord).repaired_fields;
         if (!data || typeof data !== "object" || Array.isArray(data)) return reply;
+        guard(scope, () => synchronize.observeNativeFields(data));
         const entries = Object.entries(data);
         for (const [field, text] of entries) {
-          if (frozenField(field) && fields.includes(field) && typeof text === "string" && text.trim()
-            && entries.filter(([, candidate]) => candidate === text).length === 1) {
-            preservedValues.set(text, frozenFieldLimits[field]);
+          const canonical = authoredAliases.get(field);
+          if (canonical && requestedCanonicalFields.has(canonical) && typeof text === "string" && text.trim()) {
+            preservedValues.add(text);
           }
         }
         return reply;
       };
       receiver.llm = engineView;
       receiver._smartTruncate = (text: unknown, limit: unknown) => {
-        const matchedLimit = typeof text === "string" ? preservedValues.get(text) : undefined;
-        return matchedLimit !== undefined && matchedLimit === limit ? text : Reflect.apply(truncate, receiver, [text, limit]);
+        return typeof text === "string" && preservedValues.has(text) ? text : Reflect.apply(truncate, receiver, [text, limit]);
       };
-      return Reflect.apply(original, receiver, [shot, issues, fields, ...args]);
+      const result = await Reflect.apply(original, receiver, [shot, issues, requestedFields, ...args]);
+      check(scope);
+      return synchronize.finish(result);
     });
   });
   if (deps.ruleRepairPrototype) {
@@ -1431,7 +1479,9 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         const native = requirementRecord(report, "原生字段修复诊断");
         if (!Array.isArray(native.issues)) prdFail("PRD_VENDOR_UNAVAILABLE", "原生字段修复缺少诊断列表");
         const issues = native.issues.filter(issue => !nativeOverflow(issue, shot as RequirementRecord));
-        return Reflect.apply(original, this, [shot, { ...native, issues }, ...args]);
+        const receiver = Object.create(this) as RequirementRecord;
+        receiver._smartTruncate = (text: unknown) => text;
+        return Reflect.apply(original, receiver, [shot, { ...native, issues }, ...args]);
       });
     });
     add(ruleRepair, "_prdAnchorPhrase", original => function (...args) {
@@ -1464,26 +1514,62 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       });
     }
   }
+  for (const key of ["refinePrompt", "refineFields"]) {
+    if (!Object.hasOwn(refinerPrototype, key)) continue;
+    add(refinerPrototype, key, original => function (value, shot, ...args) {
+      const scope = frozenFieldScope(this, shot);
+      if (!scope) return Reflect.apply(original, this, [value, shot, ...args]);
+      return guard(scope, () => {
+        check(scope);
+        const receiver = Object.create(this) as RequirementRecord;
+        // Closing a sentence must not discard its final authored clause or an
+        // unmatched punctuation mark. G6 reviews the complete current value.
+        receiver._ensureClosure = (body: unknown) => body;
+        return Reflect.apply(original, receiver, [value, shot, ...args]);
+      });
+    });
+  }
+  if (deps.fieldConsistencyPrototype) add(fusionPrototype, "_assembleStandardPrompt", original => function (shot, shotFields, ...args) {
+    const scope = frozenFieldScope(this, shot);
+    if (!scope) return Reflect.apply(original, this, [shot, shotFields, ...args]);
+    return guard(scope, () => {
+      check(scope);
+      const receiver = Object.create(this) as RequirementRecord;
+      receiver._truncateStandardPrompt = (prompt: unknown) => prompt;
+      return Reflect.apply(original, receiver, [shot, shotFields, ...args]);
+    });
+  });
   if (deps.fieldQualityPrototype) add(deps.fieldQualityPrototype, "run", original => async function (shotValue, ...args) {
     const scope = productionScope(this);
-    if (!scope?.authority.portraitSources?.length) return Reflect.apply(original, this, [shotValue, ...args]);
+    const nativeRun = () => {
+      if (!scope?.authority.portraitSources?.length) return Reflect.apply(original, this, [shotValue, ...args]);
+      return awaited(scope, async () => {
+        check(scope);
+        const shot = requirementRecord(shotValue, "原始定妆引用镜头");
+        const fields = requirementRecord(shot.fields, "原始定妆引用字段");
+        const portraits = structuredClone(fields.portraits ?? shot.portraits);
+        const result = requirementRecord(await Reflect.apply(original, this, [shotValue, ...args]), "原生字段修复结果");
+        const final = requirementRecord(result.finalShot, "修复后镜头");
+        const finalFields = requirementRecord(final.fields, "修复后镜头字段");
+        // The native field-quality rule overwrites all format errors with a
+        // guessed v1 path. Identity selection remains the earlier shot input.
+        if (portraits === undefined) {
+          delete final.portraits;
+          delete finalFields.portraits;
+        } else {
+          final.portraits = structuredClone(portraits);
+          finalFields.portraits = portraits;
+        }
+        check(scope);
+        return result;
+      });
+    };
+    const frozen = scope && frozenFieldScope(this, shotValue);
+    const identity = frozen && rivalIdentity(frozen, shotValue as RequirementRecord);
+    if (!scope || !identity) return nativeRun();
     return awaited(scope, async () => {
       check(scope);
-      const shot = requirementRecord(shotValue, "原始定妆引用镜头");
-      const fields = requirementRecord(shot.fields, "原始定妆引用字段");
-      const portraits = structuredClone(fields.portraits ?? shot.portraits);
-      const result = requirementRecord(await Reflect.apply(original, this, [shotValue, ...args]), "原生字段修复结果");
-      const final = requirementRecord(result.finalShot, "修复后镜头");
-      const finalFields = requirementRecord(final.fields, "修复后镜头字段");
-      // The native field-quality rule overwrites all format errors with a
-      // guessed v1 path. Identity selection remains the earlier shot input.
-      if (portraits === undefined) {
-        delete final.portraits;
-        delete finalFields.portraits;
-      } else {
-        final.portraits = structuredClone(portraits);
-        finalFields.portraits = portraits;
-      }
+      const result = await rivalProduction.run({ scope, receiver: this, identity }, nativeRun);
       check(scope);
       return result;
     });
@@ -1516,7 +1602,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       });
     });
   }
-  if (structuredAgent) add(fusionPrototype, "_fuseSingleShot", original => function (shotValue, ...args) {
+  if (structuredAgent || deps.fieldConsistencyPrototype) add(fusionPrototype, "_fuseSingleShot", original => function (shotValue, ...args) {
     const scope = productionScope(this, false);
     const run = () => Reflect.apply(original, this, [shotValue, ...args]);
     if (!scope || scope.g4Decision !== "approved" || scope.authority.profile.speechPolicy !== "none"
@@ -1528,7 +1614,9 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       const shot = requirementRecord(shotValue, "冻结合同原生融合镜头");
       const approved = scope.contract?.scenes.find(scene => scene.id === shot.shotId);
       if (!approved || shot.duration !== cuts.secondsPerSegment || approved.duration !== shot.duration) return run();
-      return primaryFusion.run({ scope, receiver: this, shotId: approved.id, started: false }, run);
+      const fuse = () => primaryFusion.run({ scope, receiver: this, shotId: approved.id, started: false }, run);
+      const identity = rivalIdentity(scope, shot);
+      return identity ? rivalProduction.run({ scope, receiver: this, identity }, fuse) : fuse();
     });
   });
   if (structuredAgent) add(structuredAgent.prototype, "_callLLM", original => async function (prompt, schema, fallback, optionsValue = {}) {
@@ -1802,7 +1890,10 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         check(scope);
         const prompt = Reflect.apply(original, this, args);
         if (typeof prompt !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "PromptFusion 系统提示词不是文本");
-        const fields = bindFusionSpeechRule(prompt, "\n15. dialogue: 角色台词(纯台词,不要旁白)\n",
+        const rival = rivalProduction.getStore();
+        const identity = rival?.scope === scope && rival.receiver === this ? rival.identity : undefined;
+        const fields = bindFusionSpeechRule(identity ? bindRivalFusionIdentity(prompt, identity) : prompt,
+          "\n15. dialogue: 角色台词(纯台词,不要旁白)\n",
           '\n15. dialogue: 固定输出"无台词"。\n');
         return bindFusionSpeechRule(fields, "\n- 台词必须是角色直接对话,不要画外音/旁白\n",
           `\n- ${FROZEN_FUSION_SPEECH_RULE}\n`);
@@ -2083,11 +2174,13 @@ export function installVendorPrdProductionBridge(constructor: { prototype: objec
       extractJson: (content: string) => unknown;
     };
     if (typeof extractJson !== "function") prdFail("PRD_VENDOR_UNAVAILABLE", "原生字段修复 JSON 提取器不可用");
+    const refinerPrototype = load("engines/production-engine/agents/field-content-refiner.js", "FieldContentRefiner");
+    for (const key of ["refinePrompt", "refineFields"]) method(refinerPrototype, key);
     return installPrdProductionBridge({ systemPrototype: requirementRecord(constructor.prototype, "受控 system prototype"),
       productionPrototype: load("engines/production-engine/production-engine.js", "ProductionEngine"),
       phase1Prototype: load("engines/production-engine/phases/phase-1-scene-design.js", "Phase1SceneDesign"),
       sceneDesignPrototype: load("engines/production-engine/agents/scene-design-agent.js", "SceneDesignAgent"),
-      refinerPrototype: load("engines/production-engine/agents/field-content-refiner.js", "FieldContentRefiner"),
+      refinerPrototype,
       costumePrototype: load("engines/character-system/character-costume-prompter.js", "CharacterCostumePrompter"),
       fieldGuardPrototype: load("engines/field-guard.js", "FieldGuard"),
       fusionPrototype: load("engines/production-engine/agents/prompt-fusion-agent.js", "PromptFusionAgent"),

@@ -2447,7 +2447,8 @@ describe("approved production authority at native technical and title seams", ()
           if (preserved) expect.soft(afterModel[key], `native model ${key}`).toBe(repaired[key]);
           else expect(String(afterModel[key]).length).toBeLessThan(repaired[key].length);
         }
-        expect(String(afterModel.mood).length).toBeLessThan(repaired.mood.length);
+        if (preserved) expect(afterModel.mood).toBe(repaired.mood);
+        else expect(String(afterModel.mood).length).toBeLessThan(repaired.mood.length);
         expect(response).toHaveBeenCalledTimes(1);
         const [[prompt]] = response.mock.calls as unknown as [[string]];
         expect(prompt).toContain("timeline：≤ 300 字符");
