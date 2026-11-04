@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { OpenAiCompatibleProvider, resetCircuit, type EventSink } from "@workloom/base/model-router";
-import { nativeReasonCompleted, nativeReasonFailure, nativeSceneResponseRouteCurrent, nativeSceneResponseSource,
-  sameNativeSceneResponseRoute, WorkloomLLMEngine } from "./llm-adapter.js";
+import { isRiskResponsesJsonSchema, OpenAiCompatibleProvider, resetCircuit, riskResponsesJsonSchema, type EventSink } from "@workloom/base/model-router";
+import { nativeReasonCompleted, nativeReasonFailure, nativeRiskResponseRouteCurrent, nativeRiskResponseSource,
+  nativeSceneResponseRouteCurrent, nativeSceneResponseSource, sameNativeRiskResponseRoute, sameNativeSceneResponseRoute,
+  WorkloomLLMEngine } from "./llm-adapter.js";
 
 const schema = {
   type: "object",
@@ -159,5 +160,94 @@ describe("native Scene Responses text evidence", () => {
     engine.attachRouter({ providers: new Map([[provider.modelId, provider]]), sink });
     expect(nativeSceneResponseRouteCurrent(second)).toBe(false);
     expect(nativeSceneResponseSource(second)).toBeDefined();
+  });
+});
+
+const riskOptions = { responsesJsonSchema: riskResponsesJsonSchema };
+const riskText = '{"technicalRisks":[{"risk":"入弯交叉","level":"high","impact":"超越顺序不清"}],"businessConstraints":["保持三个硬切"],"mitigationSuggestions":["在同镜保留对手位置"]}';
+const riskFormat = { type: "json_schema", ...riskResponsesJsonSchema };
+const riskWire = (raw: string, changes: Record<string, unknown> = {}) => responsesWire(raw, {
+  text: { format: riskFormat }, reasoning: { effort: "high" }, max_output_tokens: 393216, ...changes,
+});
+
+describe("native Risk Responses text evidence", () => {
+  it("pins only the exact closed native Risk schema and inspects no getters", () => {
+    expect(isRiskResponsesJsonSchema({ schema: structuredClone(riskResponsesJsonSchema.schema), name: riskResponsesJsonSchema.name })).toBe(true);
+    expect(isRiskResponsesJsonSchema({ ...riskResponsesJsonSchema, extra: true })).toBe(false);
+    expect(isRiskResponsesJsonSchema({ ...riskResponsesJsonSchema, schema: { ...riskResponsesJsonSchema.schema, additionalProperties: true } })).toBe(false);
+    expect(isRiskResponsesJsonSchema(new Proxy(riskResponsesJsonSchema, {}))).toBe(false);
+    const get = vi.fn(() => riskResponsesJsonSchema.schema);
+    expect(isRiskResponsesJsonSchema({ name: riskResponsesJsonSchema.name, get schema() { return get(); } })).toBe(false);
+    expect(get).not.toHaveBeenCalled();
+    expect(() => (riskResponsesJsonSchema.schema.required as string[]).push("unsafe")).toThrow();
+  });
+
+  it("records exact measured raw text, schema and request/response bytes, separate from Scene provenance", async () => {
+    const raw = ` \n${riskText}\t `;
+    const body = riskWire(raw);
+    const { engine, transport } = engineFor(body);
+    const result = await engine.reasonStructured("完整当前场景与冻结要求", riskResponsesJsonSchema.schema, riskOptions);
+    expect(result).toMatchObject({ success: true, content: riskText, data: JSON.parse(riskText) });
+    const [endpoint, init] = transport.mock.calls[0]!;
+    expect(endpoint).toBe(`${baseUrl}/responses`);
+    expect(JSON.parse(String(init!.body))).toMatchObject({ model: "deepseek-flash", reasoning: { effort: "high" }, max_output_tokens: 393216,
+      stream: false, text: { format: riskFormat } });
+    expect(nativeRiskResponseSource(result)).toEqual({ rawText: raw, requestSha256: sha256(String(init!.body)), responseSha256: sha256(body),
+      schemaSha256: sha256(JSON.stringify(riskResponsesJsonSchema.schema)) });
+    expect(nativeRiskResponseRouteCurrent(result)).toBe(true);
+    expect(nativeRiskResponseSource({ ...result })).toBeUndefined();
+    expect(nativeSceneResponseSource(result)).toBeUndefined();
+    expect(nativeSceneResponseRouteCurrent(result)).toBe(false);
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["unstructured echo", { text: { format: { type: "json_object" } } }],
+    ["name-only echo", { text: { format: { type: "json_schema", name: riskResponsesJsonSchema.name } } }],
+    ["changed schema echo", { text: { format: { ...riskFormat, schema: { type: "object" } } } }],
+    ["changed effort echo", { reasoning: { effort: "low" } }],
+    ["changed ceiling echo", { max_output_tokens: 1024 }],
+    ["incomplete", { status: "incomplete" }],
+    ["unmeasured", { usage: { input_tokens: 1, output_tokens: 2, total_tokens: 4 } }],
+  ])("does not attest %s", async (_label, change) => {
+    try {
+      const { engine, transport } = engineFor(riskWire(riskText, change));
+      const result = await engine.reasonStructured("风险", riskResponsesJsonSchema.schema, riskOptions);
+      expect(nativeRiskResponseSource(result)).toBeUndefined();
+      expect(nativeRiskResponseRouteCurrent(result)).toBe(false);
+      expect(transport).toHaveBeenCalledTimes(1);
+    } finally { resetCircuit("video.preproduction.plan"); }
+  });
+
+  it("rejects a loosened Risk request before transport", async () => {
+    try {
+      const { engine, transport } = engineFor(riskWire(riskText));
+      const result = await engine.reasonStructured("风险", riskResponsesJsonSchema.schema, {
+        responsesJsonSchema: { ...riskResponsesJsonSchema, schema: { ...riskResponsesJsonSchema.schema, additionalProperties: true } },
+      });
+      expect(result.success).toBe(false);
+      expect(nativeRiskResponseSource(result)).toBeUndefined();
+      expect(transport).not.toHaveBeenCalled();
+    } finally { resetCircuit("video.preproduction.plan"); }
+  });
+
+  it.each(["distinct", "response-id", "request", "system", "engine"] as const)("pairs only fresh measured results on one unchanged Risk route (%s)", async variant => {
+    const firstBody = riskWire('{"technicalRisks":', { id: "risk-original" });
+    const secondBody = riskWire(riskText, { id: variant === "response-id" ? "risk-original" : "risk-correction" });
+    const { engine, transport, cfg } = engineFor(firstBody);
+    transport.mockResolvedValueOnce(new Response(firstBody)).mockResolvedValueOnce(new Response(secondBody));
+    const first = await engine.reasonStructured("完整原始风险输入", riskResponsesJsonSchema.schema, riskOptions);
+    const selected = variant === "engine" ? engineFor(secondBody).engine : engine;
+    const second = await selected.reasonStructured(variant === "request" ? "完整原始风险输入" : "完整原始风险输入＋一次纠正", riskResponsesJsonSchema.schema,
+      variant === "system" ? { ...riskOptions, systemPrompt: "变更的系统指令" } : riskOptions);
+    expect(first.success).toBe(false);
+    expect(nativeReasonFailure(first)).toBe("json-syntax");
+    expect(nativeRiskResponseSource(first)?.rawText).toBe('{"technicalRisks":');
+    expect(nativeRiskResponseRouteCurrent(first)).toBe(true);
+    expect(nativeRiskResponseRouteCurrent(second)).toBe(true);
+    expect(sameNativeRiskResponseRoute(first, second)).toBe(variant === "distinct");
+    expect(sameNativeSceneResponseRoute(first, second)).toBe(false);
+    cfg.apiKey = "changed-after-response";
+    expect(nativeRiskResponseRouteCurrent(first)).toBe(false);
   });
 });
