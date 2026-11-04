@@ -297,12 +297,8 @@ export function authoritativeProduct(value: unknown, profile: PrdProductionProfi
 }
 
 function usesNativeFilmPostTail(profile: PrdProductionProfile, authority?: PrdAuthority): boolean {
-  if (!authority || authority.profile !== profile || profile.targetPlatform !== "抖音" || profile.aspectRatio !== "9:16"
-    || profile.resolution !== "1080p" || profile.frameRate !== 30 || profile.nativeAudio !== true
-    || profile.coverDelivery !== "standalone" || profile.postTailOverlayText === undefined
-    || profile.postTailOverlaySeconds !== 2) return false;
-  const segments = frozenVisualPrdSegments(authority);
-  if (segments?.count !== 3 || segments.secondsPerSegment !== 10) return false;
+  if (!authority || authority.profile !== profile || profile.postTailOverlayText === undefined
+    || profile.postTailOverlaySeconds === undefined || !frozenVisualPrdSegments(authority)) return false;
   const brief = requirementRecord(authority.metadata.brief, "本次后期编码 Brief");
   const codec = /\b(?:h[.\s_-]?26[45]|hevc|avc|av1|vp[89]|prores|(?:lib)?x26[45])\b/iu;
   return !["videoCodec", "video_codec", "codec"].some(key => Object.hasOwn(brief, key))
