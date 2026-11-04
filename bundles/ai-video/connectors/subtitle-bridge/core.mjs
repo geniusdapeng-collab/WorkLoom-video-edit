@@ -43,6 +43,15 @@ export function validatePersistentSubtitleText(value) {
   return text;
 }
 
+export function validatePersistentSubtitleAnchor(value, persistentText) {
+  if (value === undefined || value === null) return null;
+  if (!persistentText) throw new SubtitleError("持续字幕锚点需要持续文字", "bad_request", false);
+  if (value !== "top-center" && value !== "bottom-center") {
+    throw new SubtitleError("持续字幕锚点仅支持 top-center 或 bottom-center", "bad_request", false);
+  }
+  return value;
+}
+
 /** User backslashes remain visible, with a zero-width barrier preventing ASS \\N/\\h commands. */
 export function escapePersistentSubtitleText(text) {
   return escapeAssText(text.replaceAll("\\", "\\\u2060"));
@@ -1101,6 +1110,7 @@ export async function plan({
   titleText = "",
   titleDurationSec = 3,
   persistentText = null,
+  persistentAnchor = null,
   cues = [],
   secondaryCues = [],
   secondaryLabel = "EN",
@@ -1113,14 +1123,30 @@ export async function plan({
   analyze = false,
 }) {
   persistentText = validatePersistentSubtitleText(persistentText);
+  persistentAnchor = validatePersistentSubtitleAnchor(persistentAnchor, persistentText);
   if (persistentText && titleText) throw new SubtitleError("持续字幕与装饰标题不能共用Title文字层", "bad_request", false);
+  const persistentBottom = persistentAnchor === "bottom-center";
+  if (persistentBottom && (cues.length || secondaryCues.length)) {
+    throw new SubtitleError("底部持续字幕只支持没有对白字幕的版式", "bad_request", false);
+  }
   fontsDir = fontsDir ?? fontsRoot();
   const probe = input ? await probeMedia(input, { bins }) : null;
   const persistentClock = persistentText ? persistentSubtitleClock(probe) : null;
   if (persistentText && !scenes.includes("标题")) scenes = [...scenes, "标题"];
-  const resolvedPlatform = platform ?? brief.平台 ?? "默认";
+  const requestedPlatform = platform ?? brief.平台 ?? "默认";
+  // The approved bottom band must use the real UI catalogue. Film supplies
+  // the individual platform name, while the catalogue groups these two.
+  const resolvedPlatform = persistentBottom && ["抖音", "快手"].includes(requestedPlatform) ? "抖音/快手" : requestedPlatform;
   const { key: platformKey, layout } = layoutFor(resolvedPlatform, catalog);
+  if (persistentBottom && (platformKey !== resolvedPlatform || !Array.isArray(layout.occlusion_zones) || !layout.occlusion_zones.length)) {
+    throw new SubtitleError("底部持续字幕缺少当前平台的遮挡区版式", "bad_style", false);
+  }
   const targetResolution = resolution ?? (probe ? [probe.displayWidth ?? probe.width, probe.displayHeight ?? probe.height] : brief.分辨率 ?? [1080, 1920]);
+  if (persistentBottom && (targetResolution[0] >= targetResolution[1]
+    || targetResolution[0] !== (probe?.displayWidth ?? probe?.width)
+    || targetResolution[1] !== (probe?.displayHeight ?? probe?.height))) {
+    throw new SubtitleError("底部持续字幕需要与实际竖幅视频分辨率一致", "bad_style", false);
+  }
   const targets = loadRecipes().targets;
   const fonts = scanFonts({ catalog, root: fontsDir });
   const installedIds = new Set(fonts.entries.filter((entry) => entry.present).map((entry) => entry.id));
@@ -1228,6 +1254,15 @@ export async function plan({
       marginL: Math.round(targetResolution[0] * 0.08), marginR: Math.round(targetResolution[0] * 0.08),
       marginV: Math.round(targetResolution[1] * Math.max(0.13, Number(titleLayout.top_margin_ratio ?? 0.13))),
     });
+    if (persistentBottom) {
+      const fontSize = Math.max(size, Math.ceil(targetResolution[0] * 0.04));
+      const sideMargin = Math.ceil(targetResolution[0] * 0.08);
+      Object.assign(titleStyle.style, {
+        fontSize, outline: Math.ceil(fontSize * 0.12), borderStyle: 1, alignment: 2,
+        marginL: sideMargin, marginR: sideMargin,
+        marginV: Math.round(targetResolution[1] * Math.max(0.18, Number(subLayout.bottom_margin_ratio ?? 0.18))),
+      });
+    }
   }
 
   const events = [];
@@ -1389,16 +1424,24 @@ export async function plan({
       events: [{ ...events.find(event => event.style === "Title"), start: "0:00:00.00", end: "0:00:01.00" }] }), "utf8");
     flatFonts = flatFonts ?? prepareFlatFontsDir({ fontsDir, catalog, workDir: dir });
     const ink = await measureInkExtent({ assPath: samplePath, fontsDir: flatFonts.flat, resolution: targetResolution, bins });
-    const rect = ink.detected ? { x: ink.inkX / targetResolution[0], y: ink.inkY / targetResolution[1],
-      w: ink.inkWidth / targetResolution[0], h: ink.inkHeight / targetResolution[1] } : null;
+    // The dark outline is invisible on the black measuring canvas. Include its
+    // full declared extent when checking picture and platform boundaries.
+    const pad = persistentBottom ? titleStyle.style.outline : 0;
+    const rect = ink.detected ? { x: (ink.inkX - pad) / targetResolution[0], y: (ink.inkY - pad) / targetResolution[1],
+      w: (ink.inkWidth + pad * 2) / targetResolution[0], h: (ink.inkHeight + pad * 2) / targetResolution[1] } : null;
     const hits = rect ? overlapsOcclusion(rect, layout.occlusion_zones ?? []) : [];
-    const safe = rect !== null && rect.x >= 0.05 && rect.x + rect.w <= 0.95
-      && rect.y >= 0.12 && rect.y + rect.h <= 0.4 && hits.length === 0;
+    const safe = rect !== null && hits.length === 0 && (persistentBottom
+      ? rect.x >= 0.08 && rect.x + rect.w <= 0.92 && Math.abs(rect.x + rect.w / 2 - 0.5) <= 0.01
+        && rect.y >= 0.60 && rect.y + rect.h <= 0.88 && pad >= Math.ceil(ink.inkHeight * 0.12)
+      : rect.x >= 0.05 && rect.x + rect.w <= 0.95 && rect.y >= 0.12 && rect.y + rect.h <= 0.4);
     if (!safe || ink.fontResolvedFromFontsDir !== true) {
-      throw new SubtitleError("持续字幕完整文字未能以工位字体放入顶部安全区，请缩短文本或核对字体与平台版式", "bad_style", false);
+      throw new SubtitleError(persistentBottom
+        ? "持续字幕完整文字未能以工位字体放入底部居中安全区，请核对字体与平台版式"
+        : "持续字幕完整文字未能以工位字体放入顶部安全区，请缩短文本或核对字体与平台版式", "bad_style", false);
     }
-    persistent.layout = { safeArea: "top-12-to-40-percent", ink, rect, occlusionHits: [],
-      contrast: "opaque-white-on-dark-backdrop", sourcePictureReadability: "unreviewed" };
+    persistent.layout = { safeArea: persistentBottom ? "bottom-center-platform-safe" : "top-12-to-40-percent",
+      ink, rect, occlusionHits: [], contrast: persistentBottom ? "white-with-dark-outline" : "opaque-white-on-dark-backdrop",
+      sourcePictureReadability: "unreviewed", ...(persistentBottom ? { anchor: persistentAnchor, platform: platformKey } : {}) };
     checks.push({ kind: "persistent_text_layout", ok: true, hard: true, detail: persistent.layout });
   }
 
@@ -1535,6 +1578,7 @@ export async function renderWithSubtitles({
   titleText = "",
   titleDurationSec = null,
   persistentText = null,
+  persistentAnchor = null,
   secondaryCues = [],
   secondaryLabel = "EN",
   brief = {},
@@ -1555,6 +1599,7 @@ export async function renderWithSubtitles({
   danmakuOptions = {},
 }) {
   persistentText = validatePersistentSubtitleText(persistentText);
+  persistentAnchor = validatePersistentSubtitleAnchor(persistentAnchor, persistentText);
   if (persistentText && (titleText || styleOverrides?.Title)) {
     throw new SubtitleError("持续字幕不能与装饰标题或Title样式覆写同时请求", "bad_request", false);
   }
@@ -1565,6 +1610,9 @@ export async function renderWithSubtitles({
     throw new SubtitleError("禁止覆盖原片（输出路径等于输入路径）", "overwrite_source_forbidden", false);
   }
   const persistentOnly = Boolean(persistentText && mode === "subtitle" && !cues.length && !secondaryCues.length);
+  if (persistentAnchor === "bottom-center" && (!persistentOnly || danmakuItems != null)) {
+    throw new SubtitleError("底部持续字幕只支持没有对白字幕或弹幕的版式", "bad_request", false);
+  }
   if (!["subtitle", "title", "both"].includes(mode)) throw new SubtitleError("未知字幕处理模式", "bad_request", false);
   if (mode !== "title" && !cues.length && !persistentOnly) throw new SubtitleError("字幕烧录需要 SRT 字幕条", "bad_request", false);
   if (mode !== "subtitle" && !titleText) throw new SubtitleError("标题烧录需要 title_text", "bad_request", false);
@@ -1589,6 +1637,7 @@ export async function renderWithSubtitles({
     titleText: mode === "subtitle" ? "" : titleText,
     titleDurationSec,
     persistentText,
+    persistentAnchor,
     cues: mode === "title" ? [] : cues,
     secondaryCues: mode === "title" ? [] : secondaryCues,
     secondaryLabel,
@@ -2898,6 +2947,7 @@ export async function exportSidecars({
   brief = {},
   titleText = "",
   persistentText = null,
+  persistentAnchor = null,
   fontsDir = null,
   catalog = loadFontCatalog(),
   bins = resolveBinaries(),
@@ -2905,9 +2955,13 @@ export async function exportSidecars({
   analyze = false,
 }) {
   persistentText = validatePersistentSubtitleText(persistentText);
+  persistentAnchor = validatePersistentSubtitleAnchor(persistentAnchor, persistentText);
   if (persistentText && titleText) throw new SubtitleError("持续字幕与装饰标题不能共用Title文字层", "bad_request", false);
   if (persistentText && (typeof input !== "string" || !input.trim())) throw new SubtitleError("持续字幕旁挂需要实际视频输入", "bad_request", false);
   const persistentOnly = Boolean(persistentText && Array.isArray(cues) && !cues.length && !cuesEn?.length);
+  if (persistentAnchor === "bottom-center" && !persistentOnly) {
+    throw new SubtitleError("底部持续字幕只支持没有对白字幕的版式", "bad_request", false);
+  }
   if (!Array.isArray(cues) || !cues.length && !persistentOnly) {
     throw new SubtitleError("旁挂字幕交付需要至少一条字幕或明确的持续文字", "bad_srt", false);
   }
@@ -2925,6 +2979,7 @@ export async function exportSidecars({
     platform,
     titleText,
     persistentText,
+    persistentAnchor,
     cues,
     scenes: persistentOnly ? ["标题"] : ["标题", "字幕"],
     catalog,
@@ -2936,7 +2991,7 @@ export async function exportSidecars({
   });
 
   const resolvedPlatform = platform ?? brief.平台 ?? "默认";
-  const { layout } = layoutFor(resolvedPlatform, catalog);
+  const { layout } = layoutFor(outcome.plan.platform, catalog);
   const files = [];
   const writeFile = async (suffix, content, meta) => {
     const target = path.join(outDir, `${baseName}${suffix}`);
@@ -3266,6 +3321,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
   }
   // Validate before allocating plan directories or reading cue files through the tool entry.
   const persistentText = validatePersistentSubtitleText(params.persistent_text);
+  const persistentAnchor = validatePersistentSubtitleAnchor(params.persistent_anchor, persistentText);
   if (persistentText && (!["subtitlewrite.plan", "subtitlewrite.burn", "subtitlewrite.sidecar"].includes(name)
     || params.title_text || params.style_overrides?.Title)) {
     throw new SubtitleError("持续字幕仅支持plan/burn/sidecar且不能与装饰Title层共用", "bad_request", false);
@@ -3371,6 +3427,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         platform: params.platform ?? null,
         titleText: params.title_text ?? "",
         persistentText: params.persistent_text,
+        persistentAnchor,
         titleDurationSec: optionalNumber(params.title_duration_sec) ?? 3,
         cues,
         scenes: Array.isArray(params.scenes) && params.scenes.length ? params.scenes.map(String) : ["标题", "字幕"],
@@ -3409,6 +3466,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         secondaryLabel: String(params.secondary_label ?? "EN"),
         titleText: params.title_text ?? "",
         persistentText: params.persistent_text,
+        persistentAnchor,
         titleDurationSec: optionalNumber(params.title_duration_sec),
         brief: resolveBrief(params),
         platform: params.platform ?? null,
@@ -3567,6 +3625,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         brief: resolveBrief(params),
         titleText: params.title_text ?? "",
         persistentText: params.persistent_text,
+        persistentAnchor,
         fontsDir: params.fonts_dir ? assertPathAllowed(String(params.fonts_dir), roots, "fonts_dir") : fontRoot,
         evidenceDir: optionalPath(params.evidence_dir, "evidence_dir"),
         bins,
