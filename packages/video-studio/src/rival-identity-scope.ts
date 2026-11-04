@@ -12,6 +12,7 @@ const nativeRepairIdentity = " - character_constraint：必须包含①单角色
 const repairFormatStart = "\n\n【字段格式硬约束】（修复后必须逐项满足，机器将按此复检）\n";
 const repairFormatEnd = "\n\n【检查发现的问题】\n";
 const nativeAuthorityCast = "\n客户受众原文是权威口径；模型年龄/性别细分仅为推测。只使用合同内人物，characterId 必须等于所选 id，姓名一致。人物档案是人物表达依据，不能当成商品事实；";
+const noAdditionalNamedIdentity = "不增加命名角色或定妆引用";
 
 function positiveClauses(text: string): string[] {
   return splitShotAssertions(text.replace(/并非|不是|不可/gu, "禁止")).positive.split("；");
@@ -110,7 +111,8 @@ export function bindRivalAuthorityIdentity(authorityPrompt: string): string {
 export function rivalIdentityFormatIssues(issues: unknown[], value: unknown, scope: RivalIdentityScope): unknown[] {
   if (typeof value !== "string") return issues;
   const clauses = positiveClauses(value), positive = clauses.join("；");
-  const declarations = clauses.filter(clause => /(?:命名|(?<!不)具名)(?:主角|角色)/u.test(clause));
+  const declarations = clauses.filter(clause => clause !== noAdditionalNamedIdentity
+    && /(?:命名|(?<!不)具名)(?:主角|角色)/u.test(clause));
   const identity = declarations.length > 0 && declarations.every(clause => sameNamedLead(clause, scope));
   const counterpart = clauses.some(clause => /匿名|无名|不具名/u.test(clause) && /成年|成人/u.test(clause)
     && /全盔|全覆[^，；。]{0,8}头盔/u.test(clause) && /对手骑手|对手[^，；。]{0,12}骑手/u.test(clause));
