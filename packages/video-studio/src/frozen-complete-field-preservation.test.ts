@@ -230,6 +230,34 @@ describe("complete authored frozen fields at the installed native production sea
     });
   });
 
+  it("preserves equal repaired values across different budgets and keeps Unicode code points intact", async () => {
+    const { harness, run, shot } = frozenRun();
+    const authored = "原始皮肤与服装细节🙂".repeat(25) + "最后一项完整可见要求。";
+    const values = { costume: authored, makeup: authored };
+    const repairer = Reflect.construct(LLMRepairer, [{ reason: async () => ({ success: true,
+      content: "```json\n" + JSON.stringify({ repaired_fields: values }) + "\n```" }) }, 500]) as RequirementRecord;
+    await harness.accepted(run, async () => {
+      const result = requirementRecord(await invoke(repairer, "_repairBatch", { ...shot, costume: "旧服装", makeup: "旧化妆" },
+        [], Object.keys(values), new PRD({}), 500, 1, 1), "equal native values");
+      const repaired = requirementRecord(result.repaired, "repaired equal text");
+      expect(repaired.costume).toBe(authored);
+      expect(repaired.makeup).toBe(authored);
+    });
+  });
+
+  it("retains the native failed model result and leaves the original shot untouched", async () => {
+    const { harness, run, shot } = frozenRun();
+    const input = { ...shot, costume: completeValue("costume") }, before = structuredClone(input);
+    const response = vi.fn(async () => ({ success: false, error: "synthetic model failure" }));
+    const repairer = Reflect.construct(LLMRepairer, [{ reason: response }, 500]) as RequirementRecord;
+    await harness.accepted(run, async () => {
+      expect(await invoke(repairer, "_repairBatch", input, [], ["costume"], new PRD({}), 500, 1, 1))
+        .toEqual({ repaired: null, actions: [] });
+      expect(input).toEqual(before);
+      expect(response).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it.each(finiteFields)("retains semantic checks while ignoring preliminary per-field overflow for %s", async field => {
     const { harness, run, shot } = frozenRun();
     const checker = new RuleChecker(), authored = completeValue(field);
@@ -255,7 +283,7 @@ describe("complete authored frozen fields at the installed native production sea
   it("keeps the entire suffix and unmatched punctuation through native display and field refinement", async () => {
     const { harness, run, shot } = frozenRun();
     const body = "整套护具与全覆赛车服保持原样，不露胸、不露腰、拉链闭合至颈部；" + "抬盔后完整托住原头盔并放于指定位置";
-    const bracket = "完整动作与主体约束保持原样，最后的作者注记也必须保留；".repeat(2) + "[作者完整注记仍在当前字段末尾";
+    const bracket = "完整动作与主体约束保持原样，最后的作者注记也必须保留；服装护具与道具落点都依照本镜实际动作表达；[作者完整注记仍在当前字段末尾";
     const fields = { costume: body, makeup: bracket };
     await harness.accepted(run, async () => {
       const refiner = new FieldContentRefiner();
@@ -301,7 +329,36 @@ describe("complete authored frozen fields at the installed native production sea
       const body = "完整服装与护具均保留，外层拉链在颈部闭合，全部覆盖；后续尚未闭合";
       const refined = requirementRecord(invoke(refiner, "refineFields", { costume: body }, { ...shot, fields: { costume: body } }), "legacy refinement");
       expect(String(refined.costume)).not.toContain("后续尚未闭合");
+      const native = new PromptFusionAgent({ maxPromptLength: 500 });
+      const fields = Object.fromEntries(authoredFields.map(field => [field, completeValue(field)]));
+      fields.dialogue = "无台词。";
+      const display = String(invoke(native, "_assembleStandardPrompt", { ...shot, fields }, fields, "9:16"));
+      expect(display).not.toContain("最后一项costume完整要求");
+      expect(Object.hasOwn(native, "_truncateStandardPrompt")).toBe(false);
+      expect(Object.hasOwn(refiner, "_ensureClosure")).toBe(false);
     });
+  });
+
+  it("does not retain single-call closure or display overrides on shared native instances", async () => {
+    const { harness, run, shot } = frozenRun();
+    const refiner = new FieldContentRefiner(), native = new PromptFusionAgent({ maxPromptLength: 500 });
+    const body = "完整服装与护具均保留，外层拉链在颈部闭合，全部覆盖；尾文完整保留";
+    await harness.accepted(run, async () => {
+      expect(String(requirementRecord(invoke(refiner, "refineFields", { costume: body }, shot), "known").costume)).toBe(body);
+      const unknown = { ...shot, shotId: "unbound-shot" };
+      expect(String(requirementRecord(invoke(refiner, "refineFields", { costume: body }, unknown), "unknown").costume))
+        .not.toContain("尾文完整保留");
+      const fields = Object.fromEntries(authoredFields.map(field => [field, completeValue(field)]));
+      fields.dialogue = "无台词。";
+      expect(String(invoke(native, "_assembleStandardPrompt", { ...shot, fields }, fields, "9:16")))
+        .toContain("最后一项costume完整要求");
+      expect(String(invoke(native, "_assembleStandardPrompt", { ...unknown, fields }, fields, "9:16")))
+        .not.toContain("最后一项costume完整要求");
+      expect(Object.hasOwn(native, "_truncateStandardPrompt")).toBe(false);
+      expect(Object.hasOwn(refiner, "_ensureClosure")).toBe(false);
+    });
+    expect(() => invoke(refiner, "refineFields", { costume: body }, shot)).toThrow("PRD_SCOPE_CONFLICT");
+    expect(() => invoke(native, "_assembleStandardPrompt", { ...shot, fields: {} }, {}, "9:16")).toThrow("PRD_SCOPE_CONFLICT");
   });
 
   it("does not preserve a missing current G4 review or an absent private owner scope", async () => {
