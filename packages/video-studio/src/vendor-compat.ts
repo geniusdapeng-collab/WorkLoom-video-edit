@@ -30,7 +30,8 @@ import {
   resolveRateKey,
 } from "./duration-projection.js";
 import { assertFrozenProductionTiming, bindFrozenScreenplayPrompt } from "./frozen-production-duration.js";
-import { bindSilentScreenplayPrompt, bindSilentScreenplaySystemPrompt, hasExplicitSilentScreenplay, SilentScreenplayError } from "./silent-screenplay.js";
+import { bindSilentScreenplayPrompt, bindSilentScreenplaySystemPrompt, hasExplicitSilentScreenplay,
+  negatedNarrationScanView, SilentScreenplayError } from "./silent-screenplay.js";
 import { FROZEN_NO_SPEECH_AUDIO_DISCIPLINE } from "./frozen-speech-policy.js";
 import type { FrozenSegmentContract } from "./requirement-contract.js";
 import { REQUIRED_ANGLES, type PortraitIndex, type PortraitIndexEntry } from "./portrait-runtime.js";
@@ -1724,6 +1725,7 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
     const prototype = mod.ScriptValidator?.prototype;
     const voiceoverAllowed = prototype?._isVoiceoverAllowed;
     const checkDialogue = prototype?._checkDialogue;
+    const checkForbidden = prototype?._checkForbiddenElements;
     if (!prototype || typeof voiceoverAllowed !== "function" || typeof checkDialogue !== "function") return;
     prototype._isVoiceoverAllowed = function patchedVoiceoverAllowed(this: unknown, ...args: unknown[]): boolean {
       return durationProjectionOptions(options).speechPolicy === "none" ? false : Reflect.apply(voiceoverAllowed, this, args);
@@ -1738,6 +1740,28 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
         suggestion: passed ? null : "逐场明确声明无对白，移除实际语音字段",
       } : check);
     };
+    if (typeof checkForbidden === "function") {
+      const narrationCheck = (row: Recordish) => row.category === "forbidden" && row.severity === "critical"
+        && (row.name === "forbidden_旁白" || row.name === "forbidden_voiceover");
+      prototype._checkForbiddenElements = function patchedForbiddenElements(this: unknown, blueprint: unknown): Recordish[] {
+        const native = Reflect.apply(checkForbidden, this, [blueprint]) as Recordish[];
+        const scope = durationProjectionScopes.getStore();
+        if (!scope?.active || scope.options.speechPolicy !== "none" || !scope.options.frozenSegments
+          || !native.some(row => narrationCheck(row) && row.passed === false)) return native;
+        const view = negatedNarrationScanView(blueprint, scope.options.frozenSegments);
+        if (!view) return native;
+        const checked = Reflect.apply(checkForbidden, this, [view]) as Recordish[];
+        if (checked.length !== native.length || checked.some((row, index) => {
+          const prior = native[index]!;
+          return row.name !== prior.name || row.category !== prior.category || row.severity !== prior.severity
+            || (narrationCheck(row) && row.passed !== true);
+        })) return native;
+        return native.map((row, index) => narrationCheck(row) && row.passed === false
+          ? { ...checked[index], details: { narrationTextDisposition: "verified_negated_prose" } }
+          : row);
+      };
+      restores.push(() => { prototype._checkForbiddenElements = checkForbidden; });
+    }
     restores.push(() => {
       prototype._isVoiceoverAllowed = voiceoverAllowed;
       prototype._checkDialogue = checkDialogue;

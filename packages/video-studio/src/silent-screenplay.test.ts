@@ -10,6 +10,7 @@ const load = (name: string) => vendor(fileURLToPath(new URL(
 )));
 const { ScriptGenerator } = load("script-generator");
 const { ScriptValidator } = load("script-validator");
+const { ScriptBlueprint } = load("script-blueprint");
 const silent = { speechPolicy: "none" as const };
 const frozenSegments = frozenSegmentContract({ duration: 30, segmentContract: {
   count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
@@ -32,6 +33,16 @@ const blueprint = () => ({
   })) },
 });
 const generator = () => Object.assign(Object.create(ScriptGenerator.prototype), { config: { timeout: 5_000 } });
+
+function narrationFixture(sceneFields: Record<string, unknown>) {
+  const candidate = blueprint();
+  Object.assign(candidate.structure.scenes[2]!, sceneFields);
+  return new ScriptBlueprint({
+    ...candidate,
+    meta: { title: "冲线", target_duration: 30 },
+    structure: { ...candidate.structure, acts: [{ act_id: "ACT-1" }] },
+  });
+}
 
 let restore: () => void;
 beforeEach(() => { restore = installVendorDurationProjectionBridge(); });
@@ -97,6 +108,66 @@ describe("frozen speech policy in the actual native script path", () => {
       expect(() => script._parseLLMResponse(JSON.stringify(candidate), intent)).toThrow("FROZEN_SCREENPLAY_SPEECH_UNVERIFIED");
     });
     expect(validator._isVoiceoverAllowed(candidate)).toBe(true);
+  });
+
+  it("accepts exclusively negated narration prose in the frozen native validator without changing screenplay bytes", async () => {
+    const candidate = narrationFixture({
+      visual_notes: "全段无对白、旁白或口播；保留引擎和轮胎摩擦声。",
+      setting: "no voiceover. 封闭赛道内停车。",
+    });
+    const original = candidate.toJSON();
+    const validator = new ScriptValidator();
+    const before = await withVendorDurationProjectionScope(silent, () => validator.validate(candidate));
+    const report = await withVendorDurationProjectionScope({ ...silent, frozenSegments }, () => validator.validate(candidate));
+    const other = (row: { name: string }) => !["forbidden_旁白", "forbidden_voiceover"].includes(row.name);
+    expect(before.passed).toBe(false);
+    expect(report.passed).toBe(true);
+    expect(report.checks.filter(other)).toEqual(before.checks.filter(other));
+    expect(report.checks.filter((row: { name: string }) => !other(row))).toEqual([
+      expect.objectContaining({ name: "forbidden_旁白", passed: true, severity: "critical",
+        details: { narrationTextDisposition: "verified_negated_prose" } }),
+      expect.objectContaining({ name: "forbidden_voiceover", passed: true, severity: "critical",
+        details: { narrationTextDisposition: "verified_negated_prose" } }),
+    ]);
+    expect(validator.validate(candidate).passed).toBe(false);
+    expect(candidate.toJSON()).toBe(original);
+  });
+
+  it.each([
+    ["positive prose", { visual_notes: "结尾增加旁白：欢迎回来。" }],
+    ["mixed narration", { visual_notes: "无旁白；结尾增加旁白：欢迎回来。" }],
+    ["mixed different speech", { visual_notes: "无旁白；结尾增加解说：欢迎回来。" }],
+    ["mixed ambient speech", { visual_notes: "无旁白；有两人低声交谈。" }],
+    ["mixed different field", { visual_notes: "无旁白。", setting: "voiceover: welcome back." }],
+    ["ambiguous grammar", { visual_notes: "没有旁白盖过引擎声。" }],
+    ["ambiguous question", { visual_notes: "无旁白？" }],
+    ["unsupported prose field", { visual_notes: "无旁白。", extra_notes: "无旁白。" }],
+    ["unknown structured key", { visual_notes: "无旁白。", audio: { voiceover: null } }],
+    ["unknown speech alias", { visual_notes: "无旁白。", audio: { narration_text: "欢迎回来" } }],
+    ["invalid explicit speech structure", { visual_notes: "无旁白。", dialogue: { ...noDialogue(), lines: [{ text: "欢迎回来" }] } }],
+    ["mismatched frozen timing", { visual_notes: "无旁白。", timing: { start: 21, duration: 10, end: 31 } }],
+  ])("leaves the native narration finding unchanged for %s", async (_label, fields) => {
+    const candidate = narrationFixture(fields);
+    const validator = new ScriptValidator();
+    const original = candidate.toJSON();
+    const before = await withVendorDurationProjectionScope(silent, () => validator.validate(candidate));
+    const report = await withVendorDurationProjectionScope({ ...silent, frozenSegments }, () => validator.validate(candidate));
+    expect(report.passed).toBe(false);
+    expect(report.checks).toEqual(before.checks);
+    expect(candidate.toJSON()).toBe(original);
+  });
+
+  it("preserves unrelated native forbidden checks even when their text overlaps a proven negated mention", async () => {
+    const candidate = narrationFixture({ visual_notes: "无旁白。车壳有金属光泽。" });
+    const validator = new ScriptValidator({ forbiddenElements: ["旁白", "voiceover", "无旁白", "金属光泽"] });
+    const report = await withVendorDurationProjectionScope({ ...silent, frozenSegments }, () => validator.validate(candidate));
+    expect(report.passed).toBe(false);
+    expect(report.checks.filter((row: { category: string }) => row.category === "forbidden")).toEqual([
+      expect.objectContaining({ name: "forbidden_旁白", passed: true }),
+      expect.objectContaining({ name: "forbidden_voiceover", passed: true }),
+      expect.objectContaining({ name: "forbidden_无旁白", passed: false }),
+      expect.objectContaining({ name: "forbidden_金属光泽", passed: false }),
+    ]);
   });
 
   it("does not dispatch another model request after a complete response violates the policy", async () => {

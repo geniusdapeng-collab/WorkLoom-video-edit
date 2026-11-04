@@ -1,3 +1,5 @@
+import type { FrozenSegmentContract } from "./requirement-contract.js";
+
 type Recordish = Record<string, unknown>;
 
 function record(value: unknown): Recordish | undefined {
@@ -24,6 +26,44 @@ export function hasExplicitSilentScreenplay(value: unknown): boolean {
         && emptyArray(dialogue.lines) && emptyArray(dialogue.blocks) && Object.keys(dialogue).length === 3
         && speechAliases.every((key) => !Object.hasOwn(scene, key));
     });
+}
+
+const speechTerm = "(?:对白|对话|独白|口播|旁白|画外音|解说|配音|台词|(?:可辨识的?)?(?:人声|背景话语)|voiceover|dialogue|narration)";
+const explicitlySilentClause = new RegExp(
+  `^(?:(?:全(?:片|段|程)|本(?:镜|段|场))?\\s*(?:禁止|禁用|没有|不(?:要|添加|新增|使用|配|加|出现)|无|零)(?:任何)?\\s*|(?:no|without)\\s+)`
+  + `${speechTerm}(?:\\s*(?:、|以及|和|与|及|或|\\band\\b|\\bor\\b)\\s*${speechTerm})*$`,
+  "iu",
+);
+const nativeNarrationToken = /旁白|voiceover/u;
+const unverifiedSpeechCue = /旁白|画外音|对白|对话|独白|口播|解说|配音|台词|人声|背景话语|说话|讲话|交谈|聊天|喊叫|耳语|(?:说|喊|念|读)(?:道|出|[:：])|(?:^|[^a-z])(?:voice[\s_-]?over|narration|narrator|dialogue|spoken|speaker|monologue|says?|speaks?)(?![a-z])/iu;
+
+/** A transient view for the native narration keyword check, never a rewritten screenplay. */
+export function negatedNarrationScanView(value: unknown, frozen: FrozenSegmentContract): Recordish | undefined {
+  const script = record(value);
+  const structure = record(script?.structure);
+  const scenes = structure?.scenes;
+  if (!script || !structure || !Array.isArray(scenes) || scenes.length !== frozen.count || !hasExplicitSilentScreenplay(script)) return;
+  const projected: Recordish[] = [];
+  let foundNegation = false;
+  for (const [index, scene] of scenes.entries()) {
+    const interval = frozen.intervals[index];
+    const timing = record(scene.timing);
+    if (!interval || timing?.start !== interval.startSec || timing.end !== interval.endSec || timing.duration !== frozen.secondsPerSegment) return;
+    const view = { ...scene };
+    for (const field of ["setting", "visual_notes"]) {
+      if (typeof scene[field] !== "string") continue;
+      view[field] = scene[field].split(/([。.;；，,\n!！])/u).map((clause: string) => {
+        if (!explicitlySilentClause.test(clause.trim())) return clause;
+        foundNegation ||= nativeNarrationToken.test(clause);
+        return "";
+      }).join("");
+    }
+    // Keep the native failure on mixed/ambiguous prose and unknown speech-bearing
+    // fields. The only omitted field here is the separately verified empty dialogue.
+    if (unverifiedSpeechCue.test(JSON.stringify({ ...view, dialogue: undefined }))) return;
+    projected.push(view);
+  }
+  return foundNegation ? { ...script, structure: { ...structure, scenes: projected } } : undefined;
 }
 
 export class SilentScreenplayError extends Error {
