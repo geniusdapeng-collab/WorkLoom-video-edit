@@ -219,7 +219,8 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
     expect(() => lateVerify!()).toThrow("PRD_SCOPE_CLOSED");
   });
 
-  it.each(["ending", "wrong-id", "wrong-duration", "G4-no-moving-rival", "G4-negated-rival", "G3-no-moving-rival", "owner-no-race", "no-frozen-contract", "speech-unspecified"])(
+  it.each(["ending", "wrong-id", "wrong-duration", "G4-no-moving-rival", "G4-negated-rival", "G3-no-moving-rival", "owner-no-race", "no-frozen-contract", "speech-unspecified",
+    "owner-driverless", "G3-driverless", "G4-driverless", "G4-negated-then-driverless"])(
     "native rule and repair stay unchanged outside the current per-shot prerequisite %s", async mode => {
       const value = raceFixture(`RIVAL-BOUNDARY-${mode}`), current = shot(value, mode === "ending" ? 2 : 0);
       if (mode === "wrong-id") current.shotId = "not-this-reviewed-shot";
@@ -232,7 +233,18 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
         const node = requirementRecord(requirementRecord(value.discovery.sceneStructure, "structure").opening, "opening");
         (requirementRecord(node.productionContract, "contract").actions as RequirementRecord[])[0]!.description = "合成人物停在展示摩托车旁";
       }
+      if (mode === "G3-driverless") {
+        const node = requirementRecord(requirementRecord(value.discovery.sceneStructure, "structure").opening, "opening");
+        (requirementRecord(node.productionContract, "contract").actions as RequirementRecord[])[0]!.description = "合成人物从无人驾驶对手车后高速追近并完成超车";
+      }
+      if (mode === "G4-driverless" || mode === "G4-negated-then-driverless") {
+        value.production.scenePlan.scenes[0]!.visualRequirements.push(mode === "G4-driverless"
+          ? "对手车为无人驾驶空车且在赛道高速行驶" : "禁止对手车无人驾驶且对手车无人驾驶");
+      }
       const brief = requirementRecord(value.metadata.brief, "brief");
+      if (mode === "owner-driverless") {
+        (requirementRecord(brief.segmentContract, "cuts").intervals as RequirementRecord[])[0]!.brief = "在虚构封闭赛道追击无人驾驶对手车并完成超车";
+      }
       if (mode === "owner-no-race") {
         const cuts = requirementRecord(brief.segmentContract, "cuts");
         for (const interval of cuts.intervals as RequirementRecord[]) interval.brief = "主角观察赛道旁的静止对手车陈设，禁止超车。";
@@ -273,6 +285,16 @@ describe("current reviewed moving rivals keep the unique lead identity", () => {
       expect(relevant).toHaveLength(1);
       expect(relevant[0]!.suggestion).toContain("匿名成年对手骑手");
       expect(relevant[0]!.suggestion).not.toContain("禁止其他人物入镜");
+    });
+  });
+
+  it("an actual prohibition against driverless rivals keeps the normal anonymous-rider scope eligible", async () => {
+    const value = raceFixture("RIVAL-DRIVERLESS-NEGATION");
+    value.production.scenePlan.scenes[0]!.visualRequirements.push("对手车不得为无人驾驶空车；禁止对手车无驾驶员");
+    const accepted = nativeHarness(value), checker = new RuleChecker();
+    await accepted(() => {
+      const issues = invoke(checker, "_checkFormat", shot(value)) as RequirementRecord[];
+      expect(issues.filter(issue => issue.fieldEn === "character_constraint")).toEqual([]);
     });
   });
 
