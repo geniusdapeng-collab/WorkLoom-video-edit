@@ -33,8 +33,11 @@ const { FieldConsistencyChecker } = nativeRequire("../../../vendor/supermickey/h
 const { PromptDeliveryGuard } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-delivery-guard.js") as { PromptDeliveryGuard: NativeConstructor };
 const { SemanticRefinementPass } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/semantic-refinement-pass.js") as { SemanticRefinementPass: NativeConstructor };
 const { FieldQualityPipeline } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-quality-pipeline.js") as { FieldQualityPipeline: NativeConstructor };
-const { RuleRepairer, PRD, FieldRepairAgent } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-repair-agent.js") as {
-  RuleRepairer: NativeConstructor; PRD: NativeConstructor; FieldRepairAgent: NativeConstructor;
+const { RuleRepairer, LLMRepairer, PRD, FieldRepairAgent } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-repair-agent.js") as {
+  RuleRepairer: NativeConstructor; LLMRepairer: NativeConstructor; PRD: NativeConstructor; FieldRepairAgent: NativeConstructor;
+};
+const { extractJson: extractFieldRepairJson } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/json-salvage.js") as {
+  extractJson: (content: string) => unknown;
 };
 const { IssueType, RuleChecker } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-check-agent.js") as {
   IssueType: Record<string, string>; RuleChecker: NativeConstructor;
@@ -522,6 +525,7 @@ function productionHarness(nativeFusion = false, nativeModel = false) {
     fieldGuardPrototype: FieldGuard.prototype, qualityGatePrototype: QualityGate.prototype,
     deliveryGuardPrototype: PromptDeliveryGuard.prototype, semanticPrototype: SemanticRefinementPass.prototype,
     fieldQualityPrototype: FieldQualityPipeline.prototype, ruleRepairPrototype: RuleRepairer.prototype,
+    ruleCheckPrototype: RuleChecker.prototype, llmRepairPrototype: LLMRepairer.prototype, extractFieldRepairJson,
     ...(nativeFusion ? { fieldConsistencyPrototype: FieldConsistencyChecker.prototype } : {}),
     ...(nativeModel ? { structuredAgent: { prototype: BaseAgent.prototype, limiter: globalLLMLimiter } } : {}),
     standardizeShot: nativeStandardizer.standardizeShot, validateShot: nativeStandardizer.validateShot, fields: nativeStandardizer.CRITICAL_FIELDS };
@@ -1891,6 +1895,63 @@ describe("approved production authority at native technical and title seams", ()
       }
     });
   });
+
+  it.each(["frozen-silent", "frozen-fence", "unfrozen-silent", "frozen-voice", "wrong-shot", "wrong-duration"])(
+    "keeps complete authored and native-repaired timing and transition text only for the approved shot (%s)", async mode => {
+      const value = fixture(`FIELD-TEXT-${mode}`, [10, 10, 10]), h = productionHarness();
+      if (mode !== "unfrozen-silent") requirementRecord(value.metadata.brief, "brief").segmentContract = {
+        count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+        intervals: Array.from({ length: 3 }, (_, i) => ({ startSec: i * 10, endSec: (i + 1) * 10, brief: `冻结段 ${i + 1}` })),
+      };
+      if (mode === "frozen-voice") refreshContract(value);
+      else declareDelivery(value, { speechPolicy: "none" });
+      const run = h.make(value);
+      const authored = {
+        timeline: "totalDuration: 10, beats: time: 0, label: 动作开始, description: ".repeat(10)
+          + "最后时间节点：已完全超过对手车头再率先过线，随后才收油减速。",
+        transition: "与上一镜同一前进方向，保持硬切，".repeat(5) + "最后两秒保留呼吸和姿态微动，画面不冻结。",
+      };
+      const shot = { ...authored, fields: { ...authored }, duration: mode === "wrong-duration" ? 9 : 10,
+        shotId: mode === "wrong-shot" ? "foreign-shot" : "scene-1" };
+      const checker = new RuleChecker(), rule = new RuleRepairer();
+      const legacyIssues = (invoke(checker, "check", shot) as RequirementRecord[]).filter(issue =>
+        issue.fieldEn === "timeline" || issue.fieldEn === "transition");
+      const repaired = { timeline: `${authored.timeline}保留最后完整动作。`, transition: `${authored.transition}落幅全身完整。`,
+        mood: "逐渐释然，最后呼吸自然。".repeat(8) };
+      const body = JSON.stringify({ repaired_fields: repaired });
+      const response = vi.fn(async () => ({ success: true, content: mode === "frozen-fence" ? "```json\n" + body + "\n```" : body }));
+      const llm = Reflect.construct(LLMRepairer, [{ reason: response }, 500]) as RequirementRecord, prd = new PRD({});
+      const preserved = mode === "frozen-silent" || mode === "frozen-fence";
+      const overflow = (issue: RequirementRecord) => issue.issueType === IssueType.OVER_LENGTH
+        && String(issue.description).includes("字段超长");
+      await h.accepted(run, async () => {
+        const checks = invoke(checker, "check", shot) as RequirementRecord[];
+        expect.soft(checks.filter(issue => overflow(issue) && Object.hasOwn(authored, String(issue.fieldEn))).length).toBe(preserved ? 0 : 2);
+        expect(checks.some(issue => issue.fieldEn === "timeline" && issue.issueType === IssueType.INCOMPLETE)).toBe(true);
+        const result = requirementRecord(invoke(rule, "repair", shot, { issues: legacyIssues }, prd), "native rule repair");
+        const afterRule = requirementRecord(result.repaired, "after native rule");
+        for (const key of ["timeline", "transition"] as const) {
+          if (preserved) expect.soft(afterRule[key], `native rule ${key}`).toBe(authored[key]);
+          else expect(String(afterRule[key]).length).toBeLessThan(authored[key].length);
+        }
+        const semanticIssues = ["timeline", "transition", "mood"].map(fieldEn => ({
+          fieldEn, severity: "major", issueType: IssueType.CONFLICT, description: "检查发现动作或落幅相互矛盾", suggestion: "按完整来源修复",
+        }));
+        const modeled = requirementRecord(await invoke(llm, "repair", shot, { issues: semanticIssues }, prd), "native LLM repair");
+        const afterModel = requirementRecord(modeled.repaired, "after native LLM");
+        for (const key of ["timeline", "transition"] as const) {
+          if (preserved) expect.soft(afterModel[key], `native model ${key}`).toBe(repaired[key]);
+          else expect(String(afterModel[key]).length).toBeLessThan(repaired[key].length);
+        }
+        expect(String(afterModel.mood).length).toBeLessThan(repaired.mood.length);
+        expect(response).toHaveBeenCalledTimes(1);
+        const [[prompt]] = response.mock.calls as unknown as [[string]];
+        expect(prompt).toContain("timeline：≤ 300 字符");
+        expect(prompt).toContain("transition：≤ 50 字符");
+      });
+      expect(shot.fields).toEqual(authored);
+    },
+  );
 
   function syntheticPortraitSource(value: ReturnType<typeof prdFixture>): PrdPortraitSource {
     const provenance = value.authority.marketing.g1Artifact;

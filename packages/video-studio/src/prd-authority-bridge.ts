@@ -946,6 +946,9 @@ interface ProductionDependencies {
   semanticPrototype: RequirementRecord;
   fieldQualityPrototype?: RequirementRecord;
   ruleRepairPrototype?: RequirementRecord;
+  ruleCheckPrototype?: RequirementRecord;
+  llmRepairPrototype?: RequirementRecord;
+  extractFieldRepairJson?: (content: string) => unknown;
   fieldConsistencyPrototype?: RequirementRecord;
   structuredAgent?: {
     prototype: RequirementRecord;
@@ -1098,8 +1101,84 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   const frozenCuts = (scope: Scope) => scope.authority.metadata.brief === undefined ? undefined
     : frozenSegmentContract(requirementRecord(scope.authority.metadata.brief, "已审冻结分段 Brief"),
       scope.authority.profile.targetDuration);
+  const frozenFieldLimits = { timeline: 300, transition: 50 } as const;
+  type FrozenField = keyof typeof frozenFieldLimits;
+  const frozenField = (value: unknown): value is FrozenField =>
+    typeof value === "string" && Object.hasOwn(frozenFieldLimits, value);
+  const frozenFieldScope = (receiver: RequirementRecord, shotValue: unknown): Scope | undefined => {
+    const scope = productionScope(receiver, false);
+    if (!scope || scope.g4Decision !== "approved" || scope.authority.profile.speechPolicy !== "none"
+      || !frozenCuts(scope) || !shotValue || typeof shotValue !== "object" || Array.isArray(shotValue)) return undefined;
+    const shot = shotValue as RequirementRecord;
+    const id = shot.shotId ?? shot.shot_id;
+    if (typeof id !== "string"
+      || (Object.hasOwn(shot, "shotId") && Object.hasOwn(shot, "shot_id") && shot.shotId !== shot.shot_id)) return undefined;
+    return scope.contract?.scenes.some(scene => scene.id === id && scene.duration === shot.duration) ? scope : undefined;
+  };
+  const nativeOverflow = (value: unknown, shot: RequirementRecord) => {
+    const issue = requirementRecord(value, "原生字段超长诊断"), field = issue.fieldEn;
+    if (!frozenField(field) || issue.issueType !== "over_length") return false;
+    const text = shot[field];
+    return typeof text === "string" && text.length > frozenFieldLimits[field];
+  };
+  if (deps.ruleCheckPrototype) add(deps.ruleCheckPrototype, "_checkLength", original => function (shot, ...args) {
+    const scope = frozenFieldScope(this, shot);
+    if (!scope) return Reflect.apply(original, this, [shot, ...args]);
+    return guard(scope, () => {
+      const issues = Reflect.apply(original, this, [shot, ...args]);
+      if (!Array.isArray(issues)) prdFail("PRD_VENDOR_UNAVAILABLE", "原生字段长度检查缺少诊断列表");
+      // The assembled native cap still applies at G6. Do not ask the
+      // preliminary field repairer to cut these two authored fields in half.
+      return issues.filter(issue => !nativeOverflow(issue, shot as RequirementRecord));
+    });
+  });
+  const extractFieldRepairJson = deps.extractFieldRepairJson;
+  if (deps.llmRepairPrototype && extractFieldRepairJson) add(deps.llmRepairPrototype, "_repairBatch", original => async function (shot, issues, fields, ...args) {
+    const scope = frozenFieldScope(this, shot);
+    if (!scope || !Array.isArray(fields) || !fields.some(frozenField)) return Reflect.apply(original, this, [shot, issues, fields, ...args]);
+    return awaited(scope, async () => {
+      const engine = requirementRecord(this.llm, "原生字段修复模型");
+      const reason = method(engine, "reason"), truncate = method(this, "_smartTruncate");
+      const engineView = Object.create(engine) as RequirementRecord, receiver = Object.create(this) as RequirementRecord;
+      const preservedValues = new Map<string, number>();
+      engineView.reason = async (...callArgs: unknown[]) => {
+        const reply = await Reflect.apply(reason, engine, callArgs);
+        if (!reply || typeof reply !== "object" || Array.isArray(reply)) return reply;
+        const envelope = reply as RequirementRecord;
+        if (envelope.success !== true || typeof envelope.content !== "string") return reply;
+        const parsed = requirementRecord(extractFieldRepairJson(envelope.content), "原生字段修复 JSON 提取");
+        if (parsed.ok !== true || !parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) return reply;
+        const data = (parsed.data as RequirementRecord).repaired_fields;
+        if (!data || typeof data !== "object" || Array.isArray(data)) return reply;
+        const entries = Object.entries(data);
+        for (const [field, text] of entries) {
+          if (frozenField(field) && fields.includes(field) && typeof text === "string" && text.trim()
+            && entries.filter(([, candidate]) => candidate === text).length === 1) {
+            preservedValues.set(text, frozenFieldLimits[field]);
+          }
+        }
+        return reply;
+      };
+      receiver.llm = engineView;
+      receiver._smartTruncate = (text: unknown, limit: unknown) => {
+        const matchedLimit = typeof text === "string" ? preservedValues.get(text) : undefined;
+        return matchedLimit !== undefined && matchedLimit === limit ? text : Reflect.apply(truncate, receiver, [text, limit]);
+      };
+      return Reflect.apply(original, receiver, [shot, issues, fields, ...args]);
+    });
+  });
   if (deps.ruleRepairPrototype) {
     const ruleRepair = deps.ruleRepairPrototype;
+    add(ruleRepair, "repair", original => function (shot, report, ...args) {
+      const scope = frozenFieldScope(this, shot);
+      if (!scope) return Reflect.apply(original, this, [shot, report, ...args]);
+      return guard(scope, () => {
+        const native = requirementRecord(report, "原生字段修复诊断");
+        if (!Array.isArray(native.issues)) prdFail("PRD_VENDOR_UNAVAILABLE", "原生字段修复缺少诊断列表");
+        const issues = native.issues.filter(issue => !nativeOverflow(issue, shot as RequirementRecord));
+        return Reflect.apply(original, this, [shot, { ...native, issues }, ...args]);
+      });
+    });
     add(ruleRepair, "_prdAnchorPhrase", original => function (...args) {
       const scope = productionScope(this);
       if (!scope || scope.authority.metadata.brief === undefined) return Reflect.apply(original, this, args);
@@ -1112,6 +1191,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     });
     for (const key of ["_generateDefault", "_completeElements"]) {
       add(ruleRepair, key, original => function (field, ...args) {
+        if (key === "_completeElements" && frozenField(field) && frozenFieldScope(this, args[3])) return null;
         const scope = field === "camera_movement" ? productionScope(this) : undefined;
         if (!scope) return Reflect.apply(original, this, [field, ...args]);
         return guard(scope, () => {
@@ -1673,6 +1753,10 @@ export function installVendorPrdProductionBridge(constructor: { prototype: objec
       globalLLMLimiter: NonNullable<ProductionDependencies["structuredAgent"]>["limiter"];
     };
     if (typeof globalLLMLimiter?.withLimit !== "function") prdFail("PRD_VENDOR_UNAVAILABLE", "制作模型并发限制器不可用");
+    const { extractJson } = require(path.resolve(path.dirname(lease.identity.entryPath), "engines/field-quality/json-salvage.js")) as {
+      extractJson: (content: string) => unknown;
+    };
+    if (typeof extractJson !== "function") prdFail("PRD_VENDOR_UNAVAILABLE", "原生字段修复 JSON 提取器不可用");
     return installPrdProductionBridge({ systemPrototype: requirementRecord(constructor.prototype, "受控 system prototype"),
       productionPrototype: load("engines/production-engine/production-engine.js", "ProductionEngine"),
       phase1Prototype: load("engines/production-engine/phases/phase-1-scene-design.js", "Phase1SceneDesign"),
@@ -1685,6 +1769,8 @@ export function installVendorPrdProductionBridge(constructor: { prototype: objec
       semanticPrototype: load("engines/production-engine/agents/semantic-refinement-pass.js", "SemanticRefinementPass"),
       fieldQualityPrototype: load("engines/field-quality/field-quality-pipeline.js", "FieldQualityPipeline"),
       ruleRepairPrototype: load("engines/field-quality/field-repair-agent.js", "RuleRepairer"),
+      ruleCheckPrototype: load("engines/field-quality/field-check-agent.js", "RuleChecker"),
+      llmRepairPrototype: load("engines/field-quality/field-repair-agent.js", "LLMRepairer"), extractFieldRepairJson: extractJson,
       fieldConsistencyPrototype: load("engines/field-consistency-checker.js", "FieldConsistencyChecker"),
       structuredAgent: { prototype: load("engines/production-engine/agents/base-agent.js", "BaseAgent"), limiter: globalLLMLimiter },
       standardizeShot: standardizer.standardizeShot, validateShot: standardizer.validateShot, fields: standardizer.CRITICAL_FIELDS });
