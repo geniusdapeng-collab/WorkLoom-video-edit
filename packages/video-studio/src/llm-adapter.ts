@@ -852,6 +852,36 @@ export class WorkloomLLMEngine {
   }
 }
 
+type VendorStructuredRedirect = {
+  engine: WorkloomLLMEngine;
+  descriptor: PropertyDescriptor;
+  active: boolean;
+  epoch: object;
+};
+const vendorStructuredRedirects = new WeakMap<object, VendorStructuredRedirect>();
+const vendorStructuredMethods = new WeakSet<object>();
+const vendorEngineOriginals = new WeakMap<object, Map<string, unknown>>();
+
+/** A recognized vendor dispatch with no current owner proof is false; other engines are unrelated. */
+export function attestVendorStructuredRedirect(receiver: object, reason: unknown, expected: unknown): (() => boolean) | false | undefined {
+  const knownMethod = typeof reason === "function" && vendorStructuredMethods.has(reason);
+  if (types.isProxy(receiver)) return knownMethod ? false : undefined;
+  const prototype = Object.getPrototypeOf(receiver);
+  const installed = prototype && vendorStructuredRedirects.get(prototype);
+  if (!installed) return knownMethod || (prototype && vendorEngineOriginals.has(prototype)) ? false : undefined;
+  if (installed.engine !== expected || installed.descriptor.value !== reason) return false;
+  const epoch = installed.epoch;
+  const current = () => {
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "reasonStructured");
+    return installed.active && installed.epoch === epoch && vendorStructuredRedirects.get(prototype) === installed
+      && Object.getPrototypeOf(receiver) === prototype && !Object.hasOwn(receiver, "reasonStructured")
+      && descriptor?.value === reason && descriptor?.writable === installed.descriptor.writable
+      && descriptor?.enumerable === installed.descriptor.enumerable && descriptor?.configurable === installed.descriptor.configurable
+      && WorkloomLLMEngine.supportsStructuredReviewProof(installed.engine);
+  };
+  return current() ? current : false;
+}
+
 /**
  * vendor 自建 LLMEngine 的「原型桥」（2026-09-21 真机修复）
  *
@@ -864,7 +894,7 @@ export class WorkloomLLMEngine {
  * （reason / reasonRaw / reasonStructured / chat）重定向到宿主适配器 —— 这些方法被整体替换，
  * 构造函数里那句 `_noApiKey` 判断自然失效，模型/端点/计量/事件留痕全部走 WorkLoom 模型路由。
  *
- * 幂等：重复调用只覆盖一次；返回摘除函数（恢复原方法），便于测试与热重载。
+ * 每次安装使用独立身份；返回摘除函数，供测试或热重载恢复上次绑定。
  */
 export function installVendorEngineBridge(engine: WorkloomLLMEngine): () => void {
   try {
@@ -876,10 +906,11 @@ export function installVendorEngineBridge(engine: WorkloomLLMEngine): () => void
     const mod = vendorRequire(enginePath) as { LLMEngine?: { prototype: Record<string, unknown> } };
     const prototype = mod?.LLMEngine?.prototype;
     if (!prototype) return () => undefined;
-    const patched: Array<[string, unknown]> = [];
+    const previous = vendorStructuredRedirects.get(prototype);
+    const patched: Array<{ name: string; original: unknown; redirect: (...args: unknown[]) => unknown }> = [];
     const redirect = (name: string, impl: (...args: unknown[]) => unknown) => {
       if (typeof prototype[name] !== "function") return;
-      patched.push([name, prototype[name]]);
+      patched.push({ name, original: prototype[name], redirect: impl });
       prototype[name] = impl;
     };
     redirect("reason", (prompt: unknown, options: unknown = {}) =>
@@ -894,8 +925,30 @@ export function installVendorEngineBridge(engine: WorkloomLLMEngine): () => void
     });
     redirect("generate", (prompt: unknown, options: unknown = {}) =>
       engine.generate(String(prompt ?? ""), options as LLMReasonOptions));
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "reasonStructured");
+    const installed = descriptor && patched.some(entry => entry.name === "reasonStructured" && entry.redirect === descriptor.value)
+      ? { engine, descriptor, active: true, epoch: {} } : undefined;
+    if (installed) {
+      if (!vendorEngineOriginals.has(prototype)) {
+        vendorEngineOriginals.set(prototype, new Map(patched.map(({ name, original }) => [name, original])));
+      }
+      vendorStructuredMethods.add(installed.descriptor.value);
+      vendorStructuredRedirects.set(prototype, installed);
+    }
     return () => {
-      for (const [name, original] of patched) prototype[name] = original;
+      if (installed) {
+        installed.active = false;
+        if (vendorStructuredRedirects.get(prototype) !== installed) return;
+        if (previous?.active) {
+          previous.epoch = {};
+          vendorStructuredRedirects.set(prototype, previous);
+        }
+        else vendorStructuredRedirects.delete(prototype);
+      }
+      const restoreOriginals = previous && !previous.active ? vendorEngineOriginals.get(prototype) : undefined;
+      for (const { name, original, redirect } of patched) {
+        if (prototype[name] === redirect) prototype[name] = restoreOriginals?.get(name) ?? original;
+      }
     };
   } catch {
     // vendor 不在（例如只跑单测）时静默：桥接是增强，不是启动前置
