@@ -454,7 +454,7 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     return undefined;
   }
 
-  /** Risk proof is available only for the exact echoed Risk schema and this native dispatch. */
+  /** Risk proof is bound to this dispatch and its exact outbound schema. */
   readNativeRiskResponseSource(receipt: ChatResult): NativeRiskResponseSource | undefined {
     const dispatched = openAiTransportReceipts.get(receipt);
     const source = dispatched?.riskResponse;
@@ -792,7 +792,8 @@ export class OpenAiCompatibleProvider implements ModelProvider {
       const echoedEffort = objectRecord(responseObject?.reasoning)?.effort;
       const echoedOutputCeiling = responseObject?.max_output_tokens;
       const risk = nativeFormat?.name === RISK_RESPONSES_SCHEMA_NAME
-        && isRiskResponsesJsonSchema({ name: echoedFormat?.name, schema: echoedFormat?.schema })
+        // The response format name is attested. The documented response does not require schema bytes to be echoed.
+        && (!Object.hasOwn(echoedFormat!, "schema") || isRiskResponsesJsonSchema({ name: echoedFormat?.name, schema: echoedFormat?.schema }))
         && (echoedEffort === undefined || echoedEffort === effort)
         && (echoedOutputCeiling === undefined || echoedOutputCeiling === plan.outputCeiling);
       const source = nativeFormat && typeof rawText === "string" && (scene || risk) ? Object.freeze({

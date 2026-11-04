@@ -203,8 +203,10 @@ describe("native Risk Responses text evidence", () => {
 
   it.each([
     ["unstructured echo", { text: { format: { type: "json_object" } } }],
-    ["name-only echo", { text: { format: { type: "json_schema", name: riskResponsesJsonSchema.name } } }],
+    ["missing echo", { text: undefined }],
+    ["different schema name", { text: { format: { ...riskFormat, name: "workloom_scene_architect" } } }],
     ["changed schema echo", { text: { format: { ...riskFormat, schema: { type: "object" } } } }],
+    ["null schema echo", { text: { format: { ...riskFormat, schema: null } } }],
     ["changed effort echo", { reasoning: { effort: "low" } }],
     ["changed ceiling echo", { max_output_tokens: 1024 }],
     ["incomplete", { status: "incomplete" }],
@@ -217,6 +219,17 @@ describe("native Risk Responses text evidence", () => {
       expect(nativeRiskResponseRouteCurrent(result)).toBe(false);
       expect(transport).toHaveBeenCalledTimes(1);
     } finally { resetCircuit("video.preproduction.plan"); }
+  });
+
+  it("binds the exact outbound schema when the named provider echo omits schema bytes", async () => {
+    const { engine, transport } = engineFor(riskWire(riskText, {
+      text: { format: { type: "json_schema", name: riskResponsesJsonSchema.name } },
+    }));
+    const result = await engine.reasonStructured("风险", riskResponsesJsonSchema.schema, riskOptions);
+    expect(nativeRiskResponseRouteCurrent(result)).toBe(true);
+    const sent = JSON.parse(String(transport.mock.calls[0]?.[1]?.body));
+    expect(sent.text.format).toEqual(riskFormat);
+    expect(nativeRiskResponseSource(result)?.schemaSha256).toBe(sha256(JSON.stringify(sent.text.format.schema)));
   });
 
   it("rejects a loosened Risk request before transport", async () => {
