@@ -317,7 +317,7 @@ for (const mode of cases) {
   }
   const invalidCreative = { ...value.creative,
     coreTheme: "以两次超越收束冲线，另声称22度前倾角与24.6度转向。SYNTHETIC_REJECTED_VALUE" };
-  const cleanCreative = { ...value.creative, coreTheme: "30秒里以机位22度前倾角跟住两次超越，实车旁镜头转向45度；不使用实车前倾角24.6度做卖点。" };
+  const cleanCreative = { ...value.creative, coreTheme: "30秒里以机位22度前倾角跟住两次超越，机位沿车架侧后转向45度；不使用实车前倾角24.6度做卖点。" };
   if (mode === "facts-bad-shape") invalidCreative.unknownFixtureKey = true;
   if (mode === "facts-key-message") {
     invalidCreative.coreTheme = cleanCreative.coreTheme;

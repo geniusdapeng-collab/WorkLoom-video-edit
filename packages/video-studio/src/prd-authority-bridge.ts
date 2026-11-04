@@ -53,6 +53,7 @@ const VEHICLE_GEOMETRY = /\d+(?:\.\d+)?\s*(?:°|度)\s*(?:前倾角|转向角)|(
 const ABBREVIATED_ANGLE = /\d+(?:\.\d+)?\s*(?:°|度)\s*(?:前倾|转向)(?!角)|(?:前倾|转向)(?!角)\s*(?:为|约|[:：])?\s*\d+(?:\.\d+)?\s*(?:°|度)/gu;
 const ANGLE_SUBJECT = /(实车|量产车|商品|车款|前叉|车架|转向机构)|镜头|机位|摄影机|摄像机|云台|骑手|车手|主角|人物|身体|上身/gu;
 const ACTOR_OR_CAMERA_ANGLE = /(?:镜头|机位|摄影机|摄像机|云台|骑手|车手|主角|人物|身体|上身)(?:的|以|取|用|按|保持|采用)?\s*$/u;
+const ANGLE_AT_VEHICLE_LANDMARK = /(?:镜头|机位|摄影机|摄像机|云台|骑手|车手|主角|人物)(?:从|沿|绕|在|贴着)(?:实车|量产车|车架|前叉|车身)(?:的)?[前后左右上下内外侧方面边旁]{0,6}\s*$/u;
 const PARAMETER_NEGATION = /不(?:使用|采用|宣称|声称|展示|呈现|写入|引用)(?=[^，。；、]{0,30}(?:前倾|转向))/gu;
 
 function hasCreativeVehicleGeometry(value: unknown): boolean {
@@ -61,12 +62,15 @@ function hasCreativeVehicleGeometry(value: unknown): boolean {
   return [coreTheme, creativeHook, twistPoint, ...(Array.isArray(keyMessages) ? keyMessages : [])].some(field => {
     if (typeof field !== "string") return false;
     const text = splitShotAssertions(field.normalize("NFKC").replace(PARAMETER_NEGATION, "禁止")).positive;
-    return [...text.matchAll(VEHICLE_GEOMETRY)].some(match => !ACTOR_OR_CAMERA_ANGLE.test(text.slice(0, match.index)))
+    return [...text.matchAll(VEHICLE_GEOMETRY)].some(({ index }) => {
+      const prefix = text.slice(0, index);
+      return !ACTOR_OR_CAMERA_ANGLE.test(prefix) && !ANGLE_AT_VEHICLE_LANDMARK.test(prefix);
+    })
       || [...text.matchAll(ABBREVIATED_ANGLE)].some(({ index }) => {
         const prefix = text.slice(Math.max(0, index - 24), index).split("；").at(-1)!;
         // An abbreviated degree value only denotes product geometry when the
         // nearest explicit subject in its clause is the vehicle or its hardware.
-        return Boolean([...prefix.matchAll(ANGLE_SUBJECT)].at(-1)?.[1]);
+        return !ANGLE_AT_VEHICLE_LANDMARK.test(prefix) && Boolean([...prefix.matchAll(ANGLE_SUBJECT)].at(-1)?.[1]);
       });
   });
 }
