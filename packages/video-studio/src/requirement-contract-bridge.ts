@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { isRiskResponsesJsonSchema, RISK_RESPONSES_SCHEMA_NAME, riskResponsesJsonSchema } from "@workloom/base/model-router";
 import {
   RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast,
   projectDeclaredFields, requirementHash, requirementRecord, requirementScenes, structuredDiscoveryFeedback, structuredRiskFeedback, structuredSceneFeedback, structuredSceneInstructions, structuredScenePrompt, structuredSceneSchema,
@@ -10,7 +11,7 @@ import {
 } from "./requirement-contract.js";
 import {
   nativeReasonCompleted, nativeReasonFailure, nativeSceneResponseRouteCurrent, nativeSceneResponseSource,
-  sameNativeSceneResponseRoute, type LLMReasonResult,
+  sameNativeSceneResponseRoute, nativeRiskResponseRouteCurrent, nativeRiskResponseSource, sameNativeRiskResponseRoute, type LLMReasonResult,
 } from "./llm-adapter.js";
 import { parseStrictSceneJsonObject, recoverSceneJsonMissingSeparators } from "./scene-json-comma-recovery.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
@@ -45,6 +46,7 @@ interface Scope {
   optionsSource?: RequirementAuthorityOptions;
   segments?: FrozenSegmentContract;
   sceneResponsesSchema?: true;
+  riskResponsesSchema?: true;
   sceneSyntaxRecovery?: Readonly<{
     discovery: RequirementRecord;
     receipt: Readonly<SceneSyntaxRecovery & { sceneHash: string }>;
@@ -52,6 +54,9 @@ interface Scope {
 }
 const scopes = new AsyncLocalStorage<Scope>();
 const receivers = new WeakMap<object, Scope>();
+const discoveryJsonCorrection = "\n\n## 上一次原生需求 JSON 语法纠正\n"
+  + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成完整 JSON 对象。"
+  + "检查逗号、对象与数组闭合、引号和转义。只输出对象，禁止代码围栏或解释。";
 const sceneJsonCorrection = "\n\n## 上一次原生场景 JSON 语法纠正\n"
   + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成一个完整 JSON 对象。"
   + "检查数组元素之间的逗号、对象与数组逐层闭合，以及字符串内引号和换行的合法转义。只输出对象，禁止代码围栏或解释。";
@@ -98,6 +103,21 @@ function frozenSilentAudiencePrompt(original: string): string {
 const frozenSilentRiskBoundary = "商品身份、型号及用途以本次 G1 已接受原文为准，并遵守冻结 Brief 的使用范围；"
   + "不得从受众推测新增事实、数字或动作节拍。叙事风险和缓解须对照下附本次实际场景草案与冻结分段，"
   + "保持现有动作、先后、原生声音和后期文字要求。待确认内容留在技术风险，不能写成 businessConstraints。";
+
+function verifiedNativeRiskSchema(value: unknown) {
+  const schema = requirementRecord(structuredClone(value), "RiskAssessor 原始 schema");
+  const properties = requirementRecord(schema.properties, "RiskAssessor 原始 schema 属性");
+  const risks = requirementRecord(properties.technicalRisks, "RiskAssessor 原始风险列表 schema");
+  const item = requirementRecord(risks.items, "RiskAssessor 原始风险项 schema");
+  if (Object.hasOwn(item, "additionalProperties")) {
+    requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "RiskAssessor 原始风险项 schema 发生变化");
+  }
+  item.additionalProperties = false;
+  if (!isRiskResponsesJsonSchema({ name: RISK_RESPONSES_SCHEMA_NAME, schema })) {
+    requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "RiskAssessor 原始 schema 与受控结构发生变化");
+  }
+  return riskResponsesJsonSchema.schema;
+}
 
 function frozenSceneAnnex(segments: FrozenSegmentContract, draft: SceneDraft): string {
   const proof = draft.recovery;
@@ -184,6 +204,13 @@ export async function withRequirementContractScope<T>(
           if (format === "json_schema") scope.sceneResponsesSchema = true;
           else if (format !== "json_object") {
             requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "冻结场景模型响应格式未获本机受控配置支持");
+          }
+          const riskFormat = process.env.WORKLOOM_VIDEO_RISK_RESPONSE_FORMAT;
+          if (scope.authority.profile.speechPolicy === "none" && riskFormat !== undefined) {
+            if (riskFormat !== "json_schema" || !scope.sceneResponsesSchema) {
+              requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "冻结风险评估需要已启用的原生场景及风险 JSON Schema");
+            }
+            scope.riskResponsesSchema = true;
           }
         }
       }
@@ -438,17 +465,70 @@ export function installRequirementContractBridge(
             requireActiveScope();
             finalFailure = undefined;
             const techniqueReference = name === "reference" && techniqueOnly;
-            const effectiveSchema = techniqueReference ? techniqueReferenceSchema(schema) : schema;
+            const riskSchema = name === "risk" && scope.riskResponsesSchema
+              ? guard(scope, () => verifiedNativeRiskSchema(schema)) : undefined;
+            const effectiveSchema = riskSchema ?? (techniqueReference ? techniqueReferenceSchema(schema) : schema);
             const runView = Object.create(this) as RequirementRecord;
             let pendingFeedback = "", attemptFeedback = "";
             let started = false, correctionUsed = false;
             let currentFailure: { error: unknown } | undefined;
+            let riskDeadline: number | undefined;
+            let activeRiskSlot: { previous?: LLMReasonResult } | undefined;
+            let currentRisk: LLMReasonResult | undefined;
+            let currentRiskData: { body: RequirementRecord; sha256: string } | undefined;
+            let riskBasePrompt: string | undefined;
+            if (riskSchema) {
+              const timeout = this.timeoutMs;
+              if (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0) {
+                requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "RiskAssessor 原始调用窗口不可核验");
+              }
+              riskDeadline = Date.now() + timeout;
+              const model = requirementRecord(this.llmEngine, "RiskAssessor 已守护模型");
+              const reason = model.reasonStructured;
+              if (typeof reason !== "function") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "RiskAssessor 缺少原生 reasonStructured");
+              const schemaSha256 = createHash("sha256").update(JSON.stringify(riskSchema)).digest("hex");
+              runView.llmEngine = Object.create(model, {
+                reasonStructured: { value: async (prompt: unknown, nativeSchema: unknown, options: unknown) => {
+                  requireActiveScope();
+                  const slot = activeRiskSlot;
+                  if (!slot || currentRisk || Date.now() >= riskDeadline! || nativeSchema !== riskSchema
+                    || (slot.previous && !nativeRiskResponseRouteCurrent(slot.previous))) {
+                    throw unverified("原生风险响应调用作用域、窗口或同路由校正证据失效");
+                  }
+                  const result = await Reflect.apply(reason, model, [prompt, nativeSchema, {
+                    ...requirementRecord(options, "RiskAssessor 原生选项"), responsesJsonSchema: riskResponsesJsonSchema,
+                  }]) as LLMReasonResult;
+                  requireActiveScope();
+                  const source = nativeRiskResponseSource(result);
+                  if (activeRiskSlot !== slot || Date.now() >= riskDeadline! || !nativeReasonCompleted(result)
+                    || !source || source.schemaSha256 !== schemaSha256 || !nativeRiskResponseRouteCurrent(result)
+                    || (slot.previous && !sameNativeRiskResponseRoute(slot.previous, result))) {
+                    throw unverified("未收到当前同路由的完整原生风险响应");
+                  }
+                  currentRisk = result;
+                  const parsed = parseStrictSceneJsonObject(source.rawText);
+                  if (!parsed && (result.success === true || nativeReasonFailure(result) === "json-syntax")) {
+                    pendingFeedback = discoveryJsonCorrection;
+                    throw unverified("模型正文不是键名唯一的有效 JSON 对象");
+                  }
+                  if (!parsed || result.success !== true) throw unverified("未收到完整原生风险 JSON 对象");
+                  currentRiskData = { body: parsed, sha256: requirementHash(parsed) };
+                  return { ...result, data: parsed };
+                } },
+              });
+            }
             runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
               requireActiveScope();
               // Native retries may continue looping. Only a completed invalid
               // response can admit one distinct, fully validated correction.
-              if (started && (!pendingFeedback || correctionUsed)) {
+              if ((started && (!pendingFeedback || correctionUsed))
+                || (riskSchema && (Date.now() >= riskDeadline! || (started && !nativeRiskResponseRouteCurrent(currentRisk))))) {
                 throw currentFailure?.error ?? unverified("未收到可验证的模型响应");
+              }
+              if (riskSchema) {
+                activeRiskSlot = { previous: currentRisk };
+                currentRisk = undefined;
+                currentRiskData = undefined;
               }
               correctionUsed = started;
               started = true;
@@ -460,15 +540,16 @@ export function installRequirementContractBridge(
                 requireActiveScope();
                 const failure = nativeReasonFailure(response);
                 if (failure === "json-syntax") {
-                  pendingFeedback = `\n\n## 上一次原生需求 JSON 语法纠正\n`
-                    + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成完整 JSON 对象。"
-                    + "检查逗号、对象与数组闭合、引号和转义。只输出对象，禁止代码围栏或解释。";
+                  pendingFeedback = discoveryJsonCorrection;
                   throw unverified("模型正文不是有效 JSON");
                 }
                 if (failure === "unavailable") throw unverified("未收到可验证的模型响应");
                 return response;
               } catch (error) { currentFailure = { error }; throw error; }
-              finally { attemptFeedback = ""; }
+              finally {
+                attemptFeedback = "";
+                activeRiskSlot = undefined;
+              }
             };
             runView._buildPrompt = function (this: RequirementRecord, input: unknown) {
               requireActiveScope();
@@ -511,11 +592,23 @@ export function installRequirementContractBridge(
                 if (!sceneDraft) requirementAuthorityFailure("REQUIREMENT_DISCOVERY_CHANGED", "后续原生角色缺少本次已校验场景原件");
                 prompt += frozenSceneAnnex(segments, sceneDraft);
               }
+              if (riskSchema) {
+                if (riskBasePrompt !== undefined && riskBasePrompt !== prompt) {
+                  requirementAuthorityFailure("REQUIREMENT_DISCOVERY_CHANGED", "原生风险校正的原始提示与场景附件发生变化");
+                }
+                riskBasePrompt = prompt;
+              }
               return prompt + attemptFeedback;
             };
             runView._validateAndFill = function (this: RequirementRecord, response: unknown, responseSchema: unknown) {
               requireActiveScope();
-              const candidate = name === "risk" ? projectDeclaredFields(response, responseSchema) : response;
+              if (riskSchema && (Date.now() >= riskDeadline! || responseSchema !== riskSchema
+                || !nativeRiskResponseRouteCurrent(currentRisk) || !currentRiskData || response !== currentRiskData.body
+                || requirementHash(response) !== currentRiskData.sha256)) {
+                currentFailure = { error: unverified("原生风险响应验证作用域、窗口或路由失效") };
+                throw currentFailure.error;
+              }
+              const candidate = name === "risk" && !riskSchema ? projectDeclaredFields(response, responseSchema) : response;
               try {
                 validateRequirementSchema(candidate, responseSchema, `${label} response`);
                 if (techniqueReference) validateTechniqueReferences(candidate);

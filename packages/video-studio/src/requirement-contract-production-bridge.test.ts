@@ -1609,3 +1609,163 @@ describe("actual native non-scene discovery wire recovery", () => {
     }
   });
 });
+
+describe("actual native scoped RiskAssessor Responses", () => {
+  beforeEach(() => resetCircuit("preproduction"));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    resetCircuit("preproduction");
+  });
+
+  it.each([
+    { outcome: "canonical", riskCalls: 1, passes: true },
+    { outcome: "syntax then valid", riskCalls: 2, passes: true },
+    { outcome: "syntax twice", riskCalls: 2, passes: false },
+    { outcome: "extra top field", riskCalls: 2, passes: false },
+    { outcome: "extra nested field", riskCalls: 2, passes: false },
+    { outcome: "duplicate escaped key", riskCalls: 2, passes: false },
+    { outcome: "same completion identity", riskCalls: 2, passes: false },
+    { outcome: "unknown transport", riskCalls: 1, passes: false },
+    { outcome: "incomplete response", riskCalls: 1, passes: false },
+    { outcome: "different echo", riskCalls: 1, passes: false },
+    { outcome: "closed deadline", riskCalls: 1, passes: false },
+    { outcome: "authority drift", riskCalls: 1, passes: false },
+  ] as const)("uses the actual strict, bounded path for $outcome", async ({ outcome, riskCalls, passes }) => {
+    installNativeDiscovery();
+    vi.stubEnv("WORKLOOM_VIDEO_SCENE_RESPONSE_FORMAT", "json_schema");
+    vi.stubEnv("WORKLOOM_VIDEO_RISK_RESPONSE_FORMAT", "json_schema");
+    const scene = physicalScene([10, 10, 10]);
+    const rawScene = JSON.stringify(scene, null, 2);
+    const run = withFrozenSegmentBrief(privateRun(`frozen-risk-wire-${outcome}`, 30, scene));
+    run.authority.profile.speechPolicy = "none";
+    const strictRisk = JSON.stringify(run.modules.risk);
+    const privateRejectedValue = "UNTRUSTED-RISK-PAYLOAD";
+    const records: Array<RequirementRecord & { input: string }> = [];
+    const chatRoles: string[] = [];
+    const clock = outcome === "closed deadline" ? vi.spyOn(Date, "now") : undefined;
+    const providerConfig = {
+      baseUrl: "http://127.0.0.1:1", apiKey: "synthetic-local-key",
+      fetchImpl: async (url, init) => {
+        const body = JSON.parse(String(init?.body));
+        const path = new URL(String(url)).pathname;
+        if (path === "/responses") {
+          const format = body.text.format;
+          const isRisk = format.name === "workloom_risk_assessor";
+          expect(format.name).toBe(isRisk ? "workloom_risk_assessor" : "workloom_scene_architect");
+          let id = "synthetic-scene", text = rawScene;
+          let status = "completed", echoedName = format.name;
+          if (isRisk) {
+            const ordinal = records.push(body);
+            id = `synthetic-risk-${outcome === "same completion identity" ? 1 : ordinal}`;
+            text = strictRisk;
+            if (outcome === "unknown transport") return Response.json({ error: "UNKNOWN-RISK-WIRE" }, { status: 502 });
+            if (outcome === "incomplete response") status = "incomplete";
+            if (outcome === "different echo") echoedName = "workloom_scene_architect";
+            if (outcome === "closed deadline") clock?.mockReturnValue(Date.now() + 5000);
+            if (outcome === "authority drift") run.options.validateAuthority = () => undefined;
+            if (outcome === "syntax twice" || (ordinal === 1 && (outcome === "syntax then valid" || outcome === "same completion identity"))) {
+              text = `{"${privateRejectedValue}" false}`;
+            }
+            if (outcome === "extra top field") text = JSON.stringify({ ...run.modules.risk, [privateRejectedValue]: "不可投喂" });
+            if (outcome === "extra nested field") text = JSON.stringify({ ...run.modules.risk, technicalRisks: [
+              { ...run.modules.risk.technicalRisks[0], [privateRejectedValue]: "不可投喂" },
+            ] });
+            if (outcome === "duplicate escaped key") {
+              text = `{"\\u0074echnicalRisks":[{"risk":"${privateRejectedValue}","level":"low","impact":"未授权"}],${strictRisk.slice(1)}`;
+              expect(JSON.parse(text)).toEqual(run.modules.risk);
+            }
+          }
+          return Response.json({
+            id, object: "response", status, model: "deepseek-flash", text: { format: { ...format, name: echoedName } },
+            max_output_tokens: body.max_output_tokens, reasoning: body.reasoning,
+            output: [{ type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text }] }],
+            usage: { input_tokens: 100, output_tokens: 40, total_tokens: 140 },
+          });
+        }
+        expect(path).toBe("/chat/completions");
+        const prompt: string = body.messages[1].content;
+        const module = prompt.slice(0, 180).includes("受众分析") ? "audience"
+          : prompt.slice(0, 180).includes("技术制片人") ? "risk" : "reference";
+        chatRoles.push(module);
+        return Response.json({ id: `synthetic-${module}`, model: "deepseek-flash",
+          choices: [{ finish_reason: "stop", message: { content: JSON.stringify(run.modules[module]) } }],
+          usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 },
+        });
+      },
+    } satisfies ConstructorParameters<typeof OpenAiCompatibleProvider>[1];
+    const adapter = new OpenAiCompatibleProvider("deepseek-flash", providerConfig);
+    const engine = new WorkloomLLMEngine({ ...providerConfig, model: "deepseek-flash", router: {
+      scene: "preproduction", forceModel: "deepseek-flash", providers: new Map([[adapter.modelId, adapter]]),
+      sink: { recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined },
+    } }) as unknown as RequirementRecord;
+    const discovery = new RequirementDiscoveryEngine({ llmEngine: engine, timeoutMs: 20_000, agentTimeoutMs: 4_000 });
+    requirementRecord(requirementRecord(discovery.agents, "agents").risk, "risk").maxRetries = 3;
+    const operation = runDiscovery(run, engine, discovery);
+    try {
+      if (passes) {
+        await expect(operation).resolves.toMatchObject({ riskAssessment: run.modules.risk, sceneStructure: scene });
+      } else {
+        const error = await operation.catch(value => value);
+        expect(error).toMatchObject({ code: outcome === "authority drift" ? "REQUIREMENT_AUTHORITY_CHANGED" : "REQUIREMENT_DISCOVERY_UNVERIFIED" });
+        expect(failureText(error)).not.toContain(privateRejectedValue);
+      }
+    } finally { clock?.mockRestore(); }
+    expect(chatRoles).toEqual(passes ? ["audience", "reference"] : ["audience"]);
+    expect(records).toHaveLength(riskCalls);
+    const formatMarker = "\n\n【硬性输出要求】";
+    for (const call of records) {
+      expect(call).toMatchObject({ model: "deepseek-flash", max_output_tokens: 393_216, stream: false, reasoning: { effort: "high" },
+        text: { format: { type: "json_schema", name: "workloom_risk_assessor", schema: { additionalProperties: false,
+          required: ["technicalRisks", "businessConstraints", "mitigationSuggestions"], properties: {
+            technicalRisks: { minItems: 1, maxItems: 5, items: { additionalProperties: false, required: ["risk", "level", "impact"] } },
+            businessConstraints: { minItems: 1, maxItems: 4 }, mitigationSuggestions: { minItems: 1, maxItems: 4 },
+          } } } } });
+      expect(call.input.split(rawScene)).toHaveLength(2);
+      expect(call.input).not.toContain(privateRejectedValue);
+      const formatAt = call.input.lastIndexOf(formatMarker);
+      expect(formatAt).toBeGreaterThan(0);
+      expectCompleteSources(call.input.slice(0, formatAt), run);
+    }
+    const [first, second] = records;
+    expect(first!.input).not.toContain("上一次原生需求");
+    if (second) {
+      expect({ ...second, input: undefined }).toEqual({ ...first, input: undefined });
+      const feedbackAt = second.input.indexOf("\n\n## 上一次原生需求");
+      const storyAt = second.input.indexOf("\n\n## 📖 原始故事文本");
+      expect(feedbackAt).toBeGreaterThan(0);
+      expect(storyAt).toBeGreaterThan(feedbackAt);
+      expect(second.input.slice(0, feedbackAt) + second.input.slice(storyAt)).toBe(first!.input);
+    }
+  });
+
+  it.each([
+    ["json_object", "json_schema"],
+    ["json_schema", "json_object"],
+  ])("fails closed before discovery for explicit risk=%s scene=%s", async (risk, scene) => {
+    installNativeDiscovery();
+    vi.stubEnv("WORKLOOM_VIDEO_RISK_RESPONSE_FORMAT", risk);
+    vi.stubEnv("WORKLOOM_VIDEO_SCENE_RESPONSE_FORMAT", scene);
+    const draft = physicalScene([10, 10, 10]);
+    const run = withFrozenSegmentBrief(privateRun("risk-format-invalid", 30, draft));
+    run.authority.profile.speechPolicy = "none";
+    const model = modelFor(run, [draft]);
+    await expect(runDiscovery(run, model.engine)).rejects.toThrow("REQUIREMENT_VENDOR_UNAVAILABLE");
+    expect(model.calls).toHaveLength(0);
+  });
+
+  it.each(["frozen without silent policy", "silent without frozen segments", "unset risk format"] as const)(
+    "leaves the ordinary native Risk contract intact for %s", async kind => {
+      installNativeDiscovery();
+      vi.stubEnv("WORKLOOM_VIDEO_RISK_RESPONSE_FORMAT", kind === "unset risk format" ? undefined : "json_schema");
+      vi.stubEnv("WORKLOOM_VIDEO_SCENE_RESPONSE_FORMAT", "json_schema");
+      const draft = physicalScene([10, 10, 10]);
+      const run = privateRun("risk-format-ordinary", 30, draft);
+      if (kind !== "silent without frozen segments") withFrozenSegmentBrief(run);
+      if (kind !== "frozen without silent policy") run.authority.profile.speechPolicy = "none";
+      const model = modelFor(run, [draft]);
+      await expect(runDiscovery(run, model.engine)).resolves.toMatchObject({ riskAssessment: run.modules.risk });
+      const risk = riskCalls(model.calls);
+      expect(risk).toHaveLength(1);
+      expect(risk[0]!.options).not.toHaveProperty("responsesJsonSchema");
+    });
+});
