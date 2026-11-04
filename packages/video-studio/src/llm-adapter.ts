@@ -170,9 +170,13 @@ function sameNativeChatRoute(first: LLMReasonResult, second: LLMReasonResult): b
 export function nativeChatJsonObjectRouteCurrent(engine: WorkloomLLMEngine, result: LLMReasonResult): boolean {
   const proof = nativeStructuredChatRoutes.get(result);
   if (!proof || proof.engine !== engine || dataMember(result, "success") !== true || !nativeChatResultCurrent(result, proof)) return false;
+  return exactNativeChatJsonObject(proof.binding.provider, proof.receipt, result);
+}
+
+function exactNativeChatJsonObject(provider: OpenAiCompatibleProvider, receipt: ChatResult, result: LLMReasonResult): boolean {
   const data = dataMember(result, "data");
   if (!plainDataTree(data)) return false;
-  return checkChatJsonTransport.call(proof.binding.provider, proof.receipt, rawText => {
+  return checkChatJsonTransport.call(provider, receipt, rawText => {
     const parsed = parseStrictSceneJsonObject(rawText);
     return parsed !== undefined && JSON.stringify(parsed) === JSON.stringify(data);
   });
@@ -205,6 +209,13 @@ export function nativeBlankJsonRouteCurrent(engine: WorkloomLLMEngine, first: LL
 export function nativeBlankJsonCorrected(first: LLMReasonResult, second: LLMReasonResult): boolean {
   const proof = nativeBlankJsonFailures.get(first), answer = nativeChatAnswers.get(second);
   return !!proof && !!answer && proof.routeCurrent() && checkBlankCorrection.call(proof.provider, proof.receipt, answer);
+}
+
+/** A blank correction can require a distinct exact raw JSON object from the same current Chat route. */
+export function nativeBlankJsonObjectCorrected(first: LLMReasonResult, second: LLMReasonResult): boolean {
+  const proof = nativeBlankJsonFailures.get(first), answer = nativeChatAnswers.get(second);
+  return !!proof && !!answer && dataMember(second, "success") === true && proof.receipt.responseHash !== answer.responseHash
+    && nativeBlankJsonCorrected(first, second) && exactNativeChatJsonObject(proof.provider, answer, second);
 }
 
 export interface WorkloomLLMEngineConfig {

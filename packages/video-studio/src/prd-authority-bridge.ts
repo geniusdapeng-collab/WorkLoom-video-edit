@@ -16,8 +16,10 @@ import { preparePrdPortraitReferenceSelection, verifyPrdPortraitSources } from "
 import { assertNoSpokenPromptPackage } from "./frozen-speech-policy.js";
 import { isNoSpeechDeclaration } from "./dialogue-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
+import { parseStrictSceneJsonObject } from "./scene-json-comma-recovery.js";
 import {
-  nativeBlankJsonCorrected, nativeBlankJsonRouteCurrent, nativeChatJsonObjectCorrected, nativeChatJsonObjectRouteCurrent,
+  nativeBlankJsonCorrected, nativeBlankJsonObjectCorrected, nativeBlankJsonRouteCurrent,
+  nativeChatJsonObjectCorrected, nativeChatJsonObjectRouteCurrent,
   nativeChatJsonSyntaxCorrected, nativeChatJsonSyntaxRouteCurrent,
   nativeReasonBlankJson, nativeReasonCompleted, nativeReasonFailure,
   WorkloomLLMEngine, type LLMReasonResult,
@@ -1067,6 +1069,7 @@ interface ProductionDependencies {
   systemPrototype: RequirementRecord;
   productionPrototype: RequirementRecord;
   phase1Prototype: RequirementRecord;
+  sceneDesignPrototype?: RequirementRecord;
   refinerPrototype: RequirementRecord;
   costumePrototype: RequirementRecord;
   fieldGuardPrototype: RequirementRecord;
@@ -1175,6 +1178,8 @@ function retiredTitleIssue(value: string): boolean {
 }
 
 const FUSION_BLANK_JSON_CORRECTION = "## 本镜头最终 JSON 交付\n完成必要推理后，把完整结果写入最终答复，只输出一个合法 JSON 对象。严格保留上文原始镜头、镜头编号、全部字段、时长、事实与制作约束。按同一结构正确转义字符串中的引号和换行。不要输出 Markdown、解释、占位符或省略号。";
+const SCENE_DESIGN_JSON_PRESENTATION = "## 本次场景设计 JSON 自检\n最终答复只输出一个非空的完整 JSON 对象。按原镜号和顺序写满 shots 数组，核对引号、逗号、括号和全部必需字段。";
+const SCENE_DESIGN_BLANK_JSON_CORRECTION = "## 本次场景设计最终 JSON 交付\n完成必要推理后，把完整设计写入最终答复，只输出一个合法且非空的 JSON 对象。按原镜号和顺序逐镜返回全部字段，保留原动作、时长、人物、连续性与已审约束。不要输出 Markdown、解释、占位符或省略号。";
 
 function exactFusionCorrection(value: unknown, schema: unknown, shotId: string): boolean {
   const object = (data: unknown) => data !== null && typeof data === "object" && !Array.isArray(data) ? data as RequirementRecord : undefined;
@@ -1362,6 +1367,29 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   // semantic refinement share the receiver but cannot inherit another slot.
   const primaryFusion = new AsyncLocalStorage<{ scope: Scope; receiver: RequirementRecord; shotId: string; started: boolean }>();
   const blankCorrectionUsed = new WeakSet<Scope>(); // one blank correction per approved run
+  const sceneDesignPrototype = deps.sceneDesignPrototype;
+  const sceneDesignValidator = sceneDesignPrototype && Object.getOwnPropertyDescriptor(sceneDesignPrototype, "_validateSchema");
+  const primarySceneDesign = new AsyncLocalStorage<{
+    scope: Scope; receiver: RequirementRecord; shotIds: string[]; started: boolean;
+  }>();
+  const sceneDesignBlankCorrectionUsed = new WeakSet<Scope>();
+  if (structuredAgent && sceneDesignPrototype) {
+    if (typeof sceneDesignValidator?.value !== "function") prdFail("PRD_VENDOR_UNAVAILABLE", "原生场景设计校验器不可用");
+    add(sceneDesignPrototype, "process", original => function (shots, ...args) {
+      const scope = productionScope(this, false);
+      const run = () => Reflect.apply(original, this, [shots, ...args]);
+      if (!scope || scope.g4Decision !== "approved" || scope.authority.profile.speechPolicy !== "none"
+        || Object.getPrototypeOf(this) !== sceneDesignPrototype || !Array.isArray(shots)) return run();
+      return guard(scope, () => {
+        check(scope);
+        const cuts = frozenCuts(scope), scenes = scope.contract?.scenes;
+        if (!cuts || !scenes || scenes.length !== cuts.count || shots.length !== scenes.length
+          || !shots.every((shot, i) => shot?.shotId === scenes[i]!.id && shot.duration === scenes[i]!.duration
+            && shot.duration === cuts.secondsPerSegment)) return run();
+        return primarySceneDesign.run({ scope, receiver: this, shotIds: scenes.map(scene => scene.id), started: false }, run);
+      });
+    });
+  }
   if (structuredAgent) add(fusionPrototype, "_fuseSingleShot", original => function (shotValue, ...args) {
     const scope = productionScope(this, false);
     const run = () => Reflect.apply(original, this, [shotValue, ...args]);
@@ -1396,9 +1424,13 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       if (typeof prompt !== "string" || typeof systemPrompt !== "string") {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 缺少完整原生提示词`);
       }
-      const fullPrompt = `${systemPrompt}\n\n${prompt}`;
       const validate = method(this, "_validateSchema");
       const options = requirementRecord(optionsValue, "制作模型调用配置");
+      const sceneCall = primarySceneDesign.getStore();
+      const sceneDesign = sceneCall?.scope === scope && sceneCall.receiver === this && !sceneCall.started ? sceneCall : undefined;
+      if (sceneDesign) sceneDesign.started = true;
+      const schemaDigest = sceneDesign ? requirementHash(schema) : undefined;
+      const fullPrompt = `${systemPrompt}\n\n${prompt}${sceneDesign ? "\n\n" + SCENE_DESIGN_JSON_PRESENTATION : ""}`;
       const fusion = primaryFusion.getStore();
       const primary = fusion?.scope === scope && fusion.receiver === this && !fusion.started ? fusion : undefined;
       if (primary) primary.started = true;
@@ -1411,12 +1443,13 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       const callTimeout = options.fastMode && typeof options.fastTimeoutMs === "number"
         ? Math.min(requestedTimeout, Math.max(options.fastTimeoutMs, ceiling * 0.3))
         : requestedTimeout;
+      const sceneDeadline = Math.min(deadline, now + callTimeout);
       const maxAttempts = Number(options.maxRetries ?? this.llmMaxRetries);
       if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 未获制作调用次数`);
       }
-      const remaining = () => {
-        const ms = Math.floor(Math.min(callTimeout, deadline - Date.now()));
+      const remaining = (limit = deadline) => {
+        const ms = Math.floor(Math.min(callTimeout, limit - Date.now()));
         if (!Number.isFinite(ms) || ms < 5_000) prdFail("PRD_PRODUCTION_MODEL_DEADLINE", `${name} 制作调用剩余时间不足`);
         return ms;
       };
@@ -1425,36 +1458,59 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         if (scope.system?.llmEngine !== engine || !WorkloomLLMEngine.supportsStructuredReviewProof(engine)) {
           prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 宿主模型身份已变化`);
         }
+        if (sceneDesign && (Object.getPrototypeOf(this) !== sceneDesignPrototype || this._validateSchema !== validate
+          || !sceneDesignPrototype || !sceneDesignValidator || validate !== sceneDesignValidator.value
+          || !descriptorEqual(Object.getOwnPropertyDescriptor(sceneDesignPrototype, "_validateSchema"), sceneDesignValidator)
+          || requirementHash(schema) !== schemaDigest)) {
+          prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", "原生场景设计校验器或本次镜头结构已变化");
+        }
       };
-      const invoke = (text: string, originalBlank?: LLMReasonResult) => structuredAgent.limiter.withLimit(async () => {
+      const invoke = (text: string, originalBlank?: LLMReasonResult, limit = deadline) => structuredAgent.limiter.withLimit(async () => {
         checkEngine();
         if (originalBlank && !nativeBlankJsonRouteCurrent(engine, originalBlank)) {
           prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 空 JSON 修正的原生模型路径已变化`);
         }
-        const timeoutMs = remaining();
+        const timeoutMs = remaining(limit);
         const response = await engine.reasonStructured(text, schema, { timeoutMs, signal: AbortSignal.timeout(timeoutMs) });
         checkEngine();
         return response;
-      }, remaining());
+      }, remaining(limit));
       const valid = (value: unknown) => requirementRecord(Reflect.apply(validate, this, [value, schema]), "原生制作响应校验").valid === true;
       const first = await invoke(fullPrompt);
       const completed = nativeReasonCompleted(first);
-      const blank = primary && options.critical === true && !first.success && !completed && nativeReasonBlankJson(first) ? primary : undefined;
+      const blank = (primary || sceneDesign) && options.critical === true && !first.success && !completed && nativeReasonBlankJson(first);
+      const sceneBlank = blank ? sceneDesign : undefined;
       if (!completed && !blank) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 未取得已完成且有计量的原生模型回复`);
       }
-      if (first.success && valid(first.data)) return { result: first.data, degraded: false, degradeReason: null, attempts: 1 };
-      if (maxAttempts < 2 || (blank ? blankCorrectionUsed.has(scope) : !first.success && nativeReasonFailure(first) !== "json-syntax")) {
+      const strictObject = (answer: LLMReasonResult) => {
+        const parsed = typeof answer.content === "string" ? parseStrictSceneJsonObject(answer.content) : undefined;
+        return parsed !== undefined && requirementHash(parsed) === requirementHash(answer.data);
+      };
+      if (first.success && valid(first.data)) {
+        if (sceneDesign && !strictObject(first)) prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", "原生场景设计正文未通过严格 JSON 校验");
+        return { result: first.data, degraded: false, degradeReason: null, attempts: 1 };
+      }
+      const used = sceneBlank ? sceneDesignBlankCorrectionUsed : blankCorrectionUsed;
+      if (maxAttempts < 2 || (blank ? used.has(scope) : !first.success && nativeReasonFailure(first) !== "json-syntax")) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 的原生制作响应未通过校验`);
       }
-      if (blank) blankCorrectionUsed.add(scope);
+      if (blank) used.add(scope);
       const correction = first.success ? "原回复缺失或不符合目标字段结构。" : "原回复不是合法 JSON。";
-      const instruction = blank ? FUSION_BLANK_JSON_CORRECTION
+      const instruction = sceneBlank ? SCENE_DESIGN_BLANK_JSON_CORRECTION : blank ? FUSION_BLANK_JSON_CORRECTION
         : `## 完整结构修正\n${correction}重新按上文完整任务和同一目标结构生成一次完整 JSON。保留每个镜头、事实与约束；不要引用原错误内容，不要缩减任务或字段。`;
-      const second = await invoke(`${fullPrompt}\n\n${instruction}`, blank ? first : undefined);
+      const second = await invoke(`${fullPrompt}\n\n${instruction}`, blank ? first : undefined, sceneBlank ? sceneDeadline : deadline);
       if (!nativeReasonCompleted(second) || !second.success || !valid(second.data)
-        || (blank && (!nativeBlankJsonCorrected(first, second) || !exactFusionCorrection(second.data, schema, blank.shotId)))) {
+        || (sceneDesign && !sceneBlank && !strictObject(second))
+        || (blank && primary && (!nativeBlankJsonCorrected(first, second) || !exactFusionCorrection(second.data, schema, primary.shotId)))) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 的一次完整结构修正未通过校验`);
+      }
+      if (sceneBlank) {
+        const correctedShots = (second.data as { shots: Array<{ shotId: string }> }).shots;
+        if (Date.now() >= sceneDeadline || !nativeBlankJsonObjectCorrected(first, second)
+          || correctedShots.some((shot, i) => shot.shotId !== sceneBlank.shotIds[i])) {
+          prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", "场景设计的原生空 JSON 修正未通过本次镜头合同");
+        }
       }
       return { result: second.data, degraded: false, degradeReason: null, attempts: 2 };
     });
@@ -1890,6 +1946,7 @@ export function installVendorPrdProductionBridge(constructor: { prototype: objec
     return installPrdProductionBridge({ systemPrototype: requirementRecord(constructor.prototype, "受控 system prototype"),
       productionPrototype: load("engines/production-engine/production-engine.js", "ProductionEngine"),
       phase1Prototype: load("engines/production-engine/phases/phase-1-scene-design.js", "Phase1SceneDesign"),
+      sceneDesignPrototype: load("engines/production-engine/agents/scene-design-agent.js", "SceneDesignAgent"),
       refinerPrototype: load("engines/production-engine/agents/field-content-refiner.js", "FieldContentRefiner"),
       costumePrototype: load("engines/character-system/character-costume-prompter.js", "CharacterCostumePrompter"),
       fieldGuardPrototype: load("engines/field-guard.js", "FieldGuard"),
