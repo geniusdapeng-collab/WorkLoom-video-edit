@@ -1,8 +1,8 @@
 # WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
-> guideVersion: 2026-11-05.2
-> 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加从失败处接着修、已审材料承接、修复片单核验，以及使用原 Studio 回执接续 Film。实际源码 SHA 以本次运行记录为准。
-> 读者：Codex、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
+> guideVersion: 2026-11-05.3
+> 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加 Codex、Qoder 和其他本机 AI 办公 Agent 的原生 CLI/MCP 引导，保留从失败处接着修、已审材料承接、修复片单核验，以及使用原 Studio 回执接续 Film。实际源码 SHA 以本次运行记录为准。
+> 读者：Codex、Qoder、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
 本指南把已成功视频作业的经验固化为调用纪律，帮助工作台从用户原话走到系统前期、渲染、后期和交付核验。先读取本仓能力，冻结人、商品、平台、时长、账号调性、声音与特殊要求，再走现有官方流程。不能把另一个仓库的功能、成片或测试结果算成本仓能力。
 
@@ -13,14 +13,14 @@
 从当前仓库根执行：
 
 ```bash
-node scripts/workloom-agent.mjs list
-node scripts/workloom-agent.mjs describe growth.video.workbench.guide
-node scripts/workloom-agent.mjs invoke growth.video.workbench.guide
+node scripts/edit-agent.mjs list
+node scripts/edit-agent.mjs describe growth.video.workbench.guide
+node scripts/edit-agent.mjs invoke growth.video.workbench.guide
 ```
 
 第三条返回 JSON，`result.markdown` 是本文件完整正文，同时返回仓库/产品身份、版本、路径、SHA-256 和能力限制。此能力只读本仓固定文档，不需服务端、供应商密钥或模型调用，不生成、不渲染、不花钱。MCP 客户端先 `tools/list`，再调用 `workloom_growth_video_workbench_guide`，参数 `{}`，收到的也是同一份正文。
 
-命令、目录或文档读取失败时，保留错误并停止依赖它的动作，不能拿别仓路径、记忆中的参数或临时脚本顶替。CLI 的 `--root` 与 MCP 的 `WORKLOOM_PRODUCT_ROOT` 应指向实际目标仓；阅读返回的 repository 和 productId，避免把三个同源仓混用。工作台接入方式见 [AGENT-CLIENTS.md](AGENT-CLIENTS.md)，标准出片 runbook 见 [ai-video/README.md](../bundles/ai-video/README.md)。
+命令、目录或文档读取失败时，保留错误并停止依赖它的动作，不能拿别仓路径、记忆中的参数或临时脚本顶替。新入口使用操作者环境中的 `WORKLOOM_PRODUCT_ROOT`；旧通用 CLI 的 `--root` 仍按其原契约使用。两者都应指向实际目标仓；阅读返回的 repository 和 productId，避免把三个同源仓混用。工作台接入方式见 [AGENT-CLIENTS.md](AGENT-CLIENTS.md)，标准出片 runbook 见 [ai-video/README.md](../bundles/ai-video/README.md)。
 
 ## 2. 从用户原话冻结作业合同
 
@@ -46,7 +46,7 @@ node scripts/workloom-agent.mjs invoke growth.video.workbench.guide
 1. **先核对已有源片，再查能力和环境。**已有供应商成功回执和实际文件时先核对任务/项目/镜号、来源 SHA-256 和授权；历史品质拒绝记录保留，追加独立接受回执。旧成功素材不因组件变化或 `--no-resume` 重新付费。先读指南，调用 `growth.repo.readiness` 与 `growth.video.gen.catalog`（后者需要服务端就绪）；执行 `pnpm video:doctor` 检查媒体工位。缺依赖、额度不足或目标能力未接通时保留失败事实。
 2. **仅新生成先分流。**已有成功原片只走请求的正式后期，不要求新的分流记录、provider key、角色属性或旧提示词格式。新生成用户需求进入系统视频工位/标准派活入口，由 `video.studio.start` 走营销、叙事、口播解释片或澄清分流。CLI 场景可运行 `route-video.mts`，保存分流记录；判 `clarify` 时先解决缺项，不能替用户进入付费渲染。
 3. **系统生产前期和提示词。**由本仓预生产管线产出剧本、镜头与提示词，绑定冻结的人/商品/场景和原话。不要为了绕过缺入口手写“看起来能跑”的镜头卡、改剧情或跳过规范步骤。定妆照需要时复用已批准档案；没有新的用户否决，不重复出图或让机器相似度触发付费重做。
-4. **读取并核对正式前期产物。**用 `growth.video.production.shots` 读取服务端项目镜头和资格，核对合同中的每个固定项；MCP 只读能力不会替你创建项目或启动前期。系统正式产物尚未就绪时停止，不能拿本地草案冒充。
+4. **读取并核对正式前期产物。**用 `growth.video.production.shots` 读取服务端项目镜头和资格，核对合同中的每个固定项；`growth.video.production.shots` 本身只读；新原生 `start` 与 `repair` 工具才会按明确授权提交对应前期。系统正式产物尚未就绪时停止，不能拿本地草案冒充。
 5. **使用同回执接续，或核对人工执行计划。**自动接续按 §3.3 核验本轮资格、正式片单和预算。人工接续时，`growth.video.production.plan` 返回预览命令与前置清单；它本身不启动任何任务。将其参数与正式镜头文件、分流记录、brief、账号和声音合同逐项核对，再使用现有 CLI 执行本仓官方出片链。按 `execution.command/args` 逐参数调用，避免拼接未经转义的用户原话。
 6. **先恢复，再考虑补跑。**固定 project、work/out 目录和输入；成功原片在普通 resume 与 `--no-resume` 都按真实来源接受，不能靠开关将它重新付费。平台任务已提交却状态未知时查原任务；账户欠费/额度错误先解决账户状态。只有已有记录证明哪个镜头需要更改、且变更被授权，才走逐镜返修；同提示词不盲重试。
 7. **完整后期并核验。**保留官方 compose、color、subtitle、BGM、cover、mux、master 的实际记录；显式请求多版本时再保留 deliver。不得在系统外用临时 ffmpeg、临时封面或手工音轨替换伪装交付。`growth.video.production.status` 用来读阶段结果，`growth.video.delivery.inspect` 用来核对清单和实际文件 SHA-256。缺少实际请求阶段、真实工具失败、清单缺件、来源/授权不符或当前摘要变化不能宣称完成。原片身份、服装、动作、画质、名义时长、嘴型、台词和声音品质不做默认评审；未测项为 null，`qualityReviewed=false`，不得当作品质已通过。
@@ -58,6 +58,37 @@ node scripts/workloom-agent.mjs invoke growth.video.workbench.guide
 当前 Studio 的 `intent` 最多 2000 字符，可带 `metadata`；完整 brief 仍需留在项目资料，并可放入 `metadata.brief` 传入服务，不能只留一个短标题。新建与指定 `projectId` 补跑均读取 `metadata.brief.duration`，与 PRD 共用既有时长校验：接受 5–180 秒内的有限数值或纯十进制数字字符串，缺省时才使用 30 秒；明确提供的非法值在分流、立项或启动前返回 `BAD_REQUEST`，不会静默改成默认值。这个修复只统一需求头的目标秒数，画幅与平台仍按原有分流规则处理，实际镜头总和和最终媒体仍须另验；不能因入口接受了目标秒数就声称下游已兑现。发现固定项被改写时停止进入付费渲染，保留当前原件与具体差异。
 
 片型自动选择对每个原始需求文本字段使用局部确定性文本规则，选择理由与命中证据使用同一份处理结果：排除明确负面块，识别完整否定短语及已支持的否定动作谓词，转折后恢复正向内容。例如“不持手机或相机”不能单凭其中的物品名选成科技测评；“无人机开箱”“不锈钢智能手表开箱”等普通肯定名词不会仅因包含“无”或“不”而被删掉。原始用户文本和 Brief 保持完整，显式 `scenePolicy.id`、未知条目拒绝、多条目判优与同优先级冲突、已选规范及后续审核保持原流程。这些规则只用于自动选型，不改变现有分镜审计，也不保证理解任意自然语言或未支持的否定表达；仍需核对实际选型回执和本轮注入的规范。
+
+### 3.0 AI 办公 Agent 使用同一条原生流程
+
+Codex、Qoder 和其他本机 Agent 接入后，优先使用 `scripts/edit-agent.mjs` 或 `scripts/edit-agent-mcp.mjs`。先按 [接入指南](AGENT-CLIENTS.md) 生成并核对配置。MCP 的 `initialize.instructions` 会给出同一流程；连接成功不代表服务认证、前期资格、媒体预算或付费授权成功。
+
+| 顺序 | CLI 能力 ID（MCP 加 `workloom_` 并将点改为下划线） | 工作台必须核对 |
+|---|---|---|
+| 1 | `growth.video.workbench.guide` | 本文完整正文、Edit 产品身份和 SHA-256 |
+| 2 | `edit.agent.doctor` | 运行时、私有目录、同机 Edit 服务、实际成员认证分别就绪；生产授权仍单独检查 |
+| 3 | `edit.video.workflow.plan` | 输入 `{intent, brief?}`；`intent` 是完整用户原话，完整 Brief 原样保留。仅取用户明确总时长，禁止附加「3 镜 × 10 秒」、其他镜数、逐镜秒数或镜头顺序 |
+| 4 | `edit.video.workflow.start` | 已有本次文字前期授权时，发送同一原话/Brief、稳定 `idempotencyKey`、`authorization:{textGeneration:true}`，保留返回的 `jobId` |
+| 5 | `edit.video.workflow.status` | 输入 `{jobId}`；持续读取同一作业，处理正式审批与原始失败，不因客户端超时、取消等待或重启换键重提 |
+| 6 | `edit.video.workflow.continue` | 当前前期来源、G7、需求合同和媒体预算授权齐备后，发送同一 `jobId` 与 `authorization:{mediaGeneration:true}`；进入本仓已有 Film、后期、技术质检 |
+| 7 | `edit.video.workflow.status` | 回读当前产物和技术质检；只有实际 `delivered:true`、当前文件及必需回执齐备，才对用户报告交付 |
+
+实际 JSON Schema 用 `describe` 或 MCP `tools/list` 读取。CLI 只接受 JSON 文件或标准输入，不拼接 shell 命令执行用户原话。以下计划读取只产生本地计划，不发送付费生成请求：
+
+```bash
+node scripts/edit-agent.mjs invoke edit.agent.doctor
+node scripts/edit-agent.mjs describe edit.video.workflow.start
+# request.json 内容：{"intent":"完整用户原话","brief":完整已确认的Brief对象}
+# 不要把示例占位文字当作真实用户需求提交。
+node scripts/edit-agent.mjs invoke edit.video.workflow.plan \
+  --input-file "$EDIT_RUN_ROOT/request.json"
+```
+
+用户已经给出本次文字生成授权时，Agent 自主按实际工具契约启动，不需要重复询问。`authorization` 只是记录已有授权，不能凭工具连接状态或菜单上的执行权限推定付费范围。启动请求使用稳定幂等键；适配器把请求和原生回执写入 `WORKLOOM_EDIT_JOBS_ROOT`，后续只使用同一 `jobId`。相同键但输入或实例绑定变化会拒绝。作业根和服务地址由操作者环境固定，工具输入不能自带 API、目录、密钥或任意命令。
+
+`pending`、`start_unknown`、`status_unavailable`、`preproduction_running`、`awaiting_approval`、`preproduction_archived` 都没有完成成片交付。结果未知时回读原 `jobId` 和原正式任务；适配器不会再提交第二个执行 worker。客户端取消等待不撤销已提交的作业。仅前期失败且正式 `repair_plan` 判为可承接时，才按 §3.2.1 走 `edit.video.workflow.repair_plan` / `edit.video.workflow.repair`；不得以完整重跑替代原失败恢复。
+
+该接入层复用原生模型路由、预算和重试政策，没有新增限额或取消原闸。当前媒体接续的原生预算仍要求统一逐镜时长并遵守既有任务上限；如果正式管线输出不兼容，保留实际阻塞，不改镜数、逐镜时长或原话来迁就执行器。前期文本也可能产生模型与检索费用；doctor 的零付费检查与 plan 的本地计划不代表后续预算已批准。图像、视频生成和对外发布分别按实际授权执行。
 
 ### 3.1 核对环境、授权和路由
 
@@ -84,7 +115,7 @@ printf '%s' '{"path":"route.json"}' | \
 
 ### 3.2 通过 Studio 启动并读取状态
 
-Codex 终端使用本仓原话入口。默认输出只读计划，保留原话并将唯一明确时长写入 `metadata.brief.duration`。支持数字秒数、常用中文整数秒数和明确的分钟数。多种时长、范围或原话与 Brief 冲突时停止。缺少时长时先补齐。可通过 `--brief` 提供本仓接受的标题、商品、品牌名、受众、平台、画幅、描述和 `productionRequirements` 等结构化字段。
+Codex 终端使用本仓原话入口。默认输出只读计划，保留原话并将唯一明确时长写入 `metadata.brief.duration`。支持数字秒数、常用中文整数秒数和明确的分钟数。多种时长、范围或原话与 Brief 冲突时停止。缺少时长时先补齐。可通过 `--brief` 提供本仓接受的标题、商品、品牌名、受众、平台、画幅、描述、人物、账号、声音、完整 `requirements`、`constraints` 和 `productionRequirements` 等结构化字段；未知字段按实际契约拒绝，不静默裁掉需求。
 
 ```bash
 node --import tsx scripts/tools/codex-video-workflow.mjs --intent "$EDIT_RAW_INTENT" --brief "$EDIT_BRIEF_JSON"
@@ -154,7 +185,9 @@ studio_api status "$EDIT_RUN_ROOT/studio-start.json" "$EDIT_RUN_ROOT/studio-stat
 
 产品生成工作室在当前项目没有正式服务镜头时显示「从失败处接着修」。先点「检查能否接着修」：这一步只读取材料，显示可以保留的镜头、问题字段、原始资料有效期或无法沿用的具体原因。只有再点「修复提示词并重新审核」才调用已配置的 AI。运行中刷新的是同一修复；启动回执丢失时，「接回同一修复请求」继续使用原计划摘要与尝试编号，不创建第二轮。修复完成而镜头列表读取失败时，只刷新该轮列表，不重新调用模型。
 
-AI 工作台使用同一已验证 Edit 服务的两个正式 tRPC 入口：
+Codex、Qoder 和其他已接入的新 Agent 优先调用 `edit.video.workflow.repair_plan`，输入 `{projectId}`，从返回的 `plan` 中读取实际 `kind`、`expectedLatestAttempt` 和 `planDigest`。只有 `kind:"ready"` 且本次文字修复已授权时，才用 `edit.video.workflow.repair` 提交 `{projectId, expectedLatestAttempt, planDigest, idempotencyKey, authorization:{textGeneration:true}}`。保留该修复返回的 `jobId`，后续用同一 `edit.video.workflow.status` 回读，不另建新任务。服务完成修复后，适配器核验当前归档和正式镜头，保存同 job 的原生交接；当前资格、媒体预算和本次媒体授权齐备时，可用同一 `edit.video.workflow.continue` 与 `authorization:{mediaGeneration:true}` 正式接续 Film。修复 job 与普通 start job 使用同一状态/接续入口，不要求工作台手造片单或转换回执。
+
+上述新 Agent 工具内部调用同一已验证 Edit 服务的两个正式 tRPC 入口；下面的直接请求示例保留给兼容客户端：
 
 - `video.studio.promptRepairPlan`，只读，输入 `{projectId}`。返回 `kind:"ready"` 时包含 `planDigest`、`expectedLatestAttempt`、`sourceRunId`、`sourceCollectedAt`、`sourceExpiresAt`、`retainedGates`、`retainedShotCount`、`authoringFields` 和 `warnings`；`kind:"unavailable"` 给出 `code` 与 `message`。
 - `video.studio.repairPrompts`，工作区写操作，只接受 `{projectId, expectedLatestAttempt, planDigest}`。服务重新读取原件、核对当前项目和租约，再原子认领新尝试。`kind:"started"` 返回 `runId` 与 `sourceAttempt`；同一计划的重复请求返回同一真实运行。`busy` 或 `stale` 时保留具体原因，不自动切换为完整重跑。
@@ -202,7 +235,7 @@ await withVerifiedEditService(process.env.EDIT_API, process.env.WORKLOOM_ACCESS_
 NODE
 ```
 
-执行 `EDIT_STUDIO_RECEIPT="$EDIT_RUN_ROOT/repair-start.json"`，用该回执返回的 `runId` 读取原有 `video.studio.status`；完成后仍按 §3.4 比对本轮正式 `production.shots`、完整片单和前期输出。修复回执不是原 `codex-video-workflow` 启动回执，不能拿旧运行的 `--continue` 代替这次修复交接；修复后的当前原件通过 §3.4 核验后，按 §3.5 的正式 Film 入口执行。启动回执、历史批准或修复草稿都不能当成已生成视频，后续资格和付费渲染继续走正式入口及真实 G8。
+仅使用上面的兼容 raw tRPC 示例时，执行 `EDIT_STUDIO_RECEIPT="$EDIT_RUN_ROOT/repair-start.json"`，用该直接响应回执中的 `runId` 读取原有 `video.studio.status`；完成后仍按 §3.4 比对本轮正式 `production.shots`、完整片单和前期输出。这个 raw tRPC 修复回执不是 `codex-video-workflow` 启动回执，不能拿旧运行的 `--continue` 或把该 JSON 文件直接当作原生回执代替本次修复交接；兼容路径核验当前原件后，按 §3.5 的正式 Film 入口执行。使用上文新 Agent `repair` 得到的修复 job 则由适配器保存原生交接，继续用同 job 的 `status` / `continue`。两种路径都不能把启动回执、历史批准或修复草稿当成已生成视频，后续资格和付费渲染继续走正式入口及真实 G8。
 
 当前接续范围为无对白、具有已保存 G4 冻结视觉合同及已审选角、明确平台、受控人物原图选择、完整 G1–G4 原件和可核验 G6 字段证据的营销前期。能够逐项恢复的现存值保持原摘要；缺失字段只在原合同和真实诊断可证明缺失时标为新创作，不补造历史原文或原值摘要。模型、时长、参考图或其他不可变请求规格缺件时，不能由作者猜值补齐。过早失败、缺少结构化 G4 附件、无法逆向还原的旧合同或未配置受控原图时，入口明确返回不可接续原因。
 
@@ -358,7 +391,7 @@ Edit 提供分流、正式前期、全链 CLI、阶段账本和交付核验入�
 
 - **没有 Growthtest 的标准后期新入口。**此基线没有 `scripts/tools/film-standard-post.mts`、`packages/video-studio/src/standard-post-contract.ts`，CLI 不含 `--standard-post`。不要复制别仓命令或声称本仓已支持。
 - **没有 Growthtest 的 nativeaudio 专用契约。**本仓没有该专用合同文件，但普通全链默认保留原片完整节目声音，voice 阶段不隐式做 ASR 或补 TTS；只有明确配音、旁白、换声请求才进入新声音操作。不得静默替代原生声音或指定声线，也不得因声音品质失败自动重配。
-- **MCP 提供读取和预览。**本轮新增的是指南读取；视频创建、渲染与交付不会因为工具菜单多了一条指南而自动接通。
+- **Edit MCP 提供原有读取/预览和原生视频执行接入。**六个 `edit.video.workflow.*` 工具负责计划、文字前期启动、同 job 状态回读、媒体接续及提示词修复，`edit.agent.doctor` 分开检查接入与认证。执行复用正式 Studio、修复、Film 和后期入口，仍需本次文字/媒体授权、当前来源和预算；连接工具或读到指南不代表已启动或已交付。
 - **后期使用本仓正式执行器。**普通 AI 视频后期执行 compose/color/subtitle/BGM/cover/master，接续入口需要软字幕时才执行 mux，交付一支保留原色、烧封面、烧台词、含 BGM 的母版；完整保留原片和真实回执。`deliver` 多风格包只在显式请求时执行。没有模型品质评价、试渲候选、画面差异/声音余量否决或自动重做；默认 UHD 只进行实际本地目标画布加工。真实加工、权限、来源与缺件失败仍明确。
 - **不自动发布到社交平台。**交付清单核验完成只代表本地交付核验；外发需要独立业务授权和真实远端回执。
 
@@ -514,11 +547,11 @@ G6 在原有五项语义评审之外，从同一当前冻结计划与同版字�
 
 | 优先级 | 固化的具体行为 | 对用户的作用 |
 |---|---|---|
-| P0，本次已内置 | 从 CLI/MCP 读取同一固定指南；先冻结用户固定项；指出正式前期、恢复、交付核验入口 | 防止用错仓、改人换声、绕流程或把未核实产物说成完成 |
-| P1，本次已内置 | 计划输出指南锚点；AGENTS.repo、README 和现有 runbook 引导先读；客户端载荷只复制这一固定指南 | 新会话和安装后的运行目录能找到同一份规则，避免靠对话记忆 |
+| P0，本次已内置 | 同一固定指南与 doctor；原生六个 workflow 工具 `plan/start/status/continue/repair_plan/repair`；完整原话与 Brief；文字/媒体授权分开；只由当前媒体质检成立交付 | 能在对话中按正式流程启动、恢复和接续，保留用户固定项与失败事实，不把后台受理或前期归档说成成片 |
+| P1，本次已内置 | Codex/Qoder/通用 stdio 配置生成与显式安全安装；根 AGENTS、AGENTS.repo 和 runbook 引导先读；异步 job、稳定幂等键、同 job 回读与未知状态防重；原有只读指南载荷继续保留 | 新工作台能核对实际产品、目录和认证，保留现有设置与秘密边界，超时或重启后不会因丢失等待而重复付费 |
 | P2，后续独立任务 | 增加本仓从指令到交付的完整正常耗时实测；新增生产机制后更新能力边界 | 用本仓证据给排期，不误用缓存重跑或跨仓成绩 |
 
-本版不新增生产执行 MCP 工具、不移植 Growthtest 的专用合同文件、不升级模型或供应商。指南读取能力不启动付费生成或社交平台外发；实际生产仍走本指南列出的原生入口与本次授权。高完成度/时长策略属于后续独立阶段，本版不提前扩展；隔离副本的同步边界保持有效。
+本版新增本仓原生视频流程的 CLI/MCP 接入，不移植 Growthtest 的专用合同文件，不升级模型或供应商，也不改镜头规划、模型路由、预算或重试政策。指南读取、doctor 和本地 plan 不启动付费生成；执行工具仍走原生入口及本次实际授权，不自动社交平台外发。接入层的离线验证不构成真实生产或指定影片成功回执；真实模型、供应商、当前资格与媒体交付须按本次运行另验。高完成度/时长策略属于后续独立阶段，本版不提前扩展；隔离副本的同步边界保持有效。
 
 ## 8. 维护和回归
 

@@ -276,7 +276,20 @@ export async function continueNativeFilm({ receipt, receiptPath, archiveReceipt,
   const job = realpathSync(dirname(receiptPath));
   const sourceRoot = realpathSync(root);
   requireMatch(job !== sourceRoot && !inside(sourceRoot, job), "FILM_PRIVATE_JOB_OUTSIDE_CHECKOUT_REQUIRED");
-  const studioRoot = join(job, "studio");
+  const configuredStudio = env.WORKLOOM_EDIT_STUDIO_ROOT;
+  const studioRoot = configuredStudio === undefined ? join(job, "studio") : typeof configuredStudio === "string" ? resolve(configuredStudio) : "";
+  if (configuredStudio !== undefined) {
+    try {
+      const info = lstatSync(studioRoot);
+      requireMatch(typeof configuredStudio === "string" && isAbsolute(configuredStudio) && configuredStudio === studioRoot
+        && realpathSync(studioRoot) === studioRoot && info.isDirectory() && !info.isSymbolicLink()
+        && (info.mode & 0o777) === 0o700 && info.uid === process.getuid?.()
+        && studioRoot !== sourceRoot && !inside(sourceRoot, studioRoot), "EDIT_STUDIO_ROOT_INVALID");
+    } catch (error) {
+      if (error instanceof FilmContinuationError) throw error;
+      throw new FilmContinuationError("EDIT_STUDIO_ROOT_INVALID");
+    }
+  }
   requireMatch(service?.sourceCommit === sourceCommit && /^[a-f0-9]{40}$/u.test(sourceCommit ?? "")
     && service.videoStudio?.deferRender === true && service.videoStudio.workDirSha256 === hash(studioRoot)
     && realpathSync(studioRoot) === studioRoot && lstatSync(studioRoot).isDirectory(), "EDIT_STUDIO_HANDOFF_CONFIGURATION_MISMATCH");

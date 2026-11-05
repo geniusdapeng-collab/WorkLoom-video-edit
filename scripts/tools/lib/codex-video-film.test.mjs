@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -284,3 +284,29 @@ test("a valid new adoption digest during admission is detected by the source ref
   assert.equal(f.args.length, 0);
   assert.equal(await readFilmContinuation(f.input), null);
 });
+
+test("an explicitly configured private shared Studio root can serve the same native per-job Film contract", async t => {
+  const f = fixture(t), shared = realpathSync(mkdtempSync(join(tmpdir(), "edit-shared-studio-")));
+  t.after(() => rmSync(shared, { recursive: true, force: true }));
+  cpSync(join(dirname(f.input.receiptPath), "studio"), shared, { recursive: true });
+  f.input.archive.archiveRoot = join(shared, "archive", "WS-1", projectId);
+  f.input.service.videoStudio.workDirSha256 = hash(shared);
+  f.input.env.WORKLOOM_EDIT_STUDIO_ROOT = shared;
+  assert.equal((await continueNativeFilm(f.input)).state, "finished");
+  assert.equal(f.args.length, 1);
+});
+
+for (const kind of ["missing", "relative", "shared", "symlink", "wrong-service"]) {
+  test("configured shared Studio " + kind + " fails before Film dispatch", async t => {
+    const f = fixture(t), shared = realpathSync(mkdtempSync(join(tmpdir(), "edit-shared-studio-negative-")));
+    t.after(() => rmSync(shared, { recursive: true, force: true }));
+    let configured = shared;
+    if (kind === "missing") configured = join(shared, "absent");
+    if (kind === "relative") configured = "relative-studio";
+    if (kind === "shared") chmodSync(shared, 0o755);
+    if (kind === "symlink") { configured = join(shared, "linked"); symlinkSync(join(dirname(f.input.receiptPath), "studio"), configured); }
+    f.input.env.WORKLOOM_EDIT_STUDIO_ROOT = configured;
+    await assert.rejects(continueNativeFilm(f.input), kind === "wrong-service" ? /EDIT_STUDIO_HANDOFF_CONFIGURATION_MISMATCH/u : /EDIT_STUDIO_ROOT_INVALID/u);
+    assert.equal(f.args.length, 0);
+  });
+}

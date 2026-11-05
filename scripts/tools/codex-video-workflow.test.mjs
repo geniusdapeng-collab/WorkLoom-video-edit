@@ -199,6 +199,9 @@ test("official status and latest same-run archive distinguish approval, stale, f
   const awaiting = (await cli(f.status)).body;
   assert.equal(awaiting.state, "awaiting_approval"); assert.equal(awaiting.pendingApprovalId, "APP-001");
   current = state("failed", { error: `private failure ${token}` });
+  const reflected = (await cli(f.status)).body;
+  assert.equal(reflected.state, "status_unavailable"); assert.equal(reflected.errorCode, "STUDIO_RESPONSE_INVALID");
+  current = state("failed", { error: "private failure without credentials" });
   const failed = (await cli(f.status)).body;
   assert.equal(failed.studioStatus, "failed"); assert.equal(failed.errorPresent, true);
   current = state("finished"); currentArchive = archive([stage(), stage({ attempt: 2, runId: "RUN-OTHER" })]);
@@ -218,7 +221,7 @@ test("official status and latest same-run archive distinguish approval, stale, f
   assert.equal((await cli([...f.status, "--api", "http://127.0.0.1:50000"])).body.code, "RECEIPT_API_MISMATCH");
   assert.deepEqual(f.requests.map(({ path, method }) => [path, method]), [
     ["/trpc/video.studio.start", "POST"], ["/trpc/video.studio.status", "GET"], ["/trpc/video.studio.status", "GET"],
-    ["/trpc/video.studio.status", "GET"], ["/trpc/video.studio.status", "GET"], ["/trpc/video.studio.archive", "GET"],
+    ["/trpc/video.studio.status", "GET"], ["/trpc/video.studio.status", "GET"], ["/trpc/video.studio.status", "GET"], ["/trpc/video.studio.archive", "GET"],
     ["/trpc/video.studio.status", "GET"], ["/trpc/video.studio.archive", "GET"],
     ["/trpc/video.studio.status", "GET"], ["/trpc/video.studio.archive", "GET"],
     ["/trpc/video.studio.status", "GET"],
@@ -280,3 +283,6 @@ test("an existing unknown Film receipt is read by the same CLI without a service
   assert.equal(f.requests.length, 1);
   assert.equal(f.productRequests.length, 1);
 });
+
+// The production script test entry already imports this file; exercise the reviewed async bridge there too.
+import "./edit-agent-workflow.test.mjs";

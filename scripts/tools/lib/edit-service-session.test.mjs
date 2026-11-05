@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import test from "node:test";
-import { withVerifiedEditService } from "./edit-service-session.mjs";
+import { withVerifiedEditService, withVerifiedEditReadService } from "./edit-service-session.mjs";
 
 const token = "offline_fixture_member_token_not_a_credential";
 const product = { schemaVersion: "workloom.service-product/v1", productId: "workloom-ai-video-edit",
@@ -73,4 +73,48 @@ test("legacy Studio start remains POST and its existing status remains read-only
     await call("video.studio.status", { runId: "R1" });
   });
   assert.deepEqual(f.calls.map(call => call.method), ["GET", "POST", "GET"]);
+});
+
+test("trusted desktop bootstrap stays on the identity-verified socket and JWT exists only in the call closure", async t => {
+  const key = "e".repeat(64), jwt = "offline-desktop-jwt-not-a-credential", calls = [], sockets = new Set();
+  const server = createServer(async (request, response) => {
+    const chunks = []; for await (const chunk of request) chunks.push(chunk);
+    sockets.add(request.socket);
+    calls.push({ path: request.url, method: request.method, auth: request.headers.authorization,
+      key: request.headers["x-workloom-desktop-key"], body: Buffer.concat(chunks).toString() });
+    response.end(JSON.stringify(request.url === "/health/product" ? product : { result: { data:
+      request.url === "/trpc/auth.desktopLogin" ? { token: jwt, identity: { workspaceId: "WS-native" } } : { workspaceId: "WS-native" } } }));
+  });
+  await new Promise(done => server.listen(0, "127.0.0.1", done));
+  t.after(() => { server.closeAllConnections(); return new Promise(done => server.close(done)); });
+  const env = { WORKLOOM_DESKTOP_LOGIN_KEY: key }, before = { ...env };
+  await withVerifiedEditReadService("http://127.0.0.1:" + server.address().port, undefined, async call => {
+    const reads = await Promise.all([call("workspace.profile", {}), call("video.gen.catalog", {})]);
+    assert.deepEqual(reads, [{ workspaceId: "WS-native" }, { workspaceId: "WS-native" }]);
+    assert.throws(() => call("video.studio.start", {}), /STUDIO_PROCEDURE_INVALID/u);
+  }, ["workspace.profile", "video.gen.catalog"], { env });
+  assert.deepEqual(env, before); assert.equal(sockets.size, 1);
+  assert.deepEqual(calls.map(call => [call.path, call.method]), [["/health/product", "GET"], ["/trpc/auth.desktopLogin", "POST"],
+    ["/trpc/workspace.profile?input=%7B%7D", "GET"], ["/trpc/video.gen.catalog?input=%7B%7D", "GET"]]);
+  assert.equal(calls[0].auth, undefined); assert.equal(calls[0].key, undefined);
+  assert.equal(calls[1].auth, undefined); assert.equal(calls[1].key, key); assert.equal(calls[1].body, "{}");
+  assert.ok(calls.slice(2).every(call => call.auth === "Bearer " + jwt && call.key === undefined));
+});
+
+test("untrusted product, absent bootstrap, arbitrary read procedure and reflected bearer are rejected", async t => {
+  const mismatch = await fixture(t, { ...product, productId: "foreign" });
+  await assert.rejects(withVerifiedEditService(mismatch.api, undefined, call => call("video.studio.start", {}), {
+    env: { WORKLOOM_DESKTOP_LOGIN_KEY: "a".repeat(64) },
+  }), /STUDIO_PRODUCT_MISMATCH/u);
+  assert.equal(mismatch.calls.length, 1);
+  const f = await fixture(t);
+  await assert.rejects(withVerifiedEditService(f.api, undefined, call => call("video.studio.start", {}), { env: {} }), /MEMBER_TOKEN_REQUIRED/u);
+  await assert.rejects(withVerifiedEditReadService(f.api, token, () => {}, ["auth.loginAs"]), /STUDIO_PROCEDURE_INVALID/u);
+  await assert.rejects(withVerifiedEditReadService(f.api, token, call => call("video.production.qualifyShot", {}), ["workspace.profile"]), /STUDIO_PROCEDURE_INVALID/u);
+  assert.ok(f.calls.every(call => call.path === "/health/product"));
+  const reflecting = createServer((request, response) => response.end(JSON.stringify(request.url === "/health/product" ? product : { result: { data: { echoed: token } } })));
+  await new Promise(done => reflecting.listen(0, "127.0.0.1", done));
+  t.after(() => { reflecting.closeAllConnections(); return new Promise(done => reflecting.close(done)); });
+  await assert.rejects(withVerifiedEditService("http://127.0.0.1:" + reflecting.address().port, token,
+    call => call("video.studio.status", {})), /STUDIO_RESPONSE_INVALID/u);
 });
