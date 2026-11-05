@@ -67,9 +67,10 @@ function nativeEngine(reply: string, patch: Record<string, unknown> = {}) {
   const engine = new WorkloomLLMEngine({ ...config, model: "deepseek-flash" });
   const provider = new OpenAiCompatibleProvider("deepseek-flash", config);
   const policy = structuredClone(DEFAULT_MODEL_POLICY);
-  engine.attachRouter({ providers: new Map([[provider.modelId, provider]]), forceModel: "deepseek-flash", policy,
-    sink: { recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined } });
-  return { engine, requests, policy };
+  const router = { providers: new Map([[provider.modelId, provider]]), forceModel: "deepseek-flash", policy,
+    sink: { recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined } };
+  engine.attachRouter(router);
+  return { engine, requests, policy, router };
 }
 function authorInput(reply: string, patch: Record<string, unknown> = {}) {
   const native = nativeEngine(reply, patch), archives: FieldAuthoringArchiveInput[] = [], events: FieldAuthoringBudgetEvent[] = [];
@@ -237,7 +238,9 @@ describe("normal native dispatcher authoring with complete controlled artifacts"
     expect(archives.map(item => item.kind)).toEqual(["request", "response", "snapshot"]);
     expect(Buffer.from(archives[1]!.bytes).toString()).toBe(content);
     expect(JSON.parse(Buffer.from(archives[2]!.bytes).toString()).fields).toEqual(result.shots[0]!.fields);
-    expect(events).toEqual([{ phase: "before", shotId: "scene-a" }, { phase: "after", shotId: "scene-a", usage: { promptTokens: 500, completionTokens: 100 }, success: true }]);
+    expect(events).toEqual([{ phase: "before", shotId: "scene-a" }, { phase: "dispatch", shotId: "scene-a" },
+      { phase: "after", shotId: "scene-a", usage: { promptTokens: 500, completionTokens: 100 }, success: true,
+        dispatchOutcome: "verified-complete", nativeCompleted: true }]);
     expect(result.receipts[0]!.dispatch.modelId).toBe("deepseek-flash");
     expect(result.receipts[0]!.request.sha256).toBe(digest(archives[0]!.bytes));
     expect(result.shots[0]!.authoringProof).toEqual(result.receipts[0]);
@@ -309,7 +312,8 @@ describe("normal native dispatcher authoring with complete controlled artifacts"
     input.archive = vi.fn(async item => { if (item.kind === "response") throw new Error("ARCHIVE_OFFLINE"); return originalArchive(item); });
     await expect(authorRepairFields(input)).rejects.toThrow("ARCHIVE_OFFLINE");
     expect(requests).toHaveLength(1);
-    expect(events.at(-1)).toEqual({ phase: "after", shotId: "scene-a", usage: { promptTokens: 500, completionTokens: 100 }, success: true });
+    expect(events.at(-1)).toEqual({ phase: "after", shotId: "scene-a", usage: { promptTokens: 500, completionTokens: 100 }, success: true,
+      dispatchOutcome: "verified-complete", nativeCompleted: true });
   });
   it("refuses an archive receipt whose digest does not match the full written bytes", async () => {
     const { input, requests } = authorInput(content);
@@ -497,7 +501,7 @@ describe("explicitly diagnosed canonical omissions", () => {
     for (const [field, value] of Object.entries(shot.fields)) expect(next.fields[field]).toEqual(value);
     expect(next.currentContract!.request).toEqual(shot.sourceContract.request);
   });
-  it.each(["", ["unknown historical array type"], { text: "unknown historical object type" }])("requires newly authored missing content to be a nonempty string: %j", async action => {
+  it.each(["", "从完整已审来源新创作本字段的非空文本", ["unknown historical array type"], { text: "unknown historical object type" }])("requires newly authored missing content to be a nonempty concrete string: %j", async action => {
     const source = missingFixture(), shot = source.recover();
     const { input } = authorInput(JSON.stringify({ shotId: shot.shotId, fields: { action } }));
     input.plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(input.sourceContext), diagnosedFindings: [source.evidence] });
@@ -514,5 +518,79 @@ describe("explicitly diagnosed canonical omissions", () => {
     const incomplete = authorInput(JSON.stringify({ shotId: shot.shotId, fields: { action: newValues.action } }));
     incomplete.input.plan = input.plan;
     await expect(authorRepairFields(incomplete.input)).rejects.toThrow("AUTHORING_RESPONSE_SCOPE_INVALID");
+  });
+});
+
+describe("trusted native-call outcomes for durable replay protection", () => {
+  const body = JSON.stringify({ shotId: "scene-a", fields: { action: "按完整已审来源新写动作，保留身份、时长和道具。" } });
+  it("does not issue a dispatch/after outcome for a budget or source refusal before the native invocation", async () => {
+    for (const cause of ["budget", "source"]) {
+      const setup = authorInput(body), priorHook = setup.input.budgetHook;
+      setup.input.budgetHook = vi.fn(async event => {
+        await priorHook(event);
+        if (event.phase === "before") {
+          if (cause === "budget") throw new Error("BUDGET_DENIED_BEFORE_CALL");
+          setup.input.sourceContext.gates.G1 = "changed-before-dispatch";
+        }
+      });
+      await expect(authorRepairFields(setup.input)).rejects.toThrow();
+      expect(setup.requests).toHaveLength(0);
+      expect(setup.events.map(event => event.phase)).toEqual(["before"]);
+    }
+  });
+  it("marks unknown usage as unverified after an actual native invocation", async () => {
+    const setup = authorInput(body, { usage: undefined });
+    await expect(authorRepairFields(setup.input)).rejects.toThrow();
+    expect(setup.requests).toHaveLength(1);
+    expect(setup.events.map(event => event.phase)).toEqual(["before", "dispatch", "after"]);
+    expect(setup.events.at(-1)).toMatchObject({ phase: "after", usage: null, dispatchOutcome: "unverified", nativeCompleted: false });
+  });
+  it("keeps measured usage but marks a native answer without a pinned dispatch proof unverified", async () => {
+    const setup = authorInput(body);
+    setup.router.forceModel = "";
+    await expect(authorRepairFields(setup.input)).rejects.toThrow("AUTHORING_RESPONSE_UNPROVEN");
+    expect(setup.requests).toHaveLength(1);
+    expect(setup.events.at(-1)).toMatchObject({ dispatchOutcome: "unverified", nativeCompleted: true,
+      usage: { promptTokens: 500, completionTokens: 100 } });
+  });
+  it.each(["response", "snapshot"] as const)("notices proof drift during %s archival before the sole outcome is emitted", async kind => {
+    const setup = authorInput(body), original = setup.input.archive;
+    setup.input.archive = vi.fn(async item => {
+      const result = await original(item);
+      if (item.kind === kind) setup.policy.version = `${setup.policy.version}-changed-after-native-call`;
+      return result;
+    });
+    await expect(authorRepairFields(setup.input)).rejects.toThrow();
+    expect(setup.events.filter(event => event.phase === "after")).toHaveLength(1);
+    expect(setup.events.at(-1)).toMatchObject({ dispatchOutcome: "unverified", nativeCompleted: true,
+      usage: { promptTokens: 500, completionTokens: 100 } });
+  });
+  it.each(["schema", "noop"])("keeps a measured, proven native %s rejection as a known completion", async kind => {
+    const setup = authorInput(body);
+    const content = kind === "schema" ? JSON.stringify({ shotId: "scene-a", fields: { action: "新动作" }, extra: true })
+      : JSON.stringify({ shotId: "scene-a", fields: { action: setup.input.plan.shots[0]!.fields.action } });
+    setup.input.engine = nativeEngine(content).engine;
+    await expect(authorRepairFields(setup.input)).rejects.toThrow();
+    expect(setup.events.at(-1)).toMatchObject({ dispatchOutcome: "verified-complete", nativeCompleted: true,
+      usage: { promptTokens: 500, completionTokens: 100 } });
+  });
+  it("still retains the complete response and actual outcome when dispatch journaling rejects", async () => {
+    const setup = authorInput(body), original = setup.input.budgetHook;
+    setup.input.budgetHook = vi.fn(async event => {
+      await original(event);
+      if (event.phase === "dispatch") throw new Error("DISPATCH_JOURNAL_FAILED");
+    });
+    await expect(authorRepairFields(setup.input)).rejects.toThrow("DISPATCH_JOURNAL_FAILED");
+    expect(setup.requests).toHaveLength(1);
+    expect(Buffer.from(setup.archives.find(item => item.kind === "response")!.bytes).toString()).toBe(body);
+    expect(setup.events.at(-1)).toMatchObject({ dispatchOutcome: "verified-complete", nativeCompleted: true,
+      usage: { promptTokens: 500, completionTokens: 100 } });
+  });
+  it("emits one unverified outcome when the genuine native adapter rejects after invocation", async () => {
+    const setup = authorInput(body);
+    Object.defineProperty(setup.input.engine.stats, "totalCalls", { get: () => { throw new Error("NATIVE_INVOCATION_FAILED"); } });
+    await expect(authorRepairFields(setup.input)).rejects.toThrow("NATIVE_INVOCATION_FAILED");
+    expect(setup.events.map(event => event.phase)).toEqual(["before", "dispatch", "after"]);
+    expect(setup.events.at(-1)).toMatchObject({ dispatchOutcome: "unverified", nativeCompleted: false, usage: null });
   });
 });

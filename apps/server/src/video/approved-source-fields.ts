@@ -3,7 +3,7 @@ import { isDeepStrictEqual, types } from "node:util";
 import {
   canonicalJson, compilePromptShot, promptFieldPolicy, sha256Json, validatePromptContract,
   PROMPT_CONTRACT_SCHEMA_VERSION, PROMPT_CONTRACT_POLICY_VERSION, PROMPT_CONTRACT_REQUEST_SCHEMA_VERSION,
-  SHOT_FIELD_SCHEMA_V1, SHOT_FIELD_SCHEMA_V2, WorkloomLLMEngine,
+  SHOT_FIELD_SCHEMA_V1, SHOT_FIELD_SCHEMA_V2, WorkloomLLMEngine, nativeReasonCompleted,
   type PromptCompileOptions, type PromptCompileShot, type PromptContract, type LLMReasonOptions,
 } from "@hyperreality/video-studio";
 import { g6EventWitnessChecks, g6EventWitnessRepairDrift } from "./g6-event-witness.js";
@@ -11,6 +11,7 @@ import { g6EventWitnessChecks, g6EventWitnessRepairDrift } from "./g6-event-witn
 export const APPROVED_SOURCE_FIELDS_VERSION = "workloom.approved-source-fields/v1" as const;
 type JsonRecord = Record<string, unknown>;
 const hashPattern = /^[a-f0-9]{64}$/u;
+const newFieldSchemaExample = "从完整已审来源新创作本字段的非空文本";
 const hashBytes = (value: Uint8Array | string): string => createHash("sha256").update(value).digest("hex");
 function fail(code: string): never { throw new Error(`APPROVED_SOURCE_FIELDS_${code}`); }
 function record(value: unknown): JsonRecord {
@@ -376,9 +377,12 @@ export function planFieldAuthoring(input: PlanFieldAuthoringInput): AllowedField
 
 export interface FieldAuthoringSourceContext { brief: unknown; gates: Record<"G1" | "G2" | "G3" | "G4", unknown>; [key: string]: unknown }
 export interface FieldAuthoringBudgetEvent {
-  phase: "before" | "after"; shotId: string;
+  phase: "before" | "dispatch" | "after"; shotId: string;
   usage?: { promptTokens: number; completionTokens: number } | null;
   success?: boolean;
+  /** Issued by this host, never copied from a model response. Present on every after event. */
+  dispatchOutcome?: "verified-complete" | "unverified";
+  nativeCompleted?: boolean;
 }
 export interface FieldAuthoringArchiveInput { shotId: string; kind: "request" | "response" | "snapshot"; bytes: Uint8Array; sha256: string }
 export interface FieldAuthoringArchiveRef { ref: string; sha256: string }
@@ -494,81 +498,95 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
         sourceUnboundFields: shot.unboundFields, diagnoses, ...(rivalWitness ? { hostEventWitness: rivalWitness } : {}) }),
     ].join("\n");
     const schema = { shotId: shot.shotId, fields: Object.fromEntries(allowed.map(field => [field,
-      Object.hasOwn(shot.fields, field) ? shot.fields[field] : "从完整已审来源新创作本字段的非空文本"])) };
+      Object.hasOwn(shot.fields, field) ? shot.fields[field] : newFieldSchemaExample])) };
     const options: LLMReasonOptions = { scene: "preproduction", temperature: 0 };
     const request = await archive(shot.shotId, "request", Buffer.from(canonicalJson({ prompt, schema, options, planSha256, sourceContextSha256: input.plan.sourceContextSha256 })));
     await input.budgetHook({ phase: "before", shotId: shot.shotId });
     await verify();
-    let result: Awaited<ReturnType<WorkloomLLMEngine["reasonStructuredWithProof"]>>;
-    try { result = await input.engine.reasonStructuredWithProof(prompt, schema, options); }
-    catch (error) {
-      await input.budgetHook({ phase: "after", shotId: shot.shotId, usage: null, success: false });
-      await verify();
-      throw error;
-    }
-    const usage = result.result.usage;
-    const measured = usage && Number.isSafeInteger(usage.promptTokens) && Number(usage.promptTokens) > 0
-      && Number.isSafeInteger(usage.completionTokens) && Number(usage.completionTokens) > 0
-      ? { promptTokens: usage.promptTokens!, completionTokens: usage.completionTokens! } : null;
-    let response: FieldAuthoringArchiveRef;
-    // A completed provider call must reach accounting even when the artifact
-    // store or source readback fails. An archive failure still fails the run.
+    let result: Awaited<ReturnType<WorkloomLLMEngine["reasonStructuredWithProof"]>> | undefined;
+    let measured: { promptTokens: number; completionTokens: number } | null = null;
+    let invoked = false;
     try {
-      response = await archive(shot.shotId, "response", Buffer.from(result.result.content ?? canonicalJson({ success: result.result.success, error: result.result.error ?? "NO_CONTENT" })));
+      invoked = true;
+      const pending = input.engine.reasonStructuredWithProof(prompt, schema, options);
+      // The adapter has actually been invoked. Observe both promises even if
+      // a journal hook fails, so its failure cannot abandon a paid response.
+      const [answer, notice] = await Promise.allSettled([pending,
+        Promise.resolve().then(() => input.budgetHook({ phase: "dispatch", shotId: shot.shotId }))]);
+      if (answer.status === "rejected") throw answer.reason;
+      result = answer.value;
+      const usage = result.result.usage;
+      measured = usage && Number.isSafeInteger(usage.promptTokens) && Number(usage.promptTokens) > 0
+        && Number.isSafeInteger(usage.completionTokens) && Number(usage.completionTokens) > 0
+        ? { promptTokens: usage.promptTokens!, completionTokens: usage.completionTokens! } : null;
+      const response = await archive(shot.shotId, "response", Buffer.from(result.result.content ?? canonicalJson({ success: result.result.success, error: result.result.error ?? "NO_CONTENT" })));
+      await verify();
+      if (notice.status === "rejected") throw notice.reason;
+      if (!result.result.success || !measured || typeof result.result.content !== "string" || !result.proof
+        || !result.proof.matchesCurrent(prompt, schema, options)) return fail("AUTHORING_RESPONSE_UNPROVEN");
+      const parsed = strictJson(result.result.content), nextFields = record(parsed.fields);
+      if (!isDeepStrictEqual(Object.keys(parsed).sort(), ["fields", "shotId"]) || parsed.shotId !== shot.shotId
+        || !isDeepStrictEqual(Object.keys(nextFields).sort(), [...allowed].sort())
+        || !isDeepStrictEqual(parsed, result.result.data)) return fail("AUTHORING_RESPONSE_SCOPE_INVALID");
+      const priorFields = structuredClone(shot.fields);
+      const newFields: string[] = [];
+      for (const field of allowed) {
+        const value = nextFields[field];
+        const existed = Object.hasOwn(shot.fields, field);
+        if (!nonempty(value) || (existed ? !sameValueShape(shot.fields[field], value) || isDeepStrictEqual(value, shot.fields[field])
+          : typeof value !== "string" || value === newFieldSchemaExample)) return fail("AUTHORING_NOOP_OR_TYPE_INVALID");
+        if (!existed) newFields.push(field);
+        shot.fields[field] = structuredClone(value);
+      }
+      for (const field of Object.keys(priorFields)) if (!writable.has(field)
+        && !isDeepStrictEqual(shot.fields[field], priorFields[field])) return fail("AUTHORING_READONLY_DRIFT");
+      const authoredAt = new Date().toISOString();
+      const compiled = compilePromptShot(shot, { ...shot.compileOptions, createdAt: authoredAt });
+      if (compiled.hardErrors.length || !isDeepStrictEqual(compiled.fieldValues, shot.fields)) return fail("AUTHORING_COMPILE_INVALID");
+      const mutableRequestTextPaths = [...(timelineDiagnosed ? ["technical.timeline"] : []),
+        ...(rivalWitness ? ["technical.character_constraint"] : [])];
+      const immutableRequest = (contract: PromptContract) => {
+        const request = structuredClone(contract.request);
+        if (timelineDiagnosed) delete request.technical.timeline;
+        if (rivalWitness) delete request.technical.character_constraint;
+        return request;
+      };
+      const sourcePortrait = shot.sourceContract.bindings.find(binding => binding.field === "portraits")!;
+      const currentPortrait = compiled.contract.bindings.find(binding => binding.field === "portraits")!;
+      if (!isDeepStrictEqual(immutableRequest(shot.sourceContract), immutableRequest(compiled.contract))
+        || !isDeepStrictEqual(shot.sourceContract.modelCapabilities, compiled.contract.modelCapabilities)
+        || !isDeepStrictEqual(sourcePortrait.assets, currentPortrait.assets)
+        || sourcePortrait.assetApplicability !== currentPortrait.assetApplicability
+        || sourcePortrait.valueSha256 !== currentPortrait.valueSha256) return fail("AUTHORING_REQUEST_DRIFT");
+      if (rivalWitness && g6EventWitnessRepairDrift(witnessInput(shot.fields), [rivalWitness])) return fail("AUTHORING_EVENT_WITNESS_DRIFT");
+      shot.prompt = compiled.prompt;
+      const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = result.proof;
+      const dispatch = { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion };
+      const proof = { shotId: shot.shotId, sourceContextSha256: input.plan.sourceContextSha256, sourceContractSha256: shot.sourceContractSha256,
+        planSha256, authoredAt, changedFields: [...allowed], newFields, beforeFieldsSha256: sha256Json(priorFields), afterFieldsSha256: sha256Json(shot.fields),
+        request, response, usage: measured, dispatch, mutableRequestTextPaths };
+      const snapshot = await archive(shot.shotId, "snapshot", Buffer.from(canonicalJson({ schemaVersion: APPROVED_SOURCE_FIELDS_VERSION,
+        shotId: shot.shotId, authoring: proof, fields: shot.fields, prompt: shot.prompt, contract: compiled.contract })));
+      if (!result.proof.matchesCurrent(prompt, schema, options)) return fail("AUTHORING_DISPATCH_DRIFT");
+      const receipt = { ...proof, snapshot };
+      shot.authoringProof = receipt;
+      shot.currentContract = compiled.contract;
+      receipts.push(receipt);
     } finally {
-      await input.budgetHook({ phase: "after", shotId: shot.shotId, usage: measured, success: result.result.success });
+      if (invoked) {
+        const nativeCompleted = result ? nativeReasonCompleted(result.result) : false;
+        let dispatchOutcome: "verified-complete" | "unverified" = "unverified";
+        try {
+          if (nativeCompleted && measured && result?.proof?.matchesCurrent(prompt, schema, options)) dispatchOutcome = "verified-complete";
+        } finally {
+          // A native call must reach the durable outcome tracker exactly once,
+          // including unknown usage/proof and errors during archival or parsing.
+          await input.budgetHook({ phase: "after", shotId: shot.shotId, usage: measured,
+            success: result?.result.success === true, dispatchOutcome, nativeCompleted });
+        }
+      }
     }
     await verify();
-    if (!result.result.success || !measured || typeof result.result.content !== "string" || !result.proof
-      || !result.proof.matchesCurrent(prompt, schema, options)) return fail("AUTHORING_RESPONSE_UNPROVEN");
-    const parsed = strictJson(result.result.content), nextFields = record(parsed.fields);
-    if (!isDeepStrictEqual(Object.keys(parsed).sort(), ["fields", "shotId"]) || parsed.shotId !== shot.shotId
-      || !isDeepStrictEqual(Object.keys(nextFields).sort(), [...allowed].sort())
-      || !isDeepStrictEqual(parsed, result.result.data)) return fail("AUTHORING_RESPONSE_SCOPE_INVALID");
-    const priorFields = structuredClone(shot.fields);
-    const newFields: string[] = [];
-    for (const field of allowed) {
-      const value = nextFields[field];
-      const existed = Object.hasOwn(shot.fields, field);
-      if (!nonempty(value) || (existed ? !sameValueShape(shot.fields[field], value) || isDeepStrictEqual(value, shot.fields[field])
-        : typeof value !== "string")) return fail("AUTHORING_NOOP_OR_TYPE_INVALID");
-      if (!existed) newFields.push(field);
-      shot.fields[field] = structuredClone(value);
-    }
-    for (const field of Object.keys(priorFields)) if (!writable.has(field)
-      && !isDeepStrictEqual(shot.fields[field], priorFields[field])) return fail("AUTHORING_READONLY_DRIFT");
-    const authoredAt = new Date().toISOString();
-    const compiled = compilePromptShot(shot, { ...shot.compileOptions, createdAt: authoredAt });
-    if (compiled.hardErrors.length || !isDeepStrictEqual(compiled.fieldValues, shot.fields)) return fail("AUTHORING_COMPILE_INVALID");
-    const mutableRequestTextPaths = [...(timelineDiagnosed ? ["technical.timeline"] : []),
-      ...(rivalWitness ? ["technical.character_constraint"] : [])];
-    const immutableRequest = (contract: PromptContract) => {
-      const request = structuredClone(contract.request);
-      if (timelineDiagnosed) delete request.technical.timeline;
-      if (rivalWitness) delete request.technical.character_constraint;
-      return request;
-    };
-    const sourcePortrait = shot.sourceContract.bindings.find(binding => binding.field === "portraits")!;
-    const currentPortrait = compiled.contract.bindings.find(binding => binding.field === "portraits")!;
-    if (!isDeepStrictEqual(immutableRequest(shot.sourceContract), immutableRequest(compiled.contract))
-      || !isDeepStrictEqual(shot.sourceContract.modelCapabilities, compiled.contract.modelCapabilities)
-      || !isDeepStrictEqual(sourcePortrait.assets, currentPortrait.assets)
-      || sourcePortrait.assetApplicability !== currentPortrait.assetApplicability
-      || sourcePortrait.valueSha256 !== currentPortrait.valueSha256) return fail("AUTHORING_REQUEST_DRIFT");
-    if (rivalWitness && g6EventWitnessRepairDrift(witnessInput(shot.fields), [rivalWitness])) return fail("AUTHORING_EVENT_WITNESS_DRIFT");
-    shot.prompt = compiled.prompt;
-    const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = result.proof;
-    const dispatch = { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion };
-    const proof = { shotId: shot.shotId, sourceContextSha256: input.plan.sourceContextSha256, sourceContractSha256: shot.sourceContractSha256,
-      planSha256, authoredAt, changedFields: [...allowed], newFields, beforeFieldsSha256: sha256Json(priorFields), afterFieldsSha256: sha256Json(shot.fields),
-      request, response, usage: measured, dispatch, mutableRequestTextPaths };
-    const snapshot = await archive(shot.shotId, "snapshot", Buffer.from(canonicalJson({ schemaVersion: APPROVED_SOURCE_FIELDS_VERSION,
-      shotId: shot.shotId, authoring: proof, fields: shot.fields, prompt: shot.prompt, contract: compiled.contract })));
-    if (!result.proof.matchesCurrent(prompt, schema, options)) return fail("AUTHORING_DISPATCH_DRIFT");
-    const receipt = { ...proof, snapshot };
-    shot.authoringProof = receipt;
-    shot.currentContract = compiled.contract;
-    receipts.push(receipt);
   }
   await verify();
   return { shots, receipts, snapshotSha256: sha256Json(shots) };
