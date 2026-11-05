@@ -70,7 +70,7 @@ jobs:
         run: node --test --test-concurrency=1 scripts/ci/ui-auth-bootstrap.test.mjs scripts/ci/install-private-ui.test.mjs
 
       - name: Codex 正式视频入口与接入指南回归
-        run: node --import tsx --test scripts/tools/codex-video-workflow.test.mjs scripts/tools/lib/codex-video-film.test.mjs scripts/ai-video-workbench-guide.test.mjs
+        run: node --import tsx --test scripts/tools/codex-video-workflow.test.mjs scripts/tools/lib/codex-video-film.test.mjs scripts/tools/lib/edit-service-session.test.mjs scripts/ai-video-workbench-guide.test.mjs
 
       - name: 行业包及已登记资产完整性
         run: node --import tsx scripts/bundle-governance.mts
@@ -149,6 +149,14 @@ jobs:
           apps/server/src/video/marketing-facts.test.ts
           apps/server/src/video/marketing-gate-evidence.test.ts
           apps/server/src/video/studio-worker.test.ts
+          apps/server/src/video/approved-source-fields.test.ts
+          apps/server/src/video/approved-source-plan.test.ts
+          apps/server/src/video/approved-source-plan.pg.test.ts
+          apps/server/src/video/approved-source-api.pg.test.ts
+          apps/server/src/video/approved-source-worker.test.ts
+          apps/server/src/video/approved-source-marketing.test.ts
+          apps/server/src/video/approved-source-currentness.test.ts
+          apps/web/src/extensions/ai-video/tests/prompt-repair.test.tsx
           apps/server/src/video/prompt-quality-gate.test.ts
           apps/server/src/video/g6-motion-obligations.test.ts
           apps/server/src/video/g6-rival-pass.test.ts

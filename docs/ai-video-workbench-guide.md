@@ -1,6 +1,6 @@
 # WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
-> guideVersion: 2026-11-05.1
+> guideVersion: 2026-11-05.2
 > 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加使用原 Studio 回执接续 Film、预算核验和当前媒体质检。实际源码 SHA 以本次运行记录为准。
 > 读者：Codex、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
@@ -148,6 +148,66 @@ studio_api status "$EDIT_RUN_ROOT/studio-start.json" "$EDIT_RUN_ROOT/studio-stat
 
 启动成功只表示已建项目或已登记运行。查看 `projectId`、`runId`、`pipeline`、`status`、`currentGate`、`error` 与 `pendingApprovalId`。产品界面启动时，可从实际项目和本轮状态获取相同的 `projectId` 与 `runId`。以真实 `finished` 及同轮归档证据进入下一步。若有审批，从产品的对应操作核实并完成它。失败保留原始原因。启动请求超时、掉线或回执为空时，从本次工作区的项目及档案核对是否已登记运行，再决定恢复。
 
+### 3.2.1 前期提示词失败后，从失败处接着修
+
+已有营销前期通过 G1–G4，并留下可回读并逐项核验的提示词字段合同和 G6 诊断时，可使用独立的提示词修复入口。先保留已审需求、策划和人物图片，只为有明确缺失或冲突的字段新写内容，再实际执行当前 G5、G6、G7、最终营销事实审核及正式前期归档。普通 `studio.resume` 仍是原有恢复入口，不会自动采用这条材料承接路径。
+
+产品生成工作室在当前项目没有正式服务镜头时显示「从失败处接着修」。先点「检查能否接着修」：这一步只读取材料，显示可以保留的镜头、问题字段、原始资料有效期或无法沿用的具体原因。只有再点「修复提示词并重新审核」才调用已配置的 AI。运行中刷新的是同一修复；启动回执丢失时，「接回同一修复请求」继续使用原计划摘要与尝试编号，不创建第二轮。修复完成而镜头列表读取失败时，只刷新该轮列表，不重新调用模型。
+
+AI 工作台使用同一已验证 Edit 服务的两个正式 tRPC 入口：
+
+- `video.studio.promptRepairPlan`，只读，输入 `{projectId}`。返回 `kind:"ready"` 时包含 `planDigest`、`expectedLatestAttempt`、`sourceRunId`、`sourceCollectedAt`、`sourceExpiresAt`、`retainedGates`、`retainedShotCount`、`authoringFields` 和 `warnings`；`kind:"unavailable"` 给出 `code` 与 `message`。
+- `video.studio.repairPrompts`，工作区写操作，只接受 `{projectId, expectedLatestAttempt, planDigest}`。服务重新读取原件、核对当前项目和租约，再原子认领新尝试。`kind:"started"` 返回 `runId` 与 `sourceAttempt`；同一计划的重复请求返回同一真实运行。`busy` 或 `stale` 时保留具体原因，不自动切换为完整重跑。
+
+先读取计划，保存当前服务返回的原件索引和摘要：
+
+```bash
+node --input-type=module - "$EDIT_PROJECT_ID" "$EDIT_RUN_ROOT/repair-plan.json" <<'NODE'
+import { writeFileSync } from "node:fs";
+import { withVerifiedEditService } from "./scripts/tools/lib/edit-service-session.mjs";
+const [projectId, output] = process.argv.slice(2);
+if (!projectId || !output || !process.env.WORKLOOM_ACCESS_TOKEN) throw new Error("需要项目、私有计划路径和当前成员会话");
+await withVerifiedEditService(process.env.EDIT_API, process.env.WORKLOOM_ACCESS_TOKEN, async call => {
+  const plan = await call("video.studio.promptRepairPlan", { projectId });
+  writeFileSync(output, JSON.stringify(plan, null, 2) + "\n", { mode: 0o600 });
+});
+NODE
+```
+
+只有本次文本修复已经获得授权、模型与运行预算就绪时，才执行下面一步。客户端不提交提示词正文、图片路径或自称已通过的门记录；服务只接受来源计划标识并重新核验。请求文件先于发送保存，重送保持相同内容：
+
+```bash
+node --input-type=module - "$EDIT_RUN_ROOT/repair-plan.json" "$EDIT_RUN_ROOT/repair-start.json" <<'NODE'
+import assert from "node:assert/strict";
+import { readFileSync, writeFileSync } from "node:fs";
+import { withVerifiedEditService } from "./scripts/tools/lib/edit-service-session.mjs";
+const [planFile, receiptFile] = process.argv.slice(2);
+if (!planFile || !receiptFile || !process.env.WORKLOOM_ACCESS_TOKEN) throw new Error("需要计划、私有回执路径和当前成员会话");
+const plan = JSON.parse(readFileSync(planFile, "utf8"));
+if (plan.kind !== "ready" || !plan.projectId || !plan.planDigest || !Number.isInteger(plan.expectedLatestAttempt)) {
+  throw new Error("当前材料尚不能接续，请先核对计划中的原因");
+}
+const input = { projectId: plan.projectId, expectedLatestAttempt: plan.expectedLatestAttempt, planDigest: plan.planDigest };
+const requestFile = receiptFile + ".request.json";
+try { writeFileSync(requestFile, JSON.stringify(input) + "\n", { mode: 0o600, flag: "wx" }); }
+catch (error) {
+  if (error.code !== "EEXIST") throw error;
+  assert.deepEqual(JSON.parse(readFileSync(requestFile, "utf8")), input, "已有请求属于另一份计划，请保留原回执并先对账");
+}
+await withVerifiedEditService(process.env.EDIT_API, process.env.WORKLOOM_ACCESS_TOKEN, async call => {
+  const started = await call("video.studio.repairPrompts", input);
+  writeFileSync(receiptFile, JSON.stringify({ projectId: input.projectId, pipeline: "marketing", ...started }, null, 2) + "\n", { mode: 0o600 });
+  if (started.kind !== "started") throw new Error(started.message ?? "当前未启动，保留回执后核对原因");
+});
+NODE
+```
+
+执行 `EDIT_STUDIO_RECEIPT="$EDIT_RUN_ROOT/repair-start.json"`，用该回执返回的 `runId` 读取原有 `video.studio.status`；完成后仍按 §3.4 比对本轮正式 `production.shots`、完整片单和前期输出。修复回执不是原 `codex-video-workflow` 启动回执，不能拿旧运行的 `--continue` 代替这次修复交接；修复后的当前原件通过 §3.4 核验后，按 §3.5 的正式 Film 入口执行。启动回执、历史批准或修复草稿都不能当成已生成视频，后续资格和付费渲染继续走正式入口及真实 G8。
+
+当前接续范围为无对白、具有已保存 G4 冻结视觉合同、受控人物原图选择、完整 G1–G4 原件和可核验 G6 字段证据的营销前期。能够逐项恢复的现存值保持原摘要；缺失字段只在原合同和真实诊断可证明缺失时标为新创作，不补造历史原文或原值摘要。模型、时长、参考图或其他不可变请求规格缺件时，不能由作者猜值补齐。过早失败、缺少结构化 G4 附件、无法逆向还原的旧合同或未配置受控原图时，入口明确返回不可接续原因。
+
+修复仍失败时，保留新字段合同、原始拒绝与新创作回执。下次明确修复读取最新失败草稿，并继续引用最初已审来源；不把中间失败尝试改成通过，也不通过复制原件刷新原事实的有效期。原件、项目身份、人物版本/授权/字节或资料有效期变化时停止。新入口沿用现有模型调度与外层运行预算，不新增默认的调用次数或费用额度，不缩减单次合法窗口；需要总次数或金额硬闸的运行，仍须先配置相应预算执行面。
+
 ### 3.3 使用原回执接续正式 Film
 
 准备整链作业时，在私有 `EDIT_RUN_ROOT` 下创建 `studio` 目录，并从与 CLI 相同的干净 Git 提交启动本机 Edit 服务。
@@ -175,16 +235,17 @@ node --import tsx scripts/tools/codex-video-workflow.mjs --status \
 ### 3.4 读取并核验同一轮正式片单
 
 ```bash
-studio_api archive "$EDIT_RUN_ROOT/studio-start.json" "$EDIT_RUN_ROOT/studio-archive.json"
-node --input-type=module - "$EDIT_RUN_ROOT" <<'NODE'
+studio_api status "${EDIT_STUDIO_RECEIPT:-$EDIT_RUN_ROOT/studio-start.json}" "$EDIT_RUN_ROOT/studio-status.json"
+studio_api archive "${EDIT_STUDIO_RECEIPT:-$EDIT_RUN_ROOT/studio-start.json}" "$EDIT_RUN_ROOT/studio-archive.json"
+node --input-type=module - "$EDIT_RUN_ROOT" "${EDIT_STUDIO_RECEIPT:-$EDIT_RUN_ROOT/studio-start.json}" <<'NODE'
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 const root = process.argv[2];
 const read = (name) => JSON.parse(readFileSync(join(root, name), "utf8"));
-const start = read("studio-start.json");
+const start = JSON.parse(readFileSync(process.argv[3], "utf8"));
 const status = read("studio-status.json");
 if (!start.projectId || !start.runId || status?.projectId !== start.projectId
-  || status.runId !== start.runId || status.status !== "finished" || status.pendingApprovalId) {
+  || status.runId !== start.runId || !["finished", "done", "completed"].includes(status.status) || status.pendingApprovalId) {
   throw new Error("当前项目和运行必须已完成且没有待审事项");
 }
 writeFileSync(join(root, "project.json"), JSON.stringify({ projectId: start.projectId }) + "\n",
@@ -195,52 +256,25 @@ node scripts/workloom-agent.mjs invoke growth.video.production.shots \
   > "$EDIT_RUN_ROOT/production-shots.json"
 ```
 
-`production.shots` 返回当前来源和逐镜提示词。完整片单在同轮 `video.studio.archive` 的项目档案内。下面从真实归档比对运行、尝试、提示词及原始字节，打印片单绝对路径。只在比对成功时把该路径用于 Film。渲染前重查一次当前项目和摘要。
+`production.shots` 返回当前来源和逐镜提示词。完整片单在同轮 `video.studio.archive` 的项目档案内。下面从真实归档比对运行、尝试、提示词及原始字节，打印片单绝对路径。核验器同时支持普通 `system-preproduction` 与明确的 `approved-source-prompt-repair` 原件；修复必须有当前服务给出的 `approvedSourceRepair`，并与输出、片单和原始承接清单的摘要、项目及运行身份一致。只在比对成功时把该路径用于 Film。渲染前重查一次当前项目和摘要。
 
 ```bash
-node --input-type=module - "$EDIT_RUN_ROOT" <<'NODE'
-import { createHash } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
-import { isAbsolute, join, relative, sep } from "node:path";
+node --import tsx --input-type=module - "$EDIT_RUN_ROOT" "${EDIT_STUDIO_RECEIPT:-$EDIT_RUN_ROOT/studio-start.json}" <<'NODE'
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { verifyStudioHandoff } from "./scripts/tools/lib/codex-video-film.mjs";
 const root = process.argv[2];
 const read = (name) => JSON.parse(readFileSync(join(root, name), "utf8"));
-const start = read("studio-start.json");
+const start = JSON.parse(readFileSync(process.argv[3], "utf8"));
 const archive = read("studio-archive.json");
 const { result: production } = read("production-shots.json");
-if (!archive.archiveExists || archive.projectId !== start.projectId
-  || production?.projectId !== start.projectId || !production.shots?.length) {
-  throw new Error("项目归档与当前可用镜头不一致");
-}
-const archiveRoot = realpathSync(archive.archiveRoot);
-const studioRoot = realpathSync(join(root, "studio"));
-function inside(parent, child) {
-  const path = relative(parent, child);
-  return path && path !== ".." && !path.startsWith(".." + sep) && !isAbsolute(path);
-}
-if (!inside(studioRoot, archiveRoot)) throw new Error("项目档案不在本次 Studio 工作目录");
-function verified(ref, sha256) {
-  if (!ref || isAbsolute(ref)) throw new Error("档案引用必须是相对路径");
-  const path = realpathSync(join(archiveRoot, ref));
-  if (!inside(archiveRoot, path)) throw new Error("档案引用超出当前项目");
-  const bytes = readFileSync(path);
-  if (createHash("sha256").update(bytes).digest("hex") !== sha256) throw new Error("档案摘要不一致");
-  return { path, value: JSON.parse(bytes.toString("utf8")) };
-}
-const rows = archive.stages.filter((row) => row.stageId === "preproduction");
-const latest = rows.reduce((current, row) => !current || row.attempt > current.attempt ? row : current, null);
-if (latest?.status !== "done" || latest.runId !== start.runId || latest.attempt !== production.sourceAttempt) {
-  throw new Error("同轮当前前期记录尚未完成或已变更");
-}
-const { value: output } = verified(latest.outputRef, latest.outputSha256);
-if (output.success !== true || output.promptsSha256 !== production.promptsSha256) {
-  throw new Error("当前提示词与前期输出不一致");
-}
-const { path, value: shotlist } = verified(output.cliShotlistRef, output.cliShotlistSha256);
-if (shotlist.source?.kind !== "system-preproduction" || shotlist.source.projectId !== start.projectId
-  || shotlist.source.runId !== start.runId || shotlist.source.attempt !== latest.attempt) {
-  throw new Error("完整片单不是本项目本轮的系统原件");
-}
-console.log(path);
+const stage = archive.stages?.filter(row => row.stageId === "preproduction")
+  .sort((a, b) => b.attempt - a.attempt)[0];
+if (!stage) throw new Error("缺少当前前期归档");
+const handoff = verifyStudioHandoff({ archive, production, studio: start,
+  studioRoot: join(root, "studio"), requestedDuration: start.durationSeconds,
+  archiveReceipt: { attempt: stage.attempt, outputRef: stage.outputRef, outputSha256: stage.outputSha256 } });
+console.log(join(archive.archiveRoot, "stages/preproduction/attempt-" + handoff.source.attempt + ".shotlist.json"));
 NODE
 ```
 

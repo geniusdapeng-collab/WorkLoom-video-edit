@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { closeSync, constants, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync,
   realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { AI_PRODUCTION_DEFAULT_STAGES } from "./ai-production-defaults.ts";
 import { normalizePrdProductionProfile } from "../../../packages/video-studio/src/prd-authority.ts";
 import { admitFilmBudget, FilmContinuationError, filmRuntimeEnv } from "./codex-video-film-admission.mjs";
@@ -56,6 +57,50 @@ function verifiedArchiveFile(root, ref, expectedRef, digest) {
   return { bytes, data: JSON.parse(bytes) };
 }
 
+const REPAIR_MODE = "approved-source-prompt-repair";
+
+/** The live service verifies the historical originals; this client binds its descriptor to the exact handoff. */
+function verifyApprovedSourceHandoff({ root, production, authority, output, shotlist, source, stage }) {
+  const repair = production.approvedSourceRepair;
+  if (repair === undefined) {
+    requireMatch(source.kind === "system-preproduction" && authority.approvedSourceRepair === undefined
+      && output.mode !== REPAIR_MODE && source.adoption === undefined && shotlist.retainedApprovedSource === undefined,
+    "SYSTEM_SHOTLIST_REQUIRED");
+    return {};
+  }
+  requireMatch(object(repair) && repair.mode === REPAIR_MODE && HASH.test(repair.planDigest ?? "")
+    && HASH.test(repair.adoptionSha256 ?? "") && source.kind === REPAIR_MODE && output.mode === REPAIR_MODE
+    && authority.pipelineKind === "marketing" && isDeepStrictEqual(authority.approvedSourceRepair, repair),
+  "APPROVED_SOURCE_HANDOFF_UNVERIFIED");
+  const reference = { ref: repair.adoptionRef, sha256: repair.adoptionSha256 };
+  requireMatch(isDeepStrictEqual(source.adoption, reference) && isDeepStrictEqual(shotlist.retainedApprovedSource, reference),
+    "APPROVED_SOURCE_HANDOFF_UNVERIFIED");
+  const { data: adoption } = verifiedArchiveFile(root, reference.ref,
+    "stages/preproduction/attempt-" + stage.attempt + ".approved-source-adoption.json", reference.sha256);
+  const target = Object.fromEntries(["tenantId", "workspaceId", "projectId", "runId", "attempt"].map(key => [key, authority[key]]));
+  requireMatch(adoption?.schemaVersion === "workloom.approved-source-adoption/v1" && adoption.mode === REPAIR_MODE
+    && adoption.planDigest === repair.planDigest && isDeepStrictEqual(adoption.target, target),
+  "APPROVED_SOURCE_HANDOFF_UNVERIFIED");
+  const identities = [adoption.source, adoption.currentDraftSource, adoption.rootApprovalSource];
+  for (const identity of identities) {
+    const scope = identity?.scope;
+    requireMatch(object(identity) && object(scope) && Object.keys(scope).length === 5
+      && scope.tenantId === target.tenantId && scope.workspaceId === target.workspaceId && scope.projectId === target.projectId
+      && safeId(scope.runId) && scope.runId !== target.runId && Number.isSafeInteger(scope.attempt)
+      && scope.attempt > 0 && scope.attempt < target.attempt && safeId(identity.stageRunId)
+      && identity.inputRef === "stages/preproduction/attempt-" + scope.attempt + ".input.json"
+      && identity.outputRef === "stages/preproduction/attempt-" + scope.attempt + ".output.json"
+      && HASH.test(identity.inputSha256 ?? "") && HASH.test(identity.outputSha256 ?? ""),
+    "APPROVED_SOURCE_HANDOFF_UNVERIFIED");
+  }
+  requireMatch(adoption.source.scope.attempt === target.attempt - 1
+    && adoption.currentDraftSource.scope.attempt <= adoption.source.scope.attempt
+    && adoption.rootApprovalSource.scope.attempt <= adoption.currentDraftSource.scope.attempt,
+  "APPROVED_SOURCE_HANDOFF_UNVERIFIED");
+  // Include the adopted bytes in admission's source refresh comparison and the durable Film journal.
+  return { approvedSourceRepair: { ...repair } };
+}
+
 export function verifyStudioHandoff({ archive, production, studio, studioRoot, requestedDuration, archiveReceipt }) {
   requireMatch(archive?.archiveExists === true && archive.projectId === studio.projectId
     && !archive.pendingApprovalId && production?.projectId === studio.projectId && safeId(production.sourceStageRunId)
@@ -81,11 +126,12 @@ export function verifyStudioHandoff({ archive, production, studio, studioRoot, r
   const { data: shotlist, bytes } = verifiedArchiveFile(root, output.cliShotlistRef, stem + ".shotlist.json", output.cliShotlistSha256);
   const source = shotlist?.source;
   requireMatch(shotlist?.schemaVersion === "workloom.preproduction-cli-handoff/v1"
-    && shotlist.projectId === studio.projectId && source?.kind === "system-preproduction" && source.issuer === authority.issuer
+    && shotlist.projectId === studio.projectId && object(source) && source.issuer === authority.issuer
     && source.projectId === studio.projectId && source.runId === studio.runId && source.attempt === stage.attempt
     && source.workspaceId === authority.workspaceId && source.tenantId === authority.tenantId
     && Array.isArray(shotlist.shots) && shotlist.shots.length > 0
     && Array.isArray(production.shots) && shotlist.shots.length === production.shots.length, "SYSTEM_SHOTLIST_REQUIRED");
+  const adoptedSource = verifyApprovedSourceHandoff({ root, production, authority, output, shotlist, source, stage });
   let total = 0;
   for (let i = 0; i < shotlist.shots.length; i++) {
     const shot = shotlist.shots[i];
@@ -108,7 +154,7 @@ export function verifyStudioHandoff({ archive, production, studio, studioRoot, r
   "SYSTEM_CAST_SOURCE_INVALID");
   return { bytes, shotDurations: shotlist.shots.map((shot) => shot.duration), platform: metadata.platform, aspect: shotlist.aspect ?? metadata.platformSelection?.aspectRatio,
     brief: metadata.brief ?? {}, usePortraitRefs: casting.mode === "builtin" || casting.mode === "mixed", source: { runId: studio.runId, attempt: stage.attempt, stageRunId: production.sourceStageRunId,
-      outputSha256: stage.outputSha256, promptsSha256: production.promptsSha256, shotlistSha256: output.cliShotlistSha256, durationSeconds: total } };
+      outputSha256: stage.outputSha256, promptsSha256: production.promptsSha256, shotlistSha256: output.cliShotlistSha256, durationSeconds: total, ...adoptedSource } };
 }
 
 function filmOptions(handoff) {

@@ -17,6 +17,7 @@ import { ensureDemoLogin, trpc } from "../../../lib/trpc";
 import { Bridge } from "../../../shell/Bridge";
 import { useNavigationAccess } from "../../../shell/NavigationAccess";
 import { BannerAlert, EmptyState, Skeleton } from "../../../components/hud";
+import { PromptRepairCard } from "../components/PromptRepairCard";
 
 interface ModelEntry {
   id: string;
@@ -166,7 +167,7 @@ export default function Studio() {
     const [drafts, production] = await Promise.allSettled([
       trpc.video.cms.listScripts.query({ projectId }), trpc.video.production.shots.query({ projectId }),
     ]);
-    if (currentSourceKey.current !== sourceKey) return;
+    if (currentSourceKey.current !== sourceKey) return false;
     setScripts(drafts.status === "fulfilled" ? drafts.value as unknown as ScriptRow[] : []);
     if (production.status === "fulfilled") {
       const current = production.value.shots;
@@ -180,7 +181,12 @@ export default function Studio() {
       setSourceError(production.reason instanceof Error ? production.reason.message : String(production.reason));
     }
     setVerifiedSourceKey(sourceKey);
+    return production.status === "fulfilled" && production.value.shots.length > 0;
   }, [projectId, shotHint, sourceKey]);
+
+  const loadRepairedShots = useCallback(async () => {
+    if (!await loadScripts()) throw new Error("暂未读到修复后的服务镜头，请刷新同一次修复进度。");
+  }, [loadScripts]);
 
   const loadJobs = useCallback(async (silent = false) => {
     if (!silent) setReady(false);
@@ -649,6 +655,10 @@ export default function Studio() {
           <BannerAlert level={banner.level} actionLabel="知道了" onAction={() => setBanner(null)}>
             {banner.text}
           </BannerAlert>
+        )}
+
+        {accessStatus === "ready" && verifiedSourceKey === sourceKey && visibleShots.length === 0 && (
+          <PromptRepairCard key={sourceKey} projectId={projectId} canRepair={canRender} onCompleted={loadRepairedShots} />
         )}
 
         {selectedShot && (!g8 || g8.error || contract) && g8Actions}
