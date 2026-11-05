@@ -17,6 +17,7 @@ import {
   type ScenePolicyReport,
 } from "@hyperreality/video-studio";
 import { verifyMarketingFacts } from "./marketing-authority.js";
+import { verifyApprovedSourceAdoption } from "./approved-source-plan.js";
 import { archiveWorkDir, projectRunLockKey } from "./archive-host.js";
 import { ScenePolicyRenderGateError, verifyScenePolicyProductionSource, type ScenePolicySourceDecision } from "./scene-policy-render-gate.js";
 import { getModel, providerConfigured, resolveProviderModel } from "./gen/catalog.js";
@@ -185,7 +186,22 @@ async function sourceForShot(
     || authority.tenantId !== scope.tenantId || authority.workspaceId !== scope.workspaceId || authority.projectId !== projectId
     || authority.attempt !== row.attempt || authority.runId !== row.run_id || authority.pipelineKind !== row.kind) fail("PREPRODUCTION_UNVERIFIED", "服务预生产证据身份不一致");
   const gates = Array.isArray(authority.gates) ? authority.gates as JsonRecord[] : [];
-  for (const key of [...(row.kind === "marketing" ? ["G1_DOSSIER"] : []), ...REQUIRED_GATES]) {
+  const repair = authority.approvedSourceRepair === undefined ? null : record(authority.approvedSourceRepair, "修复来源关系无效");
+  const adoption = repair ? await (async () => {
+    if (row.kind !== "marketing" || repair.mode !== "approved-source-prompt-repair"
+      || typeof repair.adoptionRef !== "string" || typeof repair.adoptionSha256 !== "string"
+      || gates.some(gate => ["G1_DOSSIER", "G2_THEME", "G3_INSIGHT", "G4_PRD"].includes(String(gate.gate)))) {
+      fail("PREPRODUCTION_ADOPTION_UNVERIFIED", "修复必须明确保留历史批准来源，不能制造本次G1–G4通过记录");
+    }
+    const verified = await verifyApprovedSourceAdoption({ scope: { ...scope, projectId, runId: row.run_id, attempt: row.attempt },
+      root, ref: repair.adoptionRef, sha256: repair.adoptionSha256 });
+    if (verified.plan.planDigest !== repair.planDigest) fail("PREPRODUCTION_ADOPTION_UNVERIFIED", "修复计划摘要与来源交接不一致");
+    return verified;
+  })() : null;
+  if (adoption && loadPipelineFeatureFlags(env).promptContract !== "enforce") {
+    fail("PREPRODUCTION_ADOPTION_UNVERIFIED", "采用历史批准来源的修复产物必须持续启用完整提示词合同核验");
+  }
+  for (const key of adoption ? ["G5_PORTRAIT", "G6_PROMPT", "G7_FINAL"] : [...(row.kind === "marketing" ? ["G1_DOSSIER"] : []), ...REQUIRED_GATES]) {
     const matches = gates.filter(g => g.gate === key);
     const gate = matches[0];
     if (!gate) fail("PREPRODUCTION_GATES_UNVERIFIED", `当前执行缺少 ${key} 裁决`);
@@ -247,8 +263,11 @@ async function sourceForShot(
     const facts = await verifyMarketingFacts({ root, ref: output.marketingFactsRef, sha256: output.marketingFactsSha256,
       scope: { ...scope, projectId, runId: row.run_id, attempt: row.attempt },
       shots: shots.map(item => ({ shotId: String(item.shotId ?? ""), prompt: String(item.prompt ?? ""), fields: item.fields })) });
-    const g1 = gates.find(gate => gate.gate === "G1_DOSSIER");
+    const g1 = adoption ? adoption.sourceGates.G1_DOSSIER.proof : gates.find(gate => gate.gate === "G1_DOSSIER");
     if (!(g1?.evidence as JsonRecord[] | undefined)?.some(item => item.sha256 === facts.g1ContentSha256 && item.scope === "complete-text")) fail("MARKETING_G1_UNBOUND", "G1并未审核当前完整事实包");
+    if (adoption && (!facts.approvedSourceAdoption || canonicalRenderJson(facts.approvedSourceAdoption) !== canonicalRenderJson({ ref: repair!.adoptionRef, sha256: repair!.adoptionSha256 }))) {
+      fail("MARKETING_G1_UNBOUND", "最终镜头事实审核没有绑定同一完整历史来源交接");
+    }
   }
   const matching = shotId === null ? shots.slice(0, 1) : shots.filter(shot => shot.shotId === shotId);
   if (matching.length !== 1) fail("SHOT_NOT_FOUND", "镜头不存在或重复，不能签发资格");
@@ -264,6 +283,9 @@ async function sourceForShot(
     if (!g6 || !Array.isArray(summaries) || !g7?.renderEligibility
       || (g7.renderEligibility as JsonRecord).eligible !== true) {
       fail("PREPRODUCTION_GATES_UNVERIFIED", "G6/G7 缺少当前提示词合同或 render_eligible 资格");
+    }
+    if (adoption && record(g6.promptQuality, "G6缺少当前评审计划").approvedProductionPlanSha256 !== sha256Json(adoption.plan.g4.approvedProductionPlan)) {
+      fail("PREPRODUCTION_ADOPTION_UNVERIFIED", "G6没有绑定本次采用的原G4完整已审计划");
     }
     const g7Contract = g7.promptContract;
     if (canonicalRenderJson(g7Contract) !== canonicalRenderJson(summaries)) {

@@ -131,6 +131,7 @@ interface BuiltinSemanticReviewer {
   engine: WorkloomLLMEngine;
   review: SemanticQualityReviewer["review"];
   repair: SemanticQualityReviewer["repair"];
+  verifyCurrent?: () => void | Promise<void>;
 }
 
 const builtinSemanticReviewers = new WeakMap<SemanticQualityReviewer, BuiltinSemanticReviewer>();
@@ -777,26 +778,32 @@ function correctedSemanticReviewRequest(request: ReturnType<typeof semanticRevie
   return [`【G6 评审响应技术纠正】\n${SEMANTIC_REVIEW_CORRECTIONS[failure]}\n\n${prompt}`, schema, options] as const;
 }
 
-export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): SemanticQualityReviewer {
+async function withCurrentSource<T>(verifyCurrent: (() => void | Promise<void>) | undefined, dispatch: () => Promise<T>): Promise<T> {
+  await verifyCurrent?.();
+  try { return await dispatch(); }
+  finally { await verifyCurrent?.(); }
+}
+
+export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine, verifyCurrent?: () => void | Promise<void>): SemanticQualityReviewer {
   const reviewer: SemanticQualityReviewer = {
     model: llm.model,
     async review(context) {
-      const result = await llm.reasonStructured(...semanticReviewRequest(context));
+      const result = await withCurrentSource(verifyCurrent, () => llm.reasonStructured(...semanticReviewRequest(context)));
       if (!result.success) throw new Error(result.error ?? "SEMANTIC_REVIEW_TRANSPORT_FAILED");
       return result.data ?? result.content;
     },
     async repair(context) {
-      const result = await llm.reasonStructured(
+      const result = await withCurrentSource(verifyCurrent, () => llm.reasonStructured(
         repairPrompt(context.contract, context.shot, context.findings, context.allowedFields, context.upstreamContext,
           context.finalPromptLength, context.finalPromptFieldBudget, context.helmetCustodyFields, context.helmetCustodyArm),
         repairSchema(context),
         { scene: "preproduction", maxTokens: 1200, temperature: 0 },
-      );
+      ));
       if (!result.success) throw new Error(result.error ?? "SEMANTIC_REPAIR_TRANSPORT_FAILED");
       return result.data ?? result.content;
     },
   };
-  builtinSemanticReviewers.set(reviewer, { engine: llm, review: reviewer.review, repair: reviewer.repair });
+  builtinSemanticReviewers.set(reviewer, { engine: llm, review: reviewer.review, repair: reviewer.repair, verifyCurrent });
   return reviewer;
 }
 
@@ -1067,7 +1074,7 @@ async function reviewWithTechnicalRetry(
   prior?: PassedSemanticReviewProof,
 ): Promise<TechnicalReviewResult> {
   const native = proofReviewer(reviewer);
-  if (native) return reviewNativeWithCorrection(native.engine, context, captureProof, prior);
+  if (native) return reviewNativeWithCorrection(native.engine, context, captureProof, prior, native.verifyCurrent);
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -1085,10 +1092,13 @@ async function reviewWithTechnicalRetry(
 
 async function reviewNativeWithCorrection(
   engine: WorkloomLLMEngine, context: SemanticReviewContext, captureProof: boolean, prior?: PassedSemanticReviewProof,
+  verifyCurrent?: () => void | Promise<void>,
 ): Promise<TechnicalReviewResult> {
   const parse = (value: unknown) => parseSemanticQualityReview(value, context.contract, context.shot, context.upstreamContext);
-  const dispatch = async (value: ReturnType<typeof semanticReviewRequest>): ReturnType<WorkloomLLMEngine["reasonStructuredWithProof"]> =>
-    captureProof ? engine.reasonStructuredWithProof(...value) : { result: await engine.reasonStructured(...value) };
+  const dispatch = async (value: ReturnType<typeof semanticReviewRequest>): ReturnType<WorkloomLLMEngine["reasonStructuredWithProof"]> => {
+    return withCurrentSource(verifyCurrent, async () => captureProof
+      ? engine.reasonStructuredWithProof(...value) : { result: await engine.reasonStructured(...value) });
+  };
   let failure: SemanticReviewCorrection | undefined;
   let errors: string[] = [];
   let retries = 0;
