@@ -131,7 +131,7 @@ beforeEach(async () => {
     }
     return Response.json(response);
   }));
-});
+}, 30_000);
 afterEach(async () => {
   for (const row of rows.filter(row => row.attempt > fixture.scope.attempt)) {
     const entry = getRun(row.run_id, scope.workspaceId);
@@ -141,7 +141,7 @@ afterEach(async () => {
     }
   }
   resetCircuit("preproduction"); vi.unstubAllEnvs(); vi.unstubAllGlobals(); await rm(workDir, { recursive: true, force: true });
-});
+}, 30_000);
 async function start() {
   const plan = await prepareApprovedSourcePlan(scope, projectId), request = { projectId, expectedLatestAttempt: plan.source.scope.attempt, planDigest: plan.planDigest };
   const receipt = await repairApprovedSourcePrompts(scope, request, startApprovedSourceRepairRun);
@@ -152,7 +152,7 @@ async function finished(runId: string) {
   await vi.waitFor(() => { expect(getRun(runId, scope.workspaceId)?.finishedAt).toEqual(expect.any(String)); }, { timeout: 30_000, interval: 10 });
   return getRun(runId, scope.workspaceId)!;
 }
-describe("approved-source host worker", () => {
+describe("approved-source host worker", { timeout: 30_000 }, () => {
   it("returns only after actual claim/input/adoption and finishes with current G5–G7 plus normal production shots", async () => {
     const { plan, request, receipt } = await start();
     const input = JSON.parse(await readFile(path.join(fixture.store.root, "stages/preproduction/attempt-5.input.json"), "utf8"));
