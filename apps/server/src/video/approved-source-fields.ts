@@ -78,6 +78,13 @@ export interface RecoveredFieldProof {
   valueSha256: string;
   carrier: "archived-field" | "request" | "prompt-text" | "prompt-array" | "prompt-scalar" | "canonical-none";
 }
+export interface UnboundPromptField {
+  field: string;
+  sourceState: "canonical-unbound";
+  /** There was no canonical field value binding in the source contract. */
+  valueSha256: null;
+  diagnosisEvidenceSha256: string[];
+}
 export interface RecoveredPromptShot extends PromptCompileShot {
   shotId: string;
   duration: number;
@@ -92,6 +99,9 @@ export interface RecoveredPromptShot extends PromptCompileShot {
   sourceContract: PromptContract;
   compileOptions: PromptCompileOptions;
   fieldProofs: RecoveredFieldProof[];
+  /** Historical omissions, retained after authoring; they never describe recovered old values. */
+  unboundFields: UnboundPromptField[];
+  missingFieldEvidence: Array<{ text: string; sha256: string }>;
   rawAliasState: "not-retained";
 }
 export interface RecoverContractFieldsInput {
@@ -99,6 +109,27 @@ export interface RecoverContractFieldsInput {
   expectedSha256: string;
   archivedFields?: JsonRecord;
   sceneMetadata?: { sceneId?: string; sceneType?: string; noPeople?: boolean };
+  /** Only the adopting host's original G6 report can establish a canonical omission. */
+  missingEvidence?: readonly VerifiedFieldArtifact[];
+}
+function sourceMissingDiagnoses(evidence: readonly VerifiedFieldArtifact[], shotId: string) {
+  const byField = new Map<string, string[]>(), originals: Array<{ text: string; sha256: string }> = [];
+  for (const item of evidence) {
+    const { parsed, sha256 } = artifact(item);
+    if (parsed.schemaVersion !== "workloom.video-prompt-quality/v2" || !Array.isArray(parsed.findings)) return fail("MISSING_EVIDENCE_INVALID");
+    let used = false;
+    for (const raw of parsed.findings) {
+      const finding = record(raw);
+      if (finding.shotId !== shotId || finding.code !== "HARD_FIELD_VALUE_MISSING" || finding.blocking !== true
+        || !["deterministic", "local_patch"].includes(String(finding.repairClass)) || typeof finding.field !== "string") continue;
+      const hashes = byField.get(finding.field) ?? [];
+      if (!hashes.includes(sha256)) hashes.push(sha256);
+      byField.set(finding.field, hashes);
+      used = true;
+    }
+    if (used && !originals.some(original => original.sha256 === sha256)) originals.push({ text: Buffer.from(item.bytes).toString("utf8"), sha256 });
+  }
+  return { byField, originals };
 }
 function pathValue(value: unknown, path: string): unknown {
   for (const key of path.split(".")) {
@@ -157,18 +188,43 @@ export function recoverContractFields(input: RecoverContractFieldsInput): Recove
     || (model.cameraFixedSupported !== undefined && typeof model.cameraFixedSupported !== "boolean")) return fail("CONTRACT_SCHEMA_INVALID");
   const contract = parsed as unknown as PromptContract;
   const policy = promptFieldPolicy(contract.fieldSchema, contract.fieldCount === 30);
-  if (contract.fieldCount !== policy.fieldCount || contract.bindings.length !== policy.fields.length) return fail("FIELD_COUNT_INVALID");
+  if (contract.fieldCount !== policy.fieldCount || contract.bindings.length > policy.fields.length) return fail("FIELD_COUNT_INVALID");
+  const missingDiagnoses = sourceMissingDiagnoses(input.missingEvidence ?? [], contract.shotId);
+  const bindingByField = new Map<string, JsonRecord>();
+  let previousIndex = -1;
+  for (const raw of contract.bindings) {
+    const binding = record(raw), index = policy.fields.findIndex(field => field.key === binding.field);
+    if (index < 0 || index <= previousIndex || bindingByField.has(String(binding.field))) return fail("FIELD_BINDING_ORDER_INVALID");
+    previousIndex = index;
+    bindingByField.set(String(binding.field), binding);
+  }
   if (input.archivedFields && !jsonTree(input.archivedFields)) return fail("ARCHIVED_FIELDS_INVALID");
   const metadata = input.sceneMetadata ?? {};
   if (!jsonTree(metadata) || Object.keys(metadata).some(key => !["sceneId", "sceneType", "noPeople"].includes(key))
     || [metadata.sceneId, metadata.sceneType].some(value => value !== undefined && (typeof value !== "string" || !value.trim()))
     || (metadata.noPeople !== undefined && typeof metadata.noPeople !== "boolean")) return fail("SCENE_METADATA_INVALID");
-  const fields: JsonRecord = {}, fieldProofs: RecoveredFieldProof[] = [];
+  const fields: JsonRecord = {}, fieldProofs: RecoveredFieldProof[] = [], unboundFields: UnboundPromptField[] = [];
   let offset = 0;
   for (const [index, definition] of policy.fields.entries()) {
-    const binding = record(contract.bindings[index]);
-    const span = record(binding.promptSpan);
+    const binding = bindingByField.get(definition.key);
     const prefix = `${String(index + 1).padStart(2, "0")}.【${definition.label}】`;
+    if (!binding) {
+      const evidenceSha256 = missingDiagnoses.byField.get(definition.key);
+      if (!evidenceSha256?.length) return fail(`MISSING_EVIDENCE_REQUIRED:${definition.key}`);
+      // A new content field cannot repair missing source permissions, images
+      // or an additional native request channel. Those need upstream work.
+      if (immutableFields.has(definition.key) || ["timeline", "character_constraint"].includes(definition.key)) {
+        return fail(`UNBOUND_REQUEST_FIELD_UNSUPPORTED:${definition.key}`);
+      }
+      const unboundLine = `${prefix}undefined`;
+      if (contract.prompt.slice(offset, offset + unboundLine.length) !== unboundLine) return fail("UNBOUND_PROMPT_LINE_INVALID");
+      offset += unboundLine.length;
+      unboundFields.push({ field: definition.key, sourceState: "canonical-unbound", valueSha256: null,
+        diagnosisEvidenceSha256: [...evidenceSha256] });
+      if (index < policy.fields.length - 1 && contract.prompt[offset++] !== "\n") return fail("FIELD_SEPARATOR_INVALID");
+      continue;
+    }
+    const span = record(binding.promptSpan);
     if (binding.field !== definition.key || !isDeepStrictEqual(binding.channels, definition.channels)
       || (definition.requestKeys.length && !isDeepStrictEqual(binding.requestKeys, definition.requestKeys))
       || span.label !== `【${definition.label}】` || span.start !== offset || !Number.isSafeInteger(span.end)
@@ -209,21 +265,28 @@ export function recoverContractFields(input: RecoverContractFieldsInput): Recove
   let recompiled: ReturnType<typeof compilePromptShot>;
   try { recompiled = compilePromptShot({ shotId: contract.shotId, duration: Number(parameters.duration_sec), fields, ...metadata }, compileOptions); }
   catch { return fail("RECOMPILE_FAILED"); }
-  if (recompiled.hardErrors.length || !validatePromptContract(contract).valid || !isDeepStrictEqual(recompiled.contract, contract)
+  const missing = new Set(unboundFields.map(field => field.field));
+  const sourceValidation = validatePromptContract(contract);
+  if (recompiled.hardErrors.length !== missing.size
+    || recompiled.hardErrors.some(error => error.code !== "HARD_FIELD_VALUE_MISSING" || !error.field || !missing.has(error.field))
+    || sourceValidation.errors.length !== missing.size
+    || sourceValidation.errors.some(error => error.code !== "HARD_FIELD_UNBOUND" || !error.field || !missing.has(error.field))
+    || !isDeepStrictEqual(recompiled.contract, contract)
     || !isDeepStrictEqual(recompiled.fieldValues, fields)) return fail("RECOMPILE_MISMATCH");
   return {
     shotId: contract.shotId, duration: Number(parameters.duration_sec), ...structuredClone(metadata), fields,
     prompt: contract.prompt, sourceContractText: Buffer.from(input.contractBytes).toString("utf8"),
     sourceContractSha256: sha256, sourceContract: structuredClone(contract), compileOptions,
-    fieldProofs, rawAliasState: "not-retained",
+    fieldProofs, unboundFields, missingFieldEvidence: unboundFields.length ? missingDiagnoses.originals : [], rawAliasState: "not-retained",
   };
 }
 
 export interface AllowedFieldDiagnosis {
   shotId: string; field: string; kind: "conflict" | "missing" | "truncation";
   code: string; reason: string; evidenceSha256: string;
-  origin: "g6-semantic" | "host-diagnostic";
-  sourceContractSha256: string; valueSha256: string;
+  origin: "g6-semantic" | "g6-missing" | "host-diagnostic";
+  sourceContractSha256: string; valueSha256: string | null;
+  sourceBinding: "bound" | "unbound";
 }
 export interface AllowedFieldPlan {
   schemaVersion: typeof APPROVED_SOURCE_FIELDS_VERSION;
@@ -245,12 +308,15 @@ const immutableFields = new Set(["portraits", "constraint", "baseline", "dialogu
 function validateRecoveredShot(shot: RecoveredPromptShot): RecoveredPromptShot {
   const recovered = recoverContractFields({ contractBytes: Buffer.from(shot.sourceContractText),
     expectedSha256: shot.sourceContractSha256, archivedFields: shot.fields,
+    missingEvidence: shot.missingFieldEvidence.map(item => ({ bytes: Buffer.from(item.text), expectedSha256: item.sha256 })),
     sceneMetadata: { ...(shot.sceneId ? { sceneId: shot.sceneId } : {}), ...(shot.sceneType ? { sceneType: shot.sceneType } : {}),
       ...(shot.noPeople === undefined ? {} : { noPeople: shot.noPeople }) } });
   if (!isDeepStrictEqual(recovered.fields, shot.fields) || shot.prompt !== recovered.prompt || shot.duration !== recovered.duration
     || shot.shotId !== recovered.shotId || shot.rawAliasState !== "not-retained"
     || !isDeepStrictEqual(shot.compileOptions, recovered.compileOptions)
     || !isDeepStrictEqual(shot.sourceContract, recovered.sourceContract)
+    || !isDeepStrictEqual(shot.unboundFields, recovered.unboundFields)
+    || !isDeepStrictEqual(shot.missingFieldEvidence, recovered.missingFieldEvidence)
     || !Array.isArray(shot.fieldProofs) || shot.fieldProofs.length !== recovered.fieldProofs.length
     || shot.fieldProofs.some((proof, index) => proof.field !== recovered.fieldProofs[index]!.field
       || proof.valueSha256 !== recovered.fieldProofs[index]!.valueSha256
@@ -267,12 +333,17 @@ export function planFieldAuthoring(input: PlanFieldAuthoringInput): AllowedField
   const add = (entry: JsonRecord, kind: AllowedFieldDiagnosis["kind"], evidenceSha256: string, origin: AllowedFieldDiagnosis["origin"]) => {
     const shot = typeof entry.shotId === "string" ? byId.get(entry.shotId) : undefined;
     const field = typeof entry.field === "string" ? entry.field : undefined;
-    if (!shot || !field || !Object.hasOwn(shot.fields, field) || immutableFields.has(field)) return fail("DIAGNOSIS_SCOPE_INVALID");
+    const unbound = shot?.unboundFields.find(item => item.field === field);
+    if (!shot || !field || (!Object.hasOwn(shot.fields, field) && !unbound) || immutableFields.has(field)) return fail("DIAGNOSIS_SCOPE_INVALID");
+    if (unbound && (origin !== "g6-missing" || kind !== "missing" || entry.code !== "HARD_FIELD_VALUE_MISSING"
+      || !unbound.diagnosisEvidenceSha256.includes(evidenceSha256))) return fail("MISSING_DIAGNOSIS_UNBOUND");
+    if (!unbound && origin === "g6-missing") return fail("MISSING_DIAGNOSIS_NOT_ABSENT");
     if (entry.sourceContractSha256 !== undefined && entry.sourceContractSha256 !== shot.sourceContractSha256) return fail("DIAGNOSIS_CONTRACT_DRIFT");
-    if (entry.valueSha256 !== undefined && entry.valueSha256 !== sha256Json(shot.fields[field])) return fail("DIAGNOSIS_VALUE_DRIFT");
+    const valueSha256 = unbound ? null : sha256Json(shot.fields[field]);
+    if (entry.valueSha256 !== undefined && entry.valueSha256 !== valueSha256) return fail("DIAGNOSIS_VALUE_DRIFT");
     if (typeof entry.code !== "string" || !entry.code.trim() || typeof entry.reason !== "string" || !entry.reason.trim()) return fail("DIAGNOSIS_INVALID");
     diagnoses.push({ shotId: shot.shotId, field, kind, code: entry.code, reason: entry.reason, evidenceSha256, origin,
-      sourceContractSha256: shot.sourceContractSha256, valueSha256: sha256Json(shot.fields[field]) });
+      sourceContractSha256: shot.sourceContractSha256, valueSha256, sourceBinding: unbound ? "unbound" : "bound" });
   };
   for (const item of [...input.diagnosedFindings, ...(input.truncationEvidence ?? [])]) {
     const { parsed, sha256 } = artifact(item);
@@ -288,13 +359,16 @@ export function planFieldAuthoring(input: PlanFieldAuthoringInput): AllowedField
     } else if (parsed.schemaVersion === "workloom.video-prompt-quality/v2" && Array.isArray(parsed.findings)) {
       for (const raw of parsed.findings) {
         const entry = record(raw);
-        if (entry.blocking !== true || entry.repairClass !== "semantic" || typeof entry.field !== "string") continue;
-        add({ ...entry, reason: entry.detail }, "conflict", sha256, "g6-semantic");
+        if (entry.blocking !== true || typeof entry.field !== "string") continue;
+        if (entry.code === "HARD_FIELD_VALUE_MISSING" && ["deterministic", "local_patch"].includes(String(entry.repairClass))) {
+          add({ ...entry, reason: entry.detail }, "missing", sha256, "g6-missing");
+        } else if (entry.repairClass === "semantic") add({ ...entry, reason: entry.detail }, "conflict", sha256, "g6-semantic");
       }
     } else return fail("DIAGNOSIS_ARTIFACT_INVALID");
   }
   const fieldsByShot = Object.fromEntries(shots.map(shot => [shot.shotId,
     [...new Set(diagnoses.filter(entry => entry.shotId === shot.shotId).map(entry => entry.field))]]));
+  if (shots.some(shot => shot.unboundFields.some(field => !fieldsByShot[shot.shotId]!.includes(field.field)))) return fail("MISSING_DIAGNOSIS_REQUIRED");
   const body = { schemaVersion: APPROVED_SOURCE_FIELDS_VERSION, sourceContextSha256: input.sourceContextSha256,
     sourceShotsSha256: sha256Json(shots), shots, diagnoses, fieldsByShot };
   return { ...body, sha256: sha256Json(body) };
@@ -312,6 +386,7 @@ export interface FieldAuthoringReceipt {
   shotId: string; sourceContextSha256: string; sourceContractSha256: string; planSha256: string;
   authoredAt: string;
   changedFields: string[]; beforeFieldsSha256: string; afterFieldsSha256: string;
+  newFields: string[];
   request: FieldAuthoringArchiveRef; response: FieldAuthoringArchiveRef; snapshot: FieldAuthoringArchiveRef;
   usage: { promptTokens: number; completionTokens: number };
   dispatch: { inputSha256: string; requestSha256: string; responseSha256: string; modelId: string; policyVersion: string; registryVersion: string };
@@ -359,9 +434,13 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
     [...new Set(input.plan.diagnoses.filter(entry => entry.shotId === shot.shotId).map(entry => entry.field))]]));
   if (!isDeepStrictEqual(expectedFields, input.plan.fieldsByShot) || input.plan.diagnoses.some(entry => {
     const shot = input.plan.shots.find(shot => shot.shotId === entry.shotId);
-    return !shot || !Object.hasOwn(shot.fields, entry.field) || immutableFields.has(entry.field)
-      || entry.sourceContractSha256 !== shot.sourceContractSha256 || entry.valueSha256 !== sha256Json(shot.fields[entry.field]);
-  })) return fail("AUTHORING_PLAN_INVALID");
+    const unbound = shot?.unboundFields.find(field => field.field === entry.field);
+    return !shot || (!Object.hasOwn(shot.fields, entry.field) && !unbound) || immutableFields.has(entry.field)
+      || entry.sourceContractSha256 !== shot.sourceContractSha256
+      || (unbound ? entry.valueSha256 !== null || entry.sourceBinding !== "unbound" || entry.origin !== "g6-missing"
+        || entry.kind !== "missing" || entry.code !== "HARD_FIELD_VALUE_MISSING" || !unbound.diagnosisEvidenceSha256.includes(entry.evidenceSha256)
+        : entry.valueSha256 !== sha256Json(shot.fields[entry.field]) || entry.sourceBinding !== "bound");
+  }) || input.plan.shots.some(shot => shot.unboundFields.some(field => !expectedFields[shot.shotId]!.includes(field.field)))) return fail("AUTHORING_PLAN_INVALID");
   const documentPresent = (value: unknown) => typeof value === "string" ? Boolean(value.trim())
     : value !== null && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0;
   if (!documentPresent(input.sourceContext.brief) || !input.sourceContext.gates
@@ -383,7 +462,8 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
   for (const shot of shots) {
     const allowed = input.plan.fieldsByShot[shot.shotId] ?? [];
     if (!allowed.length) continue;
-    if (new Set(allowed).size !== allowed.length || allowed.some(field => !Object.hasOwn(shot.fields, field) || immutableFields.has(field))) return fail("AUTHORING_SCOPE_INVALID");
+    if (new Set(allowed).size !== allowed.length || allowed.some(field => (!Object.hasOwn(shot.fields, field)
+      && !shot.unboundFields.some(item => item.field === field)) || immutableFields.has(field))) return fail("AUTHORING_SCOPE_INVALID");
     const writable = new Set(allowed);
     const diagnoses = input.plan.diagnoses.filter(entry => entry.shotId === shot.shotId);
     const timelineDiagnosed = writable.has("timeline") && diagnoses.some(entry => entry.field === "timeline" && entry.origin === "g6-semantic");
@@ -402,7 +482,7 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       "你是当前影片的字段作者。本次是新创作，不得声称恢复未知的历史原文。",
       "完整冻结Brief、G1–G4原件、所有镜头字段和当前角色图绑定都在下方。只有当前镜头allowedFields可以写入；其余字段、身份、事实、顺序、时长、音频纪律和技术规格保持原样。",
       "逐项解决diagnoses。不要截断或摘要只读上下文，不要把缺失内容转移到别的字段，不要增加场景。",
-      "只返回一个完整JSON对象：shotId、fields。fields必须恰好包含本镜所有allowedFields，值保持原类型，每个值均有实际改变；禁止额外键、Markdown和解释。",
+      "只返回一个完整JSON对象：shotId、fields。fields必须恰好包含本镜所有allowedFields；已有字段保持原类型，每个值均有实际改变。sourceUnboundFields没有已保存的历史值与类型，只能按完整已审来源新写非空文本；不得声称恢复旧值或旧摘要。禁止额外键、Markdown和解释。",
       canonicalJson({ sourceContext: input.sourceContext, allShots: input.plan.shots.map(source => ({
         shotId: source.shotId, duration: source.duration, fields: source.fields, sourceContractSha256: source.sourceContractSha256,
         request: source.sourceContract.request, modelCapabilities: source.sourceContract.modelCapabilities,
@@ -411,9 +491,10 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       })), shotId: shot.shotId,
         duration: shot.duration, allowedFields: allowed, writableFields: Object.fromEntries(Object.entries(shot.fields).filter(([key]) => writable.has(key))),
         readOnlyFields: Object.fromEntries(Object.entries(shot.fields).filter(([key]) => !writable.has(key))),
-        diagnoses, ...(rivalWitness ? { hostEventWitness: rivalWitness } : {}) }),
+        sourceUnboundFields: shot.unboundFields, diagnoses, ...(rivalWitness ? { hostEventWitness: rivalWitness } : {}) }),
     ].join("\n");
-    const schema = { shotId: shot.shotId, fields: Object.fromEntries(allowed.map(field => [field, shot.fields[field]])) };
+    const schema = { shotId: shot.shotId, fields: Object.fromEntries(allowed.map(field => [field,
+      Object.hasOwn(shot.fields, field) ? shot.fields[field] : "从完整已审来源新创作本字段的非空文本"])) };
     const options: LLMReasonOptions = { scene: "preproduction", temperature: 0 };
     const request = await archive(shot.shotId, "request", Buffer.from(canonicalJson({ prompt, schema, options, planSha256, sourceContextSha256: input.plan.sourceContextSha256 })));
     await input.budgetHook({ phase: "before", shotId: shot.shotId });
@@ -445,9 +526,13 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       || !isDeepStrictEqual(Object.keys(nextFields).sort(), [...allowed].sort())
       || !isDeepStrictEqual(parsed, result.result.data)) return fail("AUTHORING_RESPONSE_SCOPE_INVALID");
     const priorFields = structuredClone(shot.fields);
+    const newFields: string[] = [];
     for (const field of allowed) {
       const value = nextFields[field];
-      if (!nonempty(value) || !sameValueShape(shot.fields[field], value) || isDeepStrictEqual(value, shot.fields[field])) return fail("AUTHORING_NOOP_OR_TYPE_INVALID");
+      const existed = Object.hasOwn(shot.fields, field);
+      if (!nonempty(value) || (existed ? !sameValueShape(shot.fields[field], value) || isDeepStrictEqual(value, shot.fields[field])
+        : typeof value !== "string")) return fail("AUTHORING_NOOP_OR_TYPE_INVALID");
+      if (!existed) newFields.push(field);
       shot.fields[field] = structuredClone(value);
     }
     for (const field of Object.keys(priorFields)) if (!writable.has(field)
@@ -475,7 +560,7 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
     const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = result.proof;
     const dispatch = { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion };
     const proof = { shotId: shot.shotId, sourceContextSha256: input.plan.sourceContextSha256, sourceContractSha256: shot.sourceContractSha256,
-      planSha256, authoredAt, changedFields: [...allowed], beforeFieldsSha256: sha256Json(priorFields), afterFieldsSha256: sha256Json(shot.fields),
+      planSha256, authoredAt, changedFields: [...allowed], newFields, beforeFieldsSha256: sha256Json(priorFields), afterFieldsSha256: sha256Json(shot.fields),
       request, response, usage: measured, dispatch, mutableRequestTextPaths };
     const snapshot = await archive(shot.shotId, "snapshot", Buffer.from(canonicalJson({ schemaVersion: APPROVED_SOURCE_FIELDS_VERSION,
       shotId: shot.shotId, authoring: proof, fields: shot.fields, prompt: shot.prompt, contract: compiled.contract })));

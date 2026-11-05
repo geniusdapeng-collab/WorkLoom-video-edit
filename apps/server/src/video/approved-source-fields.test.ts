@@ -43,6 +43,18 @@ function fieldPlan(recovered = fixture().recovered, fields = ["action"]) {
       blocking: true, repairClass: "semantic",
     })) })] });
 }
+function missingFixture(missing: string[] = ["action"], otherFields: Record<string, unknown> = {}) {
+  const fields = { ...fixture().fields, ...otherFields };
+  for (const key of missing) delete fields[key];
+  const compiled = compilePromptShot({ shotId: "scene-a", duration: 10, fields }, options);
+  const bytes = Buffer.from(JSON.stringify(compiled.contract, null, 2));
+  const report = { schemaVersion: "workloom.video-prompt-quality/v2", findings: compiled.hardErrors.map(error => ({
+    ...error, shotId: "scene-a", blocking: true, repairClass: "deterministic",
+  })) };
+  const evidence = verified(report);
+  const recover = () => recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [evidence] });
+  return { fields, compiled, bytes, report, evidence, recover };
+}
 function nativeEngine(reply: string, patch: Record<string, unknown> = {}) {
   const requests: Array<Record<string, unknown>> = [];
   const fetchImpl: typeof fetch = async (_url, init) => {
@@ -407,5 +419,100 @@ describe("existing host witness for character-constraint request text", () => {
   it("keeps the exact current host obligation after newly authored text", async () => {
     const { input } = setup(JSON.stringify({ shotId: "scene-a", fields: { character_constraint: "主角唯一；对手摩托车仍为无人空车。" } }), true);
     await expect(authorRepairFields(input)).rejects.toThrow("AUTHORING_EVENT_WITNESS_DRIFT");
+  });
+});
+
+describe("explicitly diagnosed canonical omissions", () => {
+  it("keeps strict recovery closed without the real missing-field report", () => {
+    const { bytes } = missingFixture();
+    expect(() => recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes) })).toThrow("MISSING_EVIDENCE_REQUIRED:action");
+  });
+  it("retains absence without fabricating an old value or value hash, and recreates the full original contract", () => {
+    const source = missingFixture(), shot = source.recover();
+    expect(shot.fields).not.toHaveProperty("action");
+    expect(shot.sourceContract.bindings).toHaveLength(24);
+    expect(shot.fieldProofs).toHaveLength(24);
+    expect(shot.unboundFields).toEqual([{ field: "action", sourceState: "canonical-unbound", valueSha256: null,
+      diagnosisEvidenceSha256: [source.evidence.expectedSha256] }]);
+    const rebuilt = compilePromptShot(shot, shot.compileOptions);
+    expect(rebuilt.contract).toEqual(source.compiled.contract);
+    expect(rebuilt.hardErrors).toEqual([expect.objectContaining({ code: "HARD_FIELD_VALUE_MISSING", field: "action" })]);
+    expect(shot.sourceContractText).toBe(source.bytes.toString());
+  });
+  it.each(["wrong-code", "not-blocking", "wrong-shot", "wrong-integrity"])("cannot enable an unbound field from %s", kind => {
+    const source = missingFixture();
+    if (kind === "wrong-code") source.report.findings[0]!.code = "HARD_ANOTHER_ISSUE";
+    if (kind === "not-blocking") source.report.findings[0]!.blocking = false;
+    if (kind === "wrong-shot") source.report.findings[0]!.shotId = "another-shot";
+    const evidence = verified(source.report);
+    if (kind === "wrong-integrity") evidence.expectedSha256 = "e".repeat(64);
+    expect(() => recoverContractFields({ contractBytes: source.bytes, expectedSha256: digest(source.bytes), missingEvidence: [evidence] })).toThrow("APPROVED_SOURCE_FIELDS_");
+  });
+  it("still rejects unrelated compiler failures in an otherwise reproducible missing-field contract", () => {
+    const source = missingFixture(["action"], { timeline: "T00:00至T00:31，超出本镜总时长。" });
+    expect(source.recover).toThrow("RECOMPILE_MISMATCH");
+  });
+  it("refuses an unbound source row carrying authored text instead of the exact compiler omission", () => {
+    const source = missingFixture(), contract = structuredClone(source.compiled.contract);
+    contract.prompt = contract.prompt.replace("08.【动作】undefined", "08.【动作】不存在绑定却藏入的文本");
+    contract.promptSha256 = digest(contract.prompt);
+    const bytes = Buffer.from(JSON.stringify(contract));
+    expect(() => recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [source.evidence] })).toThrow("UNBOUND_PROMPT_LINE_INVALID");
+  });
+  it.each(["portraits", "constraint", "audio", "timeline", "character_constraint"])("does not authorize an unbound immutable/native-request field: %s", field => {
+    const source = missingFixture([field]);
+    expect(source.recover).toThrow(`UNBOUND_REQUEST_FIELD_UNSUPPORTED:${field}`);
+  });
+  it("requires that the plan use the same original missing-field report which established absence", () => {
+    const source = missingFixture(), shot = source.recover();
+    const altered = verified({ ...source.report, extra: "A different body does not become the original G6 evidence" });
+    expect(() => planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext), diagnosedFindings: [altered] })).toThrow("MISSING_DIAGNOSIS_UNBOUND");
+    expect(() => planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext), diagnosedFindings: [] })).toThrow("MISSING_DIAGNOSIS_REQUIRED");
+  });
+  it("does not turn a semantic finding or an ad hoc host field list into an absence grant", () => {
+    const source = missingFixture(), shot = source.recover();
+    expect(() => fieldPlan(shot)).toThrow("MISSING_DIAGNOSIS_UNBOUND");
+  });
+  it("rejects a forged marker attached to a complete historical source", () => {
+    const shot = fixture().recovered;
+    shot.unboundFields = [{ field: "action", sourceState: "canonical-unbound", valueSha256: null, diagnosisEvidenceSha256: ["c".repeat(64)] }];
+    expect(() => fieldPlan(shot)).toThrow("SHOT_DRIFT");
+  });
+  it("authors new content only after proven absence and produces a complete new contract without rewriting history", async () => {
+    const source = missingFixture(), shot = source.recover();
+    const action = "新创作：主角按原G4完成同一可见动作与道具交接，保持冻结时长。";
+    const { input, requests } = authorInput(JSON.stringify({ shotId: shot.shotId, fields: { action } }));
+    input.plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(input.sourceContext), diagnosedFindings: [source.evidence] });
+    expect(input.plan.diagnoses[0]).toMatchObject({ field: "action", kind: "missing", origin: "g6-missing", valueSha256: null, sourceBinding: "unbound" });
+    const result = await authorRepairFields(input), next = result.shots[0]!;
+    expect(requests).toHaveLength(1);
+    expect(next.fields.action).toBe(action);
+    expect(next.currentContract!.bindings).toHaveLength(25);
+    expect(compilePromptShot(next, { ...next.compileOptions, createdAt: next.currentContract!.createdAt }).hardErrors).toEqual([]);
+    expect(next.sourceContract.bindings).toHaveLength(24);
+    expect(next.sourceContractText).toBe(source.bytes.toString());
+    expect(next.fieldProofs.some(proof => proof.field === "action")).toBe(false);
+    expect(next.unboundFields[0]!.valueSha256).toBeNull();
+    expect(result.receipts[0]!.newFields).toEqual(["action"]);
+    for (const [field, value] of Object.entries(shot.fields)) expect(next.fields[field]).toEqual(value);
+    expect(next.currentContract!.request).toEqual(shot.sourceContract.request);
+  });
+  it.each(["", ["unknown historical array type"], { text: "unknown historical object type" }])("requires newly authored missing content to be a nonempty string: %j", async action => {
+    const source = missingFixture(), shot = source.recover();
+    const { input } = authorInput(JSON.stringify({ shotId: shot.shotId, fields: { action } }));
+    input.plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(input.sourceContext), diagnosedFindings: [source.evidence] });
+    await expect(authorRepairFields(input)).rejects.toThrow("AUTHORING_NOOP_OR_TYPE_INVALID");
+  });
+  it("requires all proven omissions to be authored in the one affected-shot completion", async () => {
+    const source = missingFixture(["action", "lighting", "makeup"]), shot = source.recover();
+    const newValues = { action: "新写完整已审动作。", lighting: "按已审场景新写完整光向与照明。", makeup: "按已审角色新写完整妆容。" };
+    const { input } = authorInput(JSON.stringify({ shotId: shot.shotId, fields: newValues }));
+    input.plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(input.sourceContext), diagnosedFindings: [source.evidence] });
+    const result = await authorRepairFields(input);
+    expect(result.shots[0]!.currentContract!.bindings).toHaveLength(25);
+    expect(new Set(result.receipts[0]!.newFields)).toEqual(new Set(Object.keys(newValues)));
+    const incomplete = authorInput(JSON.stringify({ shotId: shot.shotId, fields: { action: newValues.action } }));
+    incomplete.input.plan = input.plan;
+    await expect(authorRepairFields(incomplete.input)).rejects.toThrow("AUTHORING_RESPONSE_SCOPE_INVALID");
   });
 });
