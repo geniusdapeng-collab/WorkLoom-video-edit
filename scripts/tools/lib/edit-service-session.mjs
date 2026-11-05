@@ -8,6 +8,9 @@ const WRITE_PROCEDURES = new Set([START, "video.studio.repairPrompts"]);
 const READ_PROCEDURES = new Set(["video.gen.catalog", "video.studio.status", "video.studio.archive", "video.production.shots", "video.studio.promptRepairPlan"]);
 const HTTP_TIMEOUT_MS = 30_000;
 const MAX_RESPONSE = 8 * 1024 * 1024;
+const LOGIN = "auth.desktopLogin";
+const REVIEWED_AGENT_QUERIES = new Set(["workspace.profile", "workspace.agents", "threads.list", "threads.get", "threads.events",
+  "approvals.list", "inspection.status", "skills.list", "video.gen.catalog", "video.production.shots"]);
 
 export class WorkflowError extends Error {
   constructor(code) { super(code); this.code = code; }
@@ -24,7 +27,7 @@ export function parseEditLoopbackApi(value) {
 }
 
 async function requestStudio(api, agent, procedure, input, authorization) {
-  const post = WRITE_PROCEDURES.has(procedure);
+  const post = WRITE_PROCEDURES.has(procedure) || procedure === LOGIN;
   const url = new URL(procedure ? `/trpc/${procedure}` : "/health/product", api);
   const headers = { accept: "application/json" };
   const payload = post ? Buffer.from(JSON.stringify(input)) : undefined;
@@ -45,7 +48,8 @@ async function requestStudio(api, agent, procedure, input, authorization) {
           req.destroy(new WorkflowError("STUDIO_CONNECTION_CHANGED"));
           return;
         }
-        req.setHeader("authorization", `Bearer ${authorization.token}`);
+        if (authorization.desktopKey) req.setHeader("x-workloom-desktop-key", authorization.desktopKey);
+        else req.setHeader("authorization", `Bearer ${authorization.token}`);
         req.end(payload);
       });
     });
@@ -68,7 +72,8 @@ async function requestStudio(api, agent, procedure, input, authorization) {
   } catch (error) { throw error instanceof WorkflowError ? error : new WorkflowError("STUDIO_RESPONSE_UNKNOWN"); }
 }
 
-export async function withVerifiedEditService(api, token, work) {
+export async function withVerifiedEditService(api, token, work, { env = process.env, readProcedures = [] } = {}) {
+  check(Array.isArray(readProcedures) && readProcedures.every(path => REVIEWED_AGENT_QUERIES.has(path)), "STUDIO_PROCEDURE_INVALID");
   const origin = parseEditLoopbackApi(api);
   const agent = new Agent({ keepAlive: true, maxSockets: 1 });
   try {
@@ -80,10 +85,42 @@ export async function withVerifiedEditService(api, token, work) {
       && typeof body.productId === "string" && body.productId.trim()
       && typeof body.repository === "string" && body.repository.trim(), "STUDIO_PRODUCT_UNVERIFIED");
     check(body.productId === PRODUCT && body.repository === REPOSITORY, "STUDIO_PRODUCT_MISMATCH");
+    let member = token;
+    let bootstrap;
+    const ensureMember = async () => {
+      if (member) {
+        check(typeof member === "string" && /^[A-Za-z0-9._~+\/=-]{16,8192}$/.test(member), "MEMBER_TOKEN_REQUIRED");
+        return member;
+      }
+      if (!bootstrap) bootstrap = (async () => {
+        const key = env.WORKLOOM_DESKTOP_LOGIN_KEY;
+        check(typeof key === "string" && /^[a-f0-9]{64}$/.test(key), "MEMBER_TOKEN_REQUIRED");
+        const login = await requestStudio(origin, agent, LOGIN, {}, { desktopKey: key, socket });
+        check(typeof login?.token === "string" && /^[A-Za-z0-9._~+\/=-]{16,8192}$/.test(login.token), "DESKTOP_LOGIN_FAILED");
+        member = login.token;
+        return member;
+      })();
+      return bootstrap;
+    };
     return await work((procedure, input) => {
-      check(WRITE_PROCEDURES.has(procedure) || READ_PROCEDURES.has(procedure), "STUDIO_PROCEDURE_INVALID");
-      check(typeof token === "string" && /^[A-Za-z0-9._~+\/=-]{16,8192}$/.test(token), "MEMBER_TOKEN_REQUIRED");
-      return requestStudio(origin, agent, procedure, input, { token, socket });
+      check(WRITE_PROCEDURES.has(procedure) || READ_PROCEDURES.has(procedure) || readProcedures.includes(procedure), "STUDIO_PROCEDURE_INVALID");
+      return ensureMember().then(async value => {
+        const result = await requestStudio(origin, agent, procedure, input, { token: value, socket });
+        const serialized = JSON.stringify(result);
+        check(!serialized.includes(value) && (!env.WORKLOOM_DESKTOP_LOGIN_KEY
+          || !serialized.includes(env.WORKLOOM_DESKTOP_LOGIN_KEY)), "STUDIO_RESPONSE_INVALID");
+        return result;
+      });
     }, { sourceCommit: body.sourceCommit, videoStudio: body.videoStudio });
   } finally { agent.destroy(); }
+}
+
+/** Product-owned read-only bridge. Its caller supplies only the reviewed catalog paths. */
+export async function withVerifiedEditReadService(api, token, work, allowedProcedures, { env = process.env } = {}) {
+  check(Array.isArray(allowedProcedures) && allowedProcedures.length > 0
+    && allowedProcedures.every(path => REVIEWED_AGENT_QUERIES.has(path)), "STUDIO_PROCEDURE_INVALID");
+  return withVerifiedEditService(api, token, call => work((procedure, input) => {
+    check(allowedProcedures.includes(procedure), "STUDIO_PROCEDURE_INVALID");
+    return call(procedure, input);
+  }), { env, readProcedures: allowedProcedures });
 }

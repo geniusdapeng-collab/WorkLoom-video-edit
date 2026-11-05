@@ -72,6 +72,13 @@ jobs:
       - name: Codex 正式视频入口与接入指南回归
         run: node --import tsx --test scripts/tools/codex-video-workflow.test.mjs scripts/tools/lib/codex-video-film.test.mjs scripts/tools/lib/edit-service-session.test.mjs scripts/ai-video-workbench-guide.test.mjs
 
+      - name: Edit 原生 CLI、MCP 与客户端配置接入回归
+        run: >-
+          node --import tsx --test --test-concurrency=1
+          scripts/edit-agent.test.mjs
+          scripts/tools/edit-agent-workflow.test.mjs
+          scripts/tools/edit-agent-setup.test.mjs
+
       - name: 行业包及已登记资产完整性
         run: node --import tsx scripts/bundle-governance.mts
 
