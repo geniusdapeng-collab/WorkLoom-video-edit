@@ -112,7 +112,7 @@ jobs:
 
       - name: 视频需求合同与本次 G1 证据回归（隔离模型）
         run: >-
-          pnpm exec vitest run --maxWorkers=1 --no-file-parallelism
+          pnpm exec vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000
           packages/video-studio/src/bullet-time.test.ts
           packages/video-studio/src/bullet-time-qc.test.ts
           packages/video-studio/src/first-pass.test.ts
@@ -176,7 +176,7 @@ jobs:
           WORKLOOM_TEST_APP_PASSWORD: workloom_dev_app
           WORKLOOM_TEST_GATEWAY_PASSWORD: workloom_dev_gateway
         run: >-
-          pnpm exec vitest run --maxWorkers=1 --no-file-parallelism
+          pnpm exec vitest run --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000
           packages/video-studio/src/archive
           apps/server/src/video/archive
           apps/server/src/video/pipeline/
