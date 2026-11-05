@@ -553,6 +553,29 @@ describe("trusted native-call outcomes for durable replay protection", () => {
     expect(setup.events.at(-1)).toMatchObject({ dispatchOutcome: "unverified", nativeCompleted: true,
       usage: { promptTokens: 500, completionTokens: 100 } });
   });
+  it.each(["known", "missing-usage", "missing-id", "route-drift"] as const)(
+    "retains the private strict-native syntax receipt only while its measured route is current: %s", async kind => {
+      const setup = authorInput("{", kind === "missing-usage" ? { usage: undefined }
+        : kind === "missing-id" ? { id: undefined } : {});
+      if (kind === "route-drift") {
+        const original = setup.input.archive;
+        setup.input.archive = vi.fn(async item => {
+          const receipt = await original(item);
+          if (item.kind === "response") setup.policy.version += "-drifted";
+          return receipt;
+        });
+      }
+      await expect(authorRepairFields(setup.input)).rejects.toThrow("AUTHORING_RESPONSE_UNPROVEN");
+      expect(setup.requests).toHaveLength(1);
+      const archived = Buffer.from(setup.archives.find(item => item.kind === "response")!.bytes).toString();
+      if (kind === "missing-usage") expect(JSON.parse(archived)).toMatchObject({ success: false });
+      else expect(archived).toBe("{");
+      expect(setup.archives.some(item => item.kind === "snapshot")).toBe(false);
+      expect(setup.events.filter(event => event.phase === "after")).toHaveLength(1);
+      expect(setup.events.at(-1)).toMatchObject({ success: false,
+        dispatchOutcome: kind === "known" ? "verified-complete" : "unverified" });
+    },
+  );
   it.each(["response", "snapshot"] as const)("notices proof drift during %s archival before the sole outcome is emitted", async kind => {
     const setup = authorInput(body), original = setup.input.archive;
     setup.input.archive = vi.fn(async item => {

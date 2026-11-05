@@ -3,7 +3,7 @@ import { isDeepStrictEqual, types } from "node:util";
 import {
   canonicalJson, compilePromptShot, promptFieldPolicy, sha256Json, validatePromptContract,
   PROMPT_CONTRACT_SCHEMA_VERSION, PROMPT_CONTRACT_POLICY_VERSION, PROMPT_CONTRACT_REQUEST_SCHEMA_VERSION,
-  SHOT_FIELD_SCHEMA_V1, SHOT_FIELD_SCHEMA_V2, WorkloomLLMEngine, nativeReasonCompleted,
+  SHOT_FIELD_SCHEMA_V1, SHOT_FIELD_SCHEMA_V2, WorkloomLLMEngine, nativeReasonCompleted, nativeChatJsonSyntaxRouteCurrent,
   type PromptCompileOptions, type PromptCompileShot, type PromptContract, type LLMReasonOptions,
 } from "@hyperreality/video-studio";
 import { g6EventWitnessChecks, g6EventWitnessRepairDrift } from "./g6-event-witness.js";
@@ -577,7 +577,12 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
         const nativeCompleted = result ? nativeReasonCompleted(result.result) : false;
         let dispatchOutcome: "verified-complete" | "unverified" = "unverified";
         try {
-          if (nativeCompleted && measured && result?.proof?.matchesCurrent(prompt, schema, options)) dispatchOutcome = "verified-complete";
+          // The adapter intentionally omits the authoring proof on syntax
+          // failure. Its private current-route receipt can still prove that
+          // this failed response completed with measured usage. This only
+          // classifies the call; the response above remains rejected.
+          if (nativeCompleted && measured && result && (result.proof?.matchesCurrent(prompt, schema, options)
+            || nativeChatJsonSyntaxRouteCurrent(input.engine, result.result))) dispatchOutcome = "verified-complete";
         } finally {
           // A native call must reach the durable outcome tracker exactly once,
           // including unknown usage/proof and errors during archival or parsing.
