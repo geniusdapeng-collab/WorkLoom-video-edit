@@ -17,7 +17,7 @@ import type { TrpcContext } from "../trpc/context.js";
 
 type Json = Record<string, any>;
 const runDb = process.env.RUN_DB_TESTS === "1" && Boolean(process.env.DATABASE_APP_URL);
-describe.runIf(runDb)("approved-source public API real-PG/native HTTP integration", () => {
+describe.runIf(runDb)("approved-source public API real-PG/native HTTP integration", { timeout: 30_000 }, () => {
   const owner = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const scope = { tenantId: `tenant-api-repair-${suffix}`, workspaceId: `ws-api-repair-${suffix}` };
@@ -94,14 +94,14 @@ describe.runIf(runDb)("approved-source public API real-PG/native HTTP integratio
     for (const [key, value] of Object.entries({ LLM_PROVIDER: "deepseek", LLM_BASE_URL: `http://127.0.0.1:${port}/v1`, LLM_API_KEY: "offline-loopback-only",
       LLM_MODEL: "deepseek-flash", LLM_FORCE_MODEL: "deepseek-flash", ARCHIVE_ENABLED: "1", PROMPT_CONTRACT_V2: "enforce",
       PIPELINE_SYSTEM_AUTO_APPROVAL: "enforce", ARCHIVE_AUTO_RESUME: "0", PIPELINE_CONTROL_PLANE: "off", VM_PRODUCER_RETRY: "9" })) vi.stubEnv(key, value);
-  });
+  }, 30_000);
   afterAll(async () => {
     resetCircuit("preproduction");
     if (server) { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
     vi.unstubAllEnvs();
     await owner.end(); await closeAllPools();
     for (const temporary of directories) await rm(temporary, { recursive: true, force: true });
-  });
+  }, 30_000);
 
   it("completes the one explicit operation through public API, real durable receipts and native HTTP, then dedupes the same plan", async () => {
     const dto = await caller().studio.promptRepairPlan({ projectId });
