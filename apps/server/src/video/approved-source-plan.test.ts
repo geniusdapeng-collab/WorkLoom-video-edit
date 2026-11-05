@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, unlink, writeFile } fr
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { compilePromptShot } from "@hyperreality/video-studio";
+import { compilePromptShot, type PrdPortraitSource } from "@hyperreality/video-studio";
 import { createPreproductionResumeSnapshot, readPersistedPreproductionRun } from "./archive-resume.js";
 import { approvedSourceFixture, fixtureHash } from "./approved-source-plan.test-support.js";
 import {
@@ -325,5 +325,121 @@ describe("one durable repair operation per plan", () => {
     await repairApprovedSourcePrompts(scope, { projectId, expectedLatestAttempt: 4, planDigest: plan.planDigest }, launchFixture);
     expect(await readPersistedPreproductionRun(scope, "RUN-repair-5")).toMatchObject({ projectId, status: "failed", error: "Synthetic G6 rejection", resultSummary: { persisted: true, success: false, attempt: 5 } });
     expect(await readPersistedPreproductionRun({ ...scope, tenantId: "other" }, "RUN-repair-5")).toBeNull();
+  });
+});
+
+describe("approved historical/catalog portrait profile bridge", () => {
+  type Json = Record<string, any>;
+  const sourceOf = (planning: Record<string, unknown>) => (planning.verifiedPortraitSourcesAwaitingG5 as PrdPortraitSource[])[0]!;
+  async function dualFixture(mutatePortraitWitness?: (planning: Record<string, unknown>) => void | Promise<void>) {
+    fixture = await approvedSourceFixture({ workDir, scope: fixture.scope, createdAt, dualProfile: true, mutatePortraitWitness });
+    rows = [fixture.row];
+  }
+  it("preserves two exact different profiles only through the complete native-verified and reviewed G4 witness", async () => {
+    await dualFixture();
+    const plan = await prepareApprovedSourcePlan(scope, projectId), source = sourceOf(plan.g4.planning);
+    expect(source.archiveProfile.sha256).not.toBe(source.catalogProfile.sha256);
+    expect(source.archiveProfile.path).not.toBe(source.catalogProfile.path);
+    expect(plan.selection.exportCharacters[0]!.builtinCharacterSource).toMatchObject({ profilePath: source.catalogProfile.path, profileSha256: source.catalogProfile.sha256 });
+    expect(source.manifest).toEqual({ path: fixture.portraitManifest.path, sha256: fixture.portraitManifest.sha256 });
+    expect(plan.contracts[0]!.sourceContract.bindings.flatMap(binding => binding.assets ?? []).map(asset => asset.sha256))
+      .toEqual([source.originals.front!.sha256, source.originals.closeup!.sha256]);
+    await plan.verifyCurrent();
+    expect(await readFile(path.join(fixture.store.root, fixture.row.input_ref))).toEqual(fixture.sourceInputBytes);
+    expect(await readFile(path.join(fixture.store.root, fixture.row.output_ref))).toEqual(fixture.sourceOutputBytes);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("does not change the two different original image bytes from the frozen front-to-closeup order", async () => {
+    fixture = await approvedSourceFixture({ workDir, scope: fixture.scope, createdAt, dualProfile: true, reverseContractAssets: true }); rows = [fixture.row];
+    expect(await readPromptRepairPlan(scope, projectId)).toMatchObject({ kind: "unavailable", code: "SOURCE_CAST_PORTRAIT_MISMATCH" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["status", "verifiedPortraitSourcesAwaitingG5.0.status", "passed"],
+    ["character ID", "verifiedPortraitSourcesAwaitingG5.0.characterId", "another-person"],
+    ["character name", "verifiedPortraitSourcesAwaitingG5.0.name", "其他人物"],
+    ["version", "verifiedPortraitSourcesAwaitingG5.0.portraitVersion", 3],
+    ["catalog profile path", "verifiedPortraitSourcesAwaitingG5.0.catalogProfile.path", "/outside/profile.json"],
+    ["catalog profile SHA", "verifiedPortraitSourcesAwaitingG5.0.catalogProfile.sha256", "a".repeat(64)],
+    ["archive profile path", "verifiedPortraitSourcesAwaitingG5.0.archiveProfile.path", "/outside/profile.json"],
+    ["archive profile SHA", "verifiedPortraitSourcesAwaitingG5.0.archiveProfile.sha256", "a".repeat(64)],
+    ["archive profile bytes", "verifiedPortraitSourcesAwaitingG5.0.archiveProfile.bytes", 1],
+    ["manifest path", "verifiedPortraitSourcesAwaitingG5.0.manifest.path", "/outside/manifest.json"],
+    ["manifest SHA", "verifiedPortraitSourcesAwaitingG5.0.manifest.sha256", "a".repeat(64)],
+    ["authorization basis", "verifiedPortraitSourcesAwaitingG5.0.ownerAuthorization.basis", "machine-review"],
+    ["decision owner role", "verifiedPortraitSourcesAwaitingG5.0.ownerAuthorization.decisionOwnerRole", "agent"],
+    ["owner receipt path", "verifiedPortraitSourcesAwaitingG5.0.ownerAuthorization.receipt.path", "/outside/receipt.json"],
+    ["owner receipt SHA", "verifiedPortraitSourcesAwaitingG5.0.ownerAuthorization.receipt.sha256", "a".repeat(64)],
+    ["owner ledger path", "verifiedPortraitSourcesAwaitingG5.0.ownerAuthorization.ledger.path", "/outside/gates.jsonl"],
+    ["owner ledger SHA", "verifiedPortraitSourcesAwaitingG5.0.ownerAuthorization.ledger.sha256", "a".repeat(64)],
+    ["original image path", "verifiedPortraitSourcesAwaitingG5.0.originals.front.path", "/outside/front.png"],
+    ["original image SHA", "verifiedPortraitSourcesAwaitingG5.0.originals.front.sha256", "a".repeat(64)],
+    ["original image bytes", "verifiedPortraitSourcesAwaitingG5.0.originals.front.bytes", 1],
+    ["character plan ID", "characterPlans.0.characterId", "another-person"],
+    ["character plan source", "characterPlans.0.source.id", "another-person"],
+    ["character plan selection", "characterPlans.0.selection.characters.0.id", "another-person"],
+    ["ordered references", "portraitReferenceSelection.angles", ["closeup", "front"]],
+  ])("rejects a reviewed-looking bridge with a different %s", async (_name, location, replacement) => {
+    await dualFixture(planning => {
+      const parts = String(location).split("."); let value = planning as Json;
+      for (const key of parts.slice(0, -1)) value = value[key];
+      value[parts.at(-1)!] = replacement;
+    });
+    expect(await readPromptRepairPlan(scope, projectId)).toMatchObject({ kind: "unavailable", code: "SOURCE_CAST_PORTRAIT_MISMATCH" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each(["missing", "duplicate"] as const)("does not license a %s bridge", async kind => {
+    await dualFixture(planning => {
+      if (kind === "missing") delete planning.verifiedPortraitSourcesAwaitingG5;
+      else (planning.verifiedPortraitSourcesAwaitingG5 as PrdPortraitSource[]).push(structuredClone(sourceOf(planning)));
+    });
+    expect(await readPromptRepairPlan(scope, projectId)).toMatchObject({ kind: "unavailable", code: "SOURCE_CAST_PORTRAIT_MISMATCH" });
+  });
+  it.each(["receipt", "ledger", "catalog", "original"] as const)("rechecks complete %s bytes after the plan is prepared", async kind => {
+    await dualFixture(); const plan = await prepareApprovedSourcePlan(scope, projectId), source = sourceOf(plan.g4.planning);
+    const file = kind === "receipt" ? source.ownerAuthorization.receipt.path : kind === "ledger" ? source.ownerAuthorization.ledger.path
+      : kind === "catalog" ? source.catalogProfile.path : source.originals.front!.path;
+    await writeFile(file, "changed after G4 and plan inspection");
+    await expect(plan.verifyCurrent()).rejects.toThrow(); expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each(["front", "threeQuarter", "closeup", "side"] as const)("does not overlook changed original %s bytes outside the two selected references", async angle => {
+    await dualFixture(); const plan = await prepareApprovedSourcePlan(scope, projectId), source = sourceOf(plan.g4.planning);
+    await writeFile(source.originals[angle]!.path, "changed original portrait angle");
+    await expect(plan.verifyCurrent()).rejects.toThrow(); expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each(["receipt", "ledger", "catalog", "original"] as const)("rejects a same-byte symlink for the %s evidence", async kind => {
+    await dualFixture(); const plan = await prepareApprovedSourcePlan(scope, projectId), source = sourceOf(plan.g4.planning);
+    const file = kind === "receipt" ? source.ownerAuthorization.receipt.path : kind === "ledger" ? source.ownerAuthorization.ledger.path
+      : kind === "catalog" ? source.catalogProfile.path : source.originals.front!.path;
+    const replacement = path.join(workDir, `redirected-${kind}`); await writeFile(replacement, await readFile(file));
+    await unlink(file); await symlink(replacement, file);
+    await expect(plan.verifyCurrent()).rejects.toThrow(); expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each(["rejected", "wrong-version"] as const)("rejects semantically %s owner evidence even when the reviewed witness uses its new file SHA", async kind => {
+    await dualFixture(async planning => {
+      const source = sourceOf(planning), receipt = JSON.parse(await readFile(source.ownerAuthorization.receipt.path, "utf8")) as Json;
+      const gate = JSON.parse(await readFile(source.ownerAuthorization.ledger.path, "utf8")) as Json;
+      if (kind === "rejected") { receipt.approved = false; receipt.authorization.approved = false; gate.approved = false; }
+      else { receipt.version = 3; receipt.authorization.version = 3; }
+      gate.evidence.authorization = receipt.authorization;
+      const receiptBytes = JSON.stringify(receipt); await writeFile(source.ownerAuthorization.receipt.path, receiptBytes);
+      gate.evidence.ownerAcceptanceSha256 = source.ownerAuthorization.receipt.sha256 = fixtureHash(receiptBytes);
+      const ledgerBytes = JSON.stringify(gate) + "\n"; await writeFile(source.ownerAuthorization.ledger.path, ledgerBytes);
+      source.ownerAuthorization.ledger.sha256 = fixtureHash(ledgerBytes);
+    });
+    expect(await readPromptRepairPlan(scope, projectId)).toMatchObject({ kind: "unavailable", code: "SOURCE_CAST_PORTRAIT_MISMATCH" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("requires the exact originally approved G4 bytes, not a newly edited portrait annex", async () => {
+    await dualFixture(); await writeFile(fixture.gateFiles[3]!.path, fixture.gateFiles[3]!.path + "new unreviewed witness");
+    expect(await readPromptRepairPlan(scope, projectId)).toMatchObject({ kind: "unavailable", code: "SOURCE_CHANGED" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("does not adopt a dual-profile witness when the G4 review itself was rejected", async () => {
+    await dualFixture(); fixture.output.productionEvidence.gates[3]!.approved = false;
+    const receipt = await fixture.store.writeJsonAtomic(fixture.row.output_ref, fixture.output);
+    rows[0]!.output_sha256 = receipt.sha256;
+    expect(await readPromptRepairPlan(scope, projectId)).toMatchObject({ kind: "unavailable", code: "SOURCE_GATES_UNVERIFIED" });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
