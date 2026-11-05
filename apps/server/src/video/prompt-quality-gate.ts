@@ -21,6 +21,7 @@ import {
   nativeChatJsonSyntaxCorrected,
   nativeChatJsonSyntaxRouteCurrent,
   nativeReasonFailure,
+  nativeReasonCompleted,
   type CompiledPromptShot,
   type PromptCompileAsset,
   type PromptCompileOptions,
@@ -28,6 +29,7 @@ import {
   type PromptContract,
   type PromptFieldDefinition,
   type LLMReasonOptions,
+  type LLMReasonResult,
   type StructuredReviewDispatchProof,
 } from "@hyperreality/video-studio";
 import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
@@ -132,6 +134,15 @@ interface BuiltinSemanticReviewer {
   review: SemanticQualityReviewer["review"];
   repair: SemanticQualityReviewer["repair"];
   verifyCurrent?: () => void | Promise<void>;
+  observeDispatch?: (outcome: SemanticDispatchObservation) => void | Promise<void>;
+}
+
+export interface SemanticDispatchObservation {
+  shotId: string;
+  operation: "review" | "repair";
+  dispatchOutcome: "verified-complete" | "unverified";
+  nativeCompleted: boolean;
+  usage: { promptTokens: number; completionTokens: number } | null;
 }
 
 const builtinSemanticReviewers = new WeakMap<SemanticQualityReviewer, BuiltinSemanticReviewer>();
@@ -778,17 +789,38 @@ function correctedSemanticReviewRequest(request: ReturnType<typeof semanticRevie
   return [`【G6 评审响应技术纠正】\n${SEMANTIC_REVIEW_CORRECTIONS[failure]}\n\n${prompt}`, schema, options] as const;
 }
 
-async function withCurrentSource<T>(verifyCurrent: (() => void | Promise<void>) | undefined, dispatch: () => Promise<T>): Promise<T> {
+async function withCurrentSource<T>(verifyCurrent: (() => void | Promise<void>) | undefined, dispatch: () => Promise<T>,
+  observe?: (result: T | undefined) => void | Promise<void>): Promise<T> {
   await verifyCurrent?.();
-  try { return await dispatch(); }
-  finally { await verifyCurrent?.(); }
+  let result: T | undefined;
+  try { result = await dispatch(); return result; }
+  finally {
+    try { await observe?.(result); }
+    finally { await verifyCurrent?.(); }
+  }
 }
 
-export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine, verifyCurrent?: () => void | Promise<void>): SemanticQualityReviewer {
+function observeSemanticDispatch(engine: WorkloomLLMEngine, shotId: string, operation: SemanticDispatchObservation["operation"],
+  result: LLMReasonResult | undefined, observe?: (outcome: SemanticDispatchObservation) => void | Promise<void>) {
+  if (!observe) return;
+  const reported = result?.usage;
+  const usage = reported && Number.isSafeInteger(reported.promptTokens) && Number(reported.promptTokens) >= 0
+    && Number.isSafeInteger(reported.completionTokens) && Number(reported.completionTokens) >= 0
+    ? { promptTokens: reported.promptTokens!, completionTokens: reported.completionTokens! } : null;
+  const nativeCompleted = result !== undefined && nativeReasonCompleted(result);
+  const current = result !== undefined && (result.success ? nativeChatJsonObjectRouteCurrent(engine, result)
+    : nativeChatJsonSyntaxRouteCurrent(engine, result));
+  return observe({ shotId, operation, usage, nativeCompleted,
+    dispatchOutcome: nativeCompleted && usage !== null && current ? "verified-complete" : "unverified" });
+}
+
+export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine, verifyCurrent?: () => void | Promise<void>,
+  observeDispatch?: (outcome: SemanticDispatchObservation) => void | Promise<void>): SemanticQualityReviewer {
   const reviewer: SemanticQualityReviewer = {
     model: llm.model,
     async review(context) {
-      const result = await withCurrentSource(verifyCurrent, () => llm.reasonStructured(...semanticReviewRequest(context)));
+      const result = await withCurrentSource(verifyCurrent, () => llm.reasonStructured(...semanticReviewRequest(context)),
+        value => observeSemanticDispatch(llm, context.contract.shotId, "review", value, observeDispatch));
       if (!result.success) throw new Error(result.error ?? "SEMANTIC_REVIEW_TRANSPORT_FAILED");
       return result.data ?? result.content;
     },
@@ -798,12 +830,12 @@ export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine, verifyC
           context.finalPromptLength, context.finalPromptFieldBudget, context.helmetCustodyFields, context.helmetCustodyArm),
         repairSchema(context),
         { scene: "preproduction", maxTokens: 1200, temperature: 0 },
-      ));
+      ), value => observeSemanticDispatch(llm, context.contract.shotId, "repair", value, observeDispatch));
       if (!result.success) throw new Error(result.error ?? "SEMANTIC_REPAIR_TRANSPORT_FAILED");
       return result.data ?? result.content;
     },
   };
-  builtinSemanticReviewers.set(reviewer, { engine: llm, review: reviewer.review, repair: reviewer.repair, verifyCurrent });
+  builtinSemanticReviewers.set(reviewer, { engine: llm, review: reviewer.review, repair: reviewer.repair, verifyCurrent, observeDispatch });
   return reviewer;
 }
 
@@ -1074,7 +1106,7 @@ async function reviewWithTechnicalRetry(
   prior?: PassedSemanticReviewProof,
 ): Promise<TechnicalReviewResult> {
   const native = proofReviewer(reviewer);
-  if (native) return reviewNativeWithCorrection(native.engine, context, captureProof, prior, native.verifyCurrent);
+  if (native) return reviewNativeWithCorrection(native.engine, context, captureProof, prior, native.verifyCurrent, native.observeDispatch);
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -1093,11 +1125,13 @@ async function reviewWithTechnicalRetry(
 async function reviewNativeWithCorrection(
   engine: WorkloomLLMEngine, context: SemanticReviewContext, captureProof: boolean, prior?: PassedSemanticReviewProof,
   verifyCurrent?: () => void | Promise<void>,
+  observeDispatch?: (outcome: SemanticDispatchObservation) => void | Promise<void>,
 ): Promise<TechnicalReviewResult> {
   const parse = (value: unknown) => parseSemanticQualityReview(value, context.contract, context.shot, context.upstreamContext);
   const dispatch = async (value: ReturnType<typeof semanticReviewRequest>): ReturnType<WorkloomLLMEngine["reasonStructuredWithProof"]> => {
     return withCurrentSource(verifyCurrent, async () => captureProof
-      ? engine.reasonStructuredWithProof(...value) : { result: await engine.reasonStructured(...value) });
+      ? engine.reasonStructuredWithProof(...value) : { result: await engine.reasonStructured(...value) },
+    value => observeSemanticDispatch(engine, context.contract.shotId, "review", value?.result, observeDispatch));
   };
   let failure: SemanticReviewCorrection | undefined;
   let errors: string[] = [];

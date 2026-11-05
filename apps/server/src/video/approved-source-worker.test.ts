@@ -1,13 +1,14 @@
 /** Actual host startup, StageRunner, source plan, native adapter, current gates and production-shot readback. */
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetCircuit, type ModelTrace } from "@workloom/base/model-router";
+import { WorkloomLLMEngine } from "@hyperreality/video-studio";
 import { SEMANTIC_QUALITY_CHECK_IDS } from "./prompt-quality-gate.js";
 import { getModel, resolveProviderModel } from "./gen/catalog.js";
 import { approvedSourceFixture, fixtureHash } from "./approved-source-plan.test-support.js";
-import { prepareApprovedSourcePlan, repairApprovedSourcePrompts, verifyApprovedSourceAdoption } from "./approved-source-plan.js";
+import { prepareApprovedSourcePlan, readPromptRepairPlan, repairApprovedSourcePrompts, verifyApprovedSourceAdoption } from "./approved-source-plan.js";
 import { startApprovedSourceRepairRun, getRun } from "./studio-worker.js";
 import { listProductionShots } from "./production-authority.js";
 import { readPersistedPreproductionRun } from "./archive-resume.js";
@@ -30,6 +31,11 @@ const createdAt = "2026-11-05T00:00:00.000Z";
 type Json = Record<string, any>;
 let workDir: string, fixture: Awaited<ReturnType<typeof approvedSourceFixture>>, rows: Json[], held: boolean;
 let modelRequests: Json[], failAuthor: boolean, failG6: boolean, failFacts: boolean;
+let receiptFault: "none" | "author-no-usage" | "author-no-id" | "author-socket-loss" | "author-route-drift" | "g6-route-drift" | "g6-no-usage" | "g6-no-id"
+  | "repair-no-usage" | "facts-no-usage" | "facts-no-id" | "facts-syntax" | "facts-partial-unknown";
+let factNativeCalls: number;
+let activeEngine: WorkloomLLMEngine | undefined;
+const originalFromEnv = WorkloomLLMEngine.fromEnv.bind(WorkloomLLMEngine);
 beforeEach(async () => {
   vi.restoreAllMocks();
   for (const [key, value] of Object.entries({ LLM_PROVIDER: "deepseek", LLM_BASE_URL: "http://offline-worker.invalid/v1", LLM_API_KEY: "offline-only",
@@ -44,6 +50,11 @@ beforeEach(async () => {
   vi.stubEnv("HR_PORTRAIT_REUSE_MANIFEST", fixture.portraitManifest.path);
   rows = [{ ...fixture.row, project_id: projectId, workspace_id: scope.workspaceId, kind: "marketing", stage_id: "preproduction" }];
   held = false; modelRequests = []; boundary.events.length = 0; boundary.traces.length = 0; failAuthor = false; failG6 = false; failFacts = false;
+  receiptFault = "none"; factNativeCalls = 0;
+  activeEngine = undefined;
+  vi.spyOn(WorkloomLLMEngine, "fromEnv").mockImplementation(env => {
+    const engine = originalFromEnv(env); activeEngine = engine ?? undefined; return engine;
+  });
   boundary.connect.mockImplementation(async () => {
     let tenant = "", workspace = "";
     const query = async (sql: string, params: any[] = []) => {
@@ -62,6 +73,9 @@ beforeEach(async () => {
       } else if (sql.includes("UPDATE production_stage_runs") && sql.includes("SET status=$4")) {
         const row = rows.find(row => row.attempt === params[10] && row.status === "running");
         if (row) { Object.assign(row, { status: params[3], output_ref: params[4], output_sha256: params[5], error_class: params[6], error_msg: params[7] }); found = [{ id: row.id }]; }
+      } else if (sql.includes("UPDATE production_stage_runs") && sql.includes("SET last_heartbeat_at=now()")) {
+        // The actual StageRunner heartbeat does not change a terminal receipt.
+        found = [];
       } else if (sql.includes("FROM production_stage_runs")) {
         found = tenant === scope.tenantId && workspace === scope.workspaceId ? [...rows] : [];
         if (sql.includes("r.run_id=$2")) found = found.filter(row => row.run_id === params[1]).map(row => ({ ...row, started_at: createdAt, finished_at: row.status === "running" ? null : createdAt }));
@@ -84,24 +98,50 @@ beforeEach(async () => {
     expect(String(url)).toBe("http://offline-worker.invalid/v1/chat/completions");
     const request = JSON.parse(String(init?.body)); modelRequests.push(request);
     const prompt = String(request.messages.at(-1).content), section = prompt.split("\n\n【硬性输出要求】", 1)[0]!;
-    let payload: unknown;
-    if (section.startsWith("你是当前影片的字段作者。")) payload = failAuthor ? { shotId: "opening", fields: { duration: 99 } }
-      : { shotId: "opening", fields: { timeline: "T00:00至T00:05，合成人物完整观察商品；T00:05至T00:10，合成人物轻轻点头。" } };
+    let payload: unknown, callKind: "author" | "g6" | "repair" | "facts";
+    if (section.startsWith("你是当前影片的字段作者。")) {
+      callKind = "author";
+      if (receiptFault === "author-socket-loss") throw new Error("offline socket lost after native invocation");
+      payload = failAuthor ? { shotId: "opening", fields: { duration: 99 } }
+        : { shotId: "opening", fields: { timeline: "T00:00至T00:05，合成人物完整观察商品；T00:05至T00:10，合成人物轻轻点头。" } };
+    }
     else if (section.startsWith("你是视频提示词语义质量门的唯一评审员。")) {
+      callKind = "g6";
       const context = JSON.parse(section.slice(section.indexOf("\n{\n") + 1)), fields = Object.fromEntries(context.fields.map((field: Json) => [field.field, field.value]));
       payload = { shotId: context.shotId, checks: SEMANTIC_QUALITY_CHECK_IDS.map(id => {
         const field = id === "SQ1_SUBJECT_ACTION" ? "action" : id === "SQ2_SCENE_PROPS" ? "scene" : id === "SQ3_CAMERA_FEASIBLE" ? "camera_movement" : id === "SQ4_LIGHT_COLOR" ? "lighting" : "director_instruction";
         return { id, field, pass: !(failG6 && context.shotId === "opening" && id === "SQ3_CAMERA_FEASIBLE"), evidence: fields[field],
           ...(failG6 && context.shotId === "opening" && id === "SQ3_CAMERA_FEASIBLE" ? { failureCode: "OFFLINE_CURRENT_CAMERA_CONFLICT", repair: "当前镜头必须修正" } : {}) };
       }) };
-    } else if (section.startsWith("你是字段级定点修复器。")) payload = { changes: [] };
-    else payload = { approved: !failFacts, score: failFacts ? 10 : 96, issues: failFacts ? ["offline unsupported final claim"] : [], suggestions: [], reason: failFacts ? "offline final fact rejection" : "offline complete current final facts" };
-    return Response.json({ id: `offline-worker-${modelRequests.length}`, object: "chat.completion", model: request.model,
-      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(payload) } }],
-      usage: { prompt_tokens: 600, completion_tokens: 100, total_tokens: 700 } });
+    } else if (section.startsWith("你是字段级定点修复器。")) { callKind = "repair"; payload = { changes: [] }; }
+    else {
+      callKind = "facts"; factNativeCalls++;
+      if (receiptFault === "facts-partial-unknown" && factNativeCalls === 2) throw new Error("offline final fact socket lost");
+      payload = receiptFault === "facts-syntax" || receiptFault === "facts-partial-unknown" ? "{"
+        : { approved: !failFacts, score: failFacts ? 10 : 96, issues: failFacts ? ["offline unsupported final claim"] : [], suggestions: [], reason: failFacts ? "offline final fact rejection" : "offline complete current final facts" };
+    }
+    const response: Json = { id: `offline-worker-${modelRequests.length}`, object: "chat.completion", model: request.model,
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: typeof payload === "string" ? payload : JSON.stringify(payload) } }],
+      usage: { prompt_tokens: 600, completion_tokens: 100, total_tokens: 700 } };
+    if (receiptFault === `${callKind}-no-usage`) delete response.usage;
+    if (receiptFault === `${callKind}-no-id`) delete response.id;
+    if (receiptFault === `${callKind}-route-drift`) {
+      const current = activeEngine as unknown as { cfg: { router: Parameters<WorkloomLLMEngine["attachRouter"]>[0] } };
+      activeEngine!.attachRouter(current.cfg.router);
+    }
+    return Response.json(response);
   }));
 });
-afterEach(async () => { resetCircuit("preproduction"); vi.unstubAllEnvs(); vi.unstubAllGlobals(); await rm(workDir, { recursive: true, force: true }); });
+afterEach(async () => {
+  for (const row of rows.filter(row => row.attempt > fixture.scope.attempt)) {
+    const entry = getRun(row.run_id, scope.workspaceId);
+    if (entry && !entry.finishedAt) {
+      entry.aborted = true;
+      await vi.waitFor(() => { expect(entry.finishedAt).toEqual(expect.any(String)); }, { timeout: 30_000, interval: 10 });
+    }
+  }
+  resetCircuit("preproduction"); vi.unstubAllEnvs(); vi.unstubAllGlobals(); await rm(workDir, { recursive: true, force: true });
+});
 async function start() {
   const plan = await prepareApprovedSourcePlan(scope, projectId), request = { projectId, expectedLatestAttempt: plan.source.scope.attempt, planDigest: plan.planDigest };
   const receipt = await repairApprovedSourcePrompts(scope, request, startApprovedSourceRepairRun);
@@ -109,7 +149,7 @@ async function start() {
   return { plan, request, receipt };
 }
 async function finished(runId: string) {
-  await vi.waitFor(() => { expect(getRun(runId, scope.workspaceId)?.finishedAt).not.toBeNull(); }, { timeout: 10_000, interval: 10 });
+  await vi.waitFor(() => { expect(getRun(runId, scope.workspaceId)?.finishedAt).toEqual(expect.any(String)); }, { timeout: 30_000, interval: 10 });
   return getRun(runId, scope.workspaceId)!;
 }
 describe("approved-source host worker", () => {
@@ -130,9 +170,19 @@ describe("approved-source host worker", () => {
     expect(boundary.events.filter(event => event.decision.action === "system-auto-approval")
       .map(event => event.decision.after.gateEvent.sourceStage)).toEqual(["apps/server:approved-source-repair", "apps/server:approved-source-repair"]);
     expect(output.productionEvidence.approvedSourceRepair.planDigest).toBe(plan.planDigest);
+    const sheet = JSON.parse(await readFile(path.join(fixture.store.root, output.cliShotlistRef), "utf8"));
+    expect(sheet.metadata.platform).toBe("douyin");
+    expect(sheet.metadata.builtinCharacterSelection).toEqual(plan.selection.exportMetadata.builtinCharacterSelection);
+    expect(sheet.metadata.characters).toEqual(plan.selection.exportCharacters);
+    expect(sheet.characters).toEqual(plan.selection.exportCharacters);
+    expect(sheet.metadata.source).toEqual(sheet.source);
+    expect(plan.request.metadata).not.toHaveProperty("platform");
+    expect(output.productionEvidence.gates.find((gate: Json) => gate.gate === "G6_PROMPT").promptQuality.evidence.contracts[0].contract.createdAt)
+      .toBe(output.authoring.receipts[0].authoredAt);
     expect(await readPersistedPreproductionRun(scope, receipt.runId)).toMatchObject({ projectId, status: "finished", resultSummary: { persisted: true, success: true, attempt: 5 } });
     const source = await listProductionShots({ app: { connect: boundary.connect } as never, scope, projectId, workDir });
     expect(source.sourceAttempt).toBe(5);
+    expect(source.approvedSourceRepair).toEqual(output.productionEvidence.approvedSourceRepair);
     expect(source.shots).toHaveLength(2);
     expect(source.shots[0]!.fields.timeline).toContain("点头");
     const duplicate = await repairApprovedSourcePrompts(scope, request, startApprovedSourceRepairRun);
@@ -161,6 +211,8 @@ describe("approved-source host worker", () => {
     expect(modelRequests).toHaveLength(1);
     const row = rows.at(-1)!, output = JSON.parse(await readFile(path.join(fixture.store.root, row.output_ref), "utf8"));
     expect(output.productionEvidence.gates).toEqual([]); expect(output.retainedDraft.sourceAttempt).toBe(4);
+    expect(row.error_class).toBe("GATE_REJECTED");
+    expect(output.modelCallOutcomes[0]).toMatchObject({ nativeCompleted: true, dispatchOutcome: "verified-complete", usage: { promptTokens: 600, completionTokens: 100 } });
     const next = await prepareApprovedSourcePlan(scope, projectId);
     expect(next.source.scope.attempt).toBe(5); expect(next.currentDraftSource.scope.attempt).toBe(4);
     expect(next.contracts[0]!.fields.timeline).not.toContain("99");
@@ -203,5 +255,53 @@ describe("approved-source host worker", () => {
     await expect(listProductionShots({ app: { connect: boundary.connect } as never, scope, projectId, workDir,
       ...(boundaryName === "disabled-contract" ? { env: { ...process.env, PROMPT_CONTRACT_V2: "off" } } : {}) })).rejects.toMatchObject({ code: "PREPRODUCTION_ADOPTION_UNVERIFIED" });
     expect(modelRequests).toHaveLength(5);
+  });
+  it.each([
+    ["author-no-usage", 1], ["author-no-id", 1], ["author-socket-loss", 1], ["author-route-drift", 1],
+    ["g6-no-usage", 2], ["g6-no-id", 2], ["g6-route-drift", 2],
+    ["repair-no-usage", 4], ["facts-no-usage", 4], ["facts-no-id", 4], ["facts-partial-unknown", 5],
+  ] as const)("persists sticky unknown receipt %s and cannot turn a new plan into another native invocation", async (fault, calls) => {
+    receiptFault = fault;
+    if (fault === "repair-no-usage") failG6 = true;
+    const { receipt, request } = await start(), entry = await finished(receipt.runId);
+    expect(entry.status).toBe("failed"); expect(entry.error).toContain("RECEIPT_UNVERIFIED");
+    expect(modelRequests).toHaveLength(calls);
+    const row = rows.at(-1)!, output = JSON.parse(await readFile(path.join(fixture.store.root, row.output_ref), "utf8"));
+    expect(row).toMatchObject({ status: "interrupted", error_class: "RECEIPT_UNVERIFIED" });
+    expect(output.success).toBe(false);
+    const unknown = output.modelCallOutcomes.filter((item: Json) => item.dispatchOutcome === "unverified");
+    expect(unknown).toHaveLength(1);
+    if (fault.endsWith("no-id") || fault.endsWith("route-drift")) expect(unknown[0].usage).toEqual({ promptTokens: 600, completionTokens: 100 });
+    if (fault.endsWith("route-drift")) expect(unknown[0].nativeCompleted).toBe(true);
+    if (fault.endsWith("no-usage") || fault === "author-socket-loss") expect(unknown[0].usage).toBeNull();
+    if (fault === "facts-partial-unknown") {
+      expect(unknown[0]).toMatchObject({ nativeInvocations: 2, usage: { promptTokens: 600, completionTokens: 100 } });
+      expect(unknown[0].receipts).toHaveLength(1);
+    }
+    expect(await readPromptRepairPlan(scope, projectId)).toMatchObject({ kind: "unavailable" });
+    expect(await repairApprovedSourcePrompts(scope, request, startApprovedSourceRepairRun))
+      .toMatchObject({ kind: "started", runId: receipt.runId, deduped: true });
+    expect(rows).toHaveLength(2); expect(modelRequests).toHaveLength(calls);
+  });
+  it("keeps a proven pre-dispatch archive failure as known failed with no model invocation", async () => {
+    const file = path.join(fixture.store.root, "stages/preproduction/attempt-5.authoring/shot-1.request.json");
+    await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, "existing immutable request");
+    const { receipt } = await start(); await finished(receipt.runId);
+    const row = rows.at(-1)!, output = JSON.parse(await readFile(path.join(fixture.store.root, row.output_ref), "utf8"));
+    expect(row).toMatchObject({ status: "failed", error_class: "GATE_REJECTED" });
+    expect(output.modelCallOutcomes).toEqual([]); expect(modelRequests).toHaveLength(0);
+    expect(await readPromptRepairPlan(scope, projectId)).toMatchObject({ kind: "ready", expectedLatestAttempt: 5 });
+  });
+  it("preserves known measured syntax-failure receipts instead of calling completed reviews unknown", async () => {
+    receiptFault = "facts-syntax";
+    const { receipt } = await start(); await finished(receipt.runId);
+    const row = rows.at(-1)!, output = JSON.parse(await readFile(path.join(fixture.store.root, row.output_ref), "utf8"));
+    expect(row).toMatchObject({ status: "failed", error_class: "GATE_REJECTED" });
+    expect(modelRequests).toHaveLength(9); // existing producer three parse attempts x support's two attempts, plus author/G6 three
+    const facts = output.modelCallOutcomes.filter((item: Json) => item.stage === "marketing-final-facts");
+    expect(facts).toHaveLength(2);
+    for (const event of facts) expect(event).toMatchObject({ dispatchOutcome: "verified-complete", nativeInvocations: 3,
+      usage: { promptTokens: 1800, completionTokens: 300 } });
+    expect(await readPromptRepairPlan(scope, projectId)).toMatchObject({ kind: "ready", expectedLatestAttempt: 5 });
   });
 });

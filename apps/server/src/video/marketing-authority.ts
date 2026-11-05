@@ -50,6 +50,19 @@ export interface PreparedMarketingFacts {
   bundle: MarketingFactsBundle; g1Content: string; raw: Record<IntelStage, RecordValue>; storeRoot: string;
   root: string; prefix: string;
 }
+export interface MarketingFinalReviewObservation {
+  shotId: string;
+  dispatchOutcome: "not-dispatched" | "verified-complete" | "unverified";
+  nativeInvocations: number | null;
+  usage: { promptTokens: number; completionTokens: number } | null;
+  receipts: NonNullable<ProducerVerdict["receipts"]>;
+}
+class MarketingReviewReceiptUnverified extends Error {
+  readonly code = "RECEIPT_UNVERIFIED";
+  constructor(readonly observation: MarketingFinalReviewObservation) {
+    super("RECEIPT_UNVERIFIED: 最终事实审核的原生计量、回执或调用终态未核实，须先对账，不能重新派发");
+  }
+}
 interface DossierEngine {
   plan(input: RecordValue): { trace_id: string; plans: Record<IntelStage, DataMiningStagePlan> };
   assemble(trace: string, input: RecordValue, raw: Record<IntelStage, RecordValue>): {
@@ -460,7 +473,8 @@ export async function prepareMarketingFacts(input: {
 }
 
 export async function finalizeMarketingFacts(prepared: PreparedMarketingFacts, shots: Array<{ shotId: string; prompt: string; fields: unknown }>, env: NodeJS.ProcessEnv = process.env,
-  verifyCurrent?: () => void | Promise<void>): Promise<{ ref: string; sha256: string }> {
+  verifyCurrent?: () => void | Promise<void>,
+  observeDispatch?: (outcome: MarketingFinalReviewObservation) => void | Promise<void>): Promise<{ ref: string; sha256: string }> {
   if (!shots.length || new Set(shots.map(shot => shot.shotId)).size !== shots.length) fail("MARKETING_PROMPTS_INVALID", "营销镜头为空或镜头标识重复");
   await verifyMarketingFactSources({ root: prepared.root, scope: prepared.bundle.scope, bundle: prepared.bundle });
   for (const [index, item] of shots.entries()) {
@@ -473,7 +487,26 @@ export async function finalizeMarketingFacts(prepared: PreparedMarketingFacts, s
     const currentReview: typeof reviewStage = async (...args) => {
       await verifyCurrent?.();
       await verifyMarketingFactSources({ root: prepared.root, scope: prepared.bundle.scope, bundle: prepared.bundle });
-      try { return await reviewStage(...args); }
+      try {
+        const verdict = await reviewStage(...args);
+        if (verifyCurrent) {
+          const receipts = verdict.receipts ?? [], calls = verdict.dispatchEvidence?.invocations;
+          const measured = receipts.every(receipt => Number.isSafeInteger(receipt.inputTokens) && receipt.inputTokens >= 0
+            && Number.isSafeInteger(receipt.outputTokens) && receipt.outputTokens >= 0);
+          const valid = measured && receipts.every(receipt => receipt.finishReason === "stop" && typeof receipt.responseId === "string" && Boolean(receipt.responseId.trim())
+            && /^[a-f0-9]{64}$/.test(receipt.requestHash) && /^[a-f0-9]{64}$/.test(receipt.responseHash));
+          const known = calls !== undefined && Number.isSafeInteger(calls) && calls >= 0
+            && calls === receipts.length && verdict.dispatchEvidence?.receiptUnverified === false && valid;
+          const usage = receipts.length && measured ? receipts.reduce((total, receipt) => ({
+            promptTokens: total.promptTokens + receipt.inputTokens, completionTokens: total.completionTokens + receipt.outputTokens,
+          }), { promptTokens: 0, completionTokens: 0 }) : null;
+          const observation: MarketingFinalReviewObservation = { shotId: shot.shotId, nativeInvocations: calls ?? null,
+            dispatchOutcome: known ? calls ? "verified-complete" : "not-dispatched" : "unverified", usage, receipts };
+          await observeDispatch?.(observation);
+          if (!known) throw new MarketingReviewReceiptUnverified(observation);
+        }
+        return verdict;
+      }
       finally {
         await verifyCurrent?.();
         await verifyMarketingFactSources({ root: prepared.root, scope: prepared.bundle.scope, bundle: prepared.bundle });

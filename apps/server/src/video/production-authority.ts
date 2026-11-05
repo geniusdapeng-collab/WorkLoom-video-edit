@@ -45,10 +45,17 @@ const SEEDANCE_WIRE_MAX_BYTES = 64_000_000;
 type Mode = "manual" | "batch" | "auto";
 type SourceRow = { id: string; project_id: string; workspace_id: string; stage_id: string; attempt: number; status: string; output_ref: string; output_sha256: string; run_id: string; kind: string };
 type JsonRecord = Record<string, unknown>;
+export interface ApprovedSourceRepairDescriptor {
+  mode: "approved-source-prompt-repair";
+  planDigest: string;
+  adoptionRef: string;
+  adoptionSha256: string;
+}
 interface Source {
   row: SourceRow; root: string; output: JsonRecord; prompts: JsonRecord; promptsHash: string; shot: JsonRecord;
   promptContractSha256: string | null;
   promptContract: PromptContract | null;
+  approvedSourceRepair?: ApprovedSourceRepairDescriptor;
 }
 interface TokenPayload {
   schemaVersion: typeof SCHEMA; purpose: typeof PURPOSE; issuer: typeof ISSUER;
@@ -351,7 +358,9 @@ async function sourceForShot(
     if (error instanceof ScenePolicyRenderGateError) fail("SCENE_POLICY_UNVERIFIED", error.message);
     throw error;
   }
-  return { row, root, output, prompts, promptsHash: output.promptsSha256, shot, promptContractSha256, promptContract };
+  return { row, root, output, prompts, promptsHash: output.promptsSha256, shot, promptContractSha256, promptContract,
+    ...(adoption ? { approvedSourceRepair: { mode: "approved-source-prompt-repair" as const,
+      planDigest: repair!.planDigest as string, adoptionRef: repair!.adoptionRef as string, adoptionSha256: repair!.adoptionSha256 as string } } : {}) };
 }
 
 /** 消费 G6 绑定的实际资产字节；不重新搜图、不下载可变 URL、不用文字替代参考图。 */
@@ -470,6 +479,7 @@ function projectQualificationMedia(original: JsonRecord, source: Source): JsonRe
 export async function listProductionShots(input: {
   app: AppPool; scope: Scope; projectId: string; env?: NodeJS.ProcessEnv; workDir?: string;
 }): Promise<{ projectId: string; sourceStageRunId: string; sourceAttempt: number; promptsSha256: string;
+  approvedSourceRepair?: ApprovedSourceRepairDescriptor;
   shots: Array<{ shotId: string; durationSec: number; prompt: string; fields: JsonRecord; promptSha256: string }> }> {
   const source = await sourceForShot(input.app, input.scope, input.projectId, null, input.workDir ?? archiveWorkDir(input.env), input.env);
   const seen = new Set<string>();
@@ -481,7 +491,8 @@ export async function listProductionShots(input: {
     return { shotId: shot.shotId, durationSec: shot.durationSec, prompt: shot.prompt,
       fields: record(shot.fields, "镜头字段缺失"), promptSha256: renderSha256(shot.prompt) };
   });
-  return { projectId: input.projectId, sourceStageRunId: source.row.id, sourceAttempt: source.row.attempt, promptsSha256: source.promptsHash, shots };
+  return { projectId: input.projectId, sourceStageRunId: source.row.id, sourceAttempt: source.row.attempt, promptsSha256: source.promptsHash, shots,
+    ...(source.approvedSourceRepair ? { approvedSourceRepair: { ...source.approvedSourceRepair } } : {}) };
 }
 
 function signingKey(env: NodeJS.ProcessEnv): { key: Buffer; keyId: string } {

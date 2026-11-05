@@ -87,12 +87,18 @@ export async function startApprovedSourceRepairWorker(
   let rejectStarted!: (error: unknown) => void;
   const startup = new Promise<{ runId: string; attempt: number }>((resolve, reject) => { resolveStarted = resolve; rejectStarted = reject; });
   let transferred = false;
+  let receiptUnverified = false;
+  const modelCallOutcomes: Json[] = [];
   const verifyCurrent = async () => {
     if (entry.aborted) fail("ABORTED");
     if (Date.now() - startedAt >= deadlineMs) fail("DEADLINE_EXPIRED");
     assertModel();
     await plan.verifyCurrent(lease);
     await runner.currentContext()?.heartbeat({ mode: plan.mode, gate: entry.currentGate, runId: entry.runId });
+  };
+  const verifyDispatch = async () => {
+    if (receiptUnverified) fail("RECEIPT_UNVERIFIED: 模型调用的计量、原生回执或终态未核实，须先对账，不能重新派发");
+    await verifyCurrent();
   };
   const append = async (action: string, after: Json) => {
     await archive.appendJsonl("events.jsonl", { kind: action, runId: entry.runId, ...after });
@@ -140,11 +146,24 @@ export async function startApprovedSourceRepairWorker(
       };
       let authored: Awaited<ReturnType<typeof authorRepairFields>>;
       try {
-        authored = await authorRepairFields({ plan: plan.fieldPlan, sourceContext: plan.sourceContext, engine: llm, verifyCurrent,
-          budgetHook: async event => { await ctx.log("info", "approved-source-field-authoring", { ...event, policy: "existing-preproduction-model-route" }); },
+        authored = await authorRepairFields({ plan: plan.fieldPlan, sourceContext: plan.sourceContext, engine: llm, verifyCurrent: verifyDispatch,
+          budgetHook: async event => {
+            if (event.phase === "dispatch") modelCallOutcomes.push({ stage: "field-authoring", shotId: event.shotId,
+              nativeInvocationStarted: true, dispatchOutcome: "pending", nativeCompleted: false, usage: null });
+            if (event.phase === "after") {
+              let call = [...modelCallOutcomes].reverse().find(item => item.stage === "field-authoring" && item.shotId === event.shotId && item.dispatchOutcome === "pending");
+              if (!call) { call = { stage: "field-authoring", shotId: event.shotId, nativeInvocationStarted: true }; modelCallOutcomes.push(call); }
+              Object.assign(call, { dispatchOutcome: event.dispatchOutcome ?? "unverified", nativeCompleted: event.nativeCompleted === true,
+                usage: event.usage ?? null, success: event.success === true });
+              receiptUnverified ||= call.dispatchOutcome !== "verified-complete";
+            }
+            await ctx.log("info", "approved-source-field-authoring", { ...event, policy: "existing-preproduction-model-route" });
+          },
           archive: archiveAuthoring });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error), draft = plan.currentDraftSource;
+        receiptUnverified ||= modelCallOutcomes.some(item => item.dispatchOutcome !== "verified-complete");
+        const detail = error instanceof Error ? error.message : String(error), draft = plan.currentDraftSource;
+        const message = receiptUnverified ? `RECEIPT_UNVERIFIED: ${detail}；模型原生计量或完成回执待核实，不能重新派发` : detail;
         entry.error = message;
         // A rejected answer is archived by the author, but never promoted to a current field draft.
         return { output: { success: false, degraded: false, mode: plan.mode, failureMessage: message,
@@ -153,8 +172,10 @@ export async function startApprovedSourceRepairWorker(
               adoptionRef: adoption.ref, adoptionSha256: adoption.sha256 } },
           retainedDraft: { sourceStageRunId: draft.stageRunId, sourceRunId: draft.scope.runId, sourceAttempt: draft.scope.attempt,
             outputRef: draft.outputRef, outputSha256: draft.outputSha256, planDigest: plan.planDigest },
-          stages: ["approved-source-field-authoring"], authoring: { status: "failed", artifactDirectory: `stages/preproduction/attempt-${ctx.attempt}.authoring` } },
-          outcome: { status: "failed" as const, errorClass: "GATE_REJECTED", errorMsg: message } };
+          modelCallOutcomes, stages: ["approved-source-field-authoring"], authoring: { status: receiptUnverified ? "unverified" : "failed",
+            callOutcomes: modelCallOutcomes, artifactDirectory: `stages/preproduction/attempt-${ctx.attempt}.authoring` } },
+          outcome: { status: receiptUnverified ? "interrupted" as const : "failed" as const,
+            errorClass: receiptUnverified ? "RECEIPT_UNVERIFIED" : "GATE_REJECTED", errorMsg: message } };
       }
       await verifyCurrent();
       await save(`stages/preproduction/attempt-${ctx.attempt}.authored-fields.json`, { schemaVersion: "workloom.approved-source-authored-fields/v1",
@@ -172,9 +193,15 @@ export async function startApprovedSourceRepairWorker(
       await append("video.portrait.reuse.accepted", { attempt: ctx.attempt, sourceAdoption: adoption.ref, proof: evidence.at(-1)! });
       await verifyCurrent();
       entry.currentGate = "G6_PROMPT";
-      const shots = authored.shots.map(shot => ({ source: sourceShot(shot), compile: structuredClone(shot.compileOptions) }));
+      const compiledAt = new Date().toISOString();
+      const shots = authored.shots.map(shot => ({ source: sourceShot(shot), compile: { ...structuredClone(shot.compileOptions),
+        createdAt: shot.currentContract?.createdAt ?? compiledAt } }));
       const quality = await evaluatePromptPackage({ mode: "enforce", projectId, runId: entry.runId, stageRunId: `${entry.runId}:g6`,
-        revision: ctx.attempt, shots, reviewer: createLlmSemanticQualityReviewer(llm, verifyCurrent),
+        revision: ctx.attempt, shots, reviewer: createLlmSemanticQualityReviewer(llm, verifyDispatch, async outcome => {
+          modelCallOutcomes.push({ stage: "prompt-quality", nativeInvocationStarted: true, ...outcome });
+          receiptUnverified ||= outcome.dispatchOutcome === "unverified";
+          await ctx.log("info", "approved-source-semantic-dispatch", { ...outcome });
+        }),
         maxFinalPromptChars: fieldSpec().lengths.hardMax,
         upstreamContext: { pipelineKind: "marketing", intent: plan.request.intent, brief: plan.request.metadata.brief ?? null,
           approvedProductionPlan: plan.g4.approvedProductionPlan } });
@@ -188,7 +215,7 @@ export async function startApprovedSourceRepairWorker(
         ...(qualityFiles.repairAttemptPath ? [{ path: qualityFiles.repairAttemptPath, sha256: qualityFiles.sha256.repairAttempt!, scope: "complete-text" }] : []),
       ];
       const summary = promptContractSummary(quality.shotContracts.map(item => item.contract));
-      const g6 = await decideGate("G6_PROMPT", quality.status === "passed" && quality.g6Eligible,
+      const g6 = await decideGate("G6_PROMPT", quality.status === "passed" && quality.g6Eligible && !receiptUnverified,
         { decisionId: quality.decision.id, promptContract: summary, promptQuality: { schemaVersion: quality.schemaVersion,
           mode: quality.mode, status: quality.status, checkedAt: quality.checkedAt, decisionId: quality.decision.id,
           g6Eligible: quality.g6Eligible, renderEligible: quality.renderEligible,
@@ -222,9 +249,13 @@ export async function startApprovedSourceRepairWorker(
         eligible = eligible && g7.approved === true;
       }
       await verifyCurrent();
+      const hostSource = { kind: plan.mode, issuer: "workloom.studio-worker", ...targetScope, adoption: { ref: adoption.ref, sha256: adoption.sha256 } };
+      const exportedMetadata = structuredClone(plan.selection.exportMetadata);
       const shotlist = { schemaVersion: "workloom.preproduction-cli-handoff/v1", projectId, title: project.title,
-        source: { kind: plan.mode, issuer: "workloom.studio-worker", ...targetScope, adoption: { ref: adoption.ref, sha256: adoption.sha256 } },
-        metadata: structuredClone(plan.request.metadata), characters: structuredClone(plan.selection.characters), draft: true,
+        source: hostSource,
+        metadata: { ...exportedMetadata,
+          ...(exportedMetadata.source !== undefined ? { inputSource: structuredClone(exportedMetadata.source) } : {}), source: hostSource },
+        characters: structuredClone(plan.selection.exportCharacters), draft: true,
         retainedApprovedSource: { ref: adoption.ref, sha256: adoption.sha256 }, scenePolicySelection: selectedPolicy.decision,
         ...(selectedPolicy.policy ? { scenePolicy: { id: selectedPolicy.policy.id, version: selectedPolicy.policy.version,
           sourceSha256: selectedPolicy.policy.sourceSha256, exceptions: (plan.request.metadata.scenePolicy as { exceptions?: ScenePolicyException[] } | undefined)?.exceptions ?? [] } } : {}),
@@ -244,11 +275,20 @@ export async function startApprovedSourceRepairWorker(
       let facts: Awaited<ReturnType<typeof finalizeMarketingFacts>> | undefined, factFailure: string | undefined;
       if (eligible) {
         try { facts = await finalizeMarketingFacts(marketing, promptPack.shots.map(shot => ({ shotId: shot.shotId,
-          prompt: shot.prompt, fields: shot.fields })), process.env, verifyCurrent); }
-        catch (error) { factFailure = error instanceof Error ? error.message : String(error); }
+          prompt: shot.prompt, fields: shot.fields })), process.env, verifyDispatch, async outcome => {
+          modelCallOutcomes.push({ stage: "marketing-final-facts", ...outcome });
+          receiptUnverified ||= outcome.dispatchOutcome === "unverified";
+          await ctx.log("info", "approved-source-final-facts-dispatch", { ...outcome });
+        }); }
+        catch (error) {
+          receiptUnverified ||= (error as { code?: string })?.code === "RECEIPT_UNVERIFIED";
+          factFailure = error instanceof Error ? error.message : String(error);
+        }
       }
       await verifyCurrent();
-      const success = eligible && Boolean(facts), failure = success ? null : factFailure
+      const success = eligible && Boolean(facts) && !receiptUnverified, failure = success ? null : receiptUnverified
+        ? `RECEIPT_UNVERIFIED: ${factFailure ?? "模型调用的计量、原生完成回执或终态未核实"}；须先对账，不能重新派发`
+        : factFailure
         ?? (quality.findings.map(finding => `${finding.shotId}/${finding.code}: ${finding.detail}`).join("；") || "当前G5/G6/G7或片型硬闸未通过");
       entry.error = failure;
       return { output: { success, degraded: false, mode: plan.mode, ...(failure ? { failureMessage: failure } : {}),
@@ -259,8 +299,9 @@ export async function startApprovedSourceRepairWorker(
         cliShotlistRef: sheet.ref, cliShotlistSha256: sheet.sha256, ...sceneEvidence,
         ...(facts ? { marketingFactsRef: facts.ref, marketingFactsSha256: facts.sha256 } : {}),
         ...(factFailure ? { marketingFinalFactsFailure: { stage: "marketing-final-fact-review", message: factFailure } } : {}),
-        authoring: { snapshotSha256: authored.snapshotSha256, receipts: authored.receipts }, stages: ["approved-source-field-authoring", "portrait-reuse-verification", "prompt-quality", ...(g6.approved ? ["final-currentness"] : [])] },
-        ...(success ? {} : { outcome: { status: "failed" as const, errorClass: "GATE_REJECTED", errorMsg: failure } }) };
+        modelCallOutcomes, authoring: { snapshotSha256: authored.snapshotSha256, receipts: authored.receipts }, stages: ["approved-source-field-authoring", "portrait-reuse-verification", "prompt-quality", ...(g6.approved ? ["final-currentness"] : [])] },
+        ...(success ? {} : { outcome: { status: receiptUnverified ? "interrupted" as const : "failed" as const,
+          errorClass: receiptUnverified ? "RECEIPT_UNVERIFIED" : "GATE_REJECTED", errorMsg: failure } }) };
 
       async function decideGate(gate: GateKey, passed: boolean, extra: Json, files: Json[], checks: AutoApprovalCheck[], via: string, model: string | null): Promise<Json> {
         await verifyCurrent();
