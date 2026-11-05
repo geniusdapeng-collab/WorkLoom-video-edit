@@ -4,7 +4,8 @@ import { Agent, request as requestHttp } from "node:http";
 const PRODUCT = "workloom-ai-video-edit";
 const REPOSITORY = "workloom-ai/WorkLoom-video-edit";
 const START = "video.studio.start";
-const READ_PROCEDURES = new Set(["video.gen.catalog", "video.studio.status", "video.studio.archive", "video.production.shots"]);
+const WRITE_PROCEDURES = new Set([START, "video.studio.repairPrompts"]);
+const READ_PROCEDURES = new Set(["video.gen.catalog", "video.studio.status", "video.studio.archive", "video.production.shots", "video.studio.promptRepairPlan"]);
 const HTTP_TIMEOUT_MS = 30_000;
 const MAX_RESPONSE = 8 * 1024 * 1024;
 
@@ -23,7 +24,7 @@ export function parseEditLoopbackApi(value) {
 }
 
 async function requestStudio(api, agent, procedure, input, authorization) {
-  const post = procedure === START;
+  const post = WRITE_PROCEDURES.has(procedure);
   const url = new URL(procedure ? `/trpc/${procedure}` : "/health/product", api);
   const headers = { accept: "application/json" };
   const payload = post ? Buffer.from(JSON.stringify(input)) : undefined;
@@ -80,7 +81,7 @@ export async function withVerifiedEditService(api, token, work) {
       && typeof body.repository === "string" && body.repository.trim(), "STUDIO_PRODUCT_UNVERIFIED");
     check(body.productId === PRODUCT && body.repository === REPOSITORY, "STUDIO_PRODUCT_MISMATCH");
     return await work((procedure, input) => {
-      check(procedure === START || READ_PROCEDURES.has(procedure), "STUDIO_PROCEDURE_INVALID");
+      check(WRITE_PROCEDURES.has(procedure) || READ_PROCEDURES.has(procedure), "STUDIO_PROCEDURE_INVALID");
       check(typeof token === "string" && /^[A-Za-z0-9._~+\/=-]{16,8192}$/.test(token), "MEMBER_TOKEN_REQUIRED");
       return requestStudio(origin, agent, procedure, input, { token, socket });
     }, { sourceCommit: body.sourceCommit, videoStudio: body.videoStudio });

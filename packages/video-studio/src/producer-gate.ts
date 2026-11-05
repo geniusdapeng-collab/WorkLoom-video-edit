@@ -104,6 +104,8 @@ export interface ProducerVerdict {
     policyVersion: string;
     registryVersion: string;
   }>;
+  /** Native invocations and unresolved receipt state survive parsing and transport failures. */
+  dispatchEvidence?: { invocations: number; receiptUnverified: boolean };
   ms: number;
   reason: string;
   /** 证据或模型不可用；degraded 不具备放行资格。 */
@@ -367,11 +369,15 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
   }
 
   const evidence: NonNullable<ProducerVerdict["evidence"]> = [];
+  const receipts: NonNullable<ProducerVerdict["receipts"]> = [];
+  let nativeInvocations = 0, nativePending = false, receiptUnverified = false;
   let contract: ProducerReviewContract | undefined;
   const reject = (reason: string, via: ProducerVerdict["via"] = "deterministic", model?: string): ProducerVerdict => ({
     stage, status: "unverified", approved: false, score: 0, hardFailures: [], contractHash: contract?.contractHash,
     issues: [...softFailures, reason], suggestions: ["补齐有效证据或修复评审组件后重跑本环节"],
-    rerun: true, via, model, ms: Date.now() - started, reason, degraded: true, evidence
+    rerun: true, via, model, ms: Date.now() - started, reason, degraded: true, evidence,
+    ...(receipts.length ? { receipts } : {}),
+    dispatchEvidence: { invocations: nativeInvocations, receiptUnverified: receiptUnverified || nativePending },
   });
   try { if (options.contracts !== undefined) contract = buildProducerReviewContract(options.contracts); }
   catch (error) {
@@ -468,7 +474,6 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
       : Math.max(1, artifactImages);
     const batches = Math.max(1, Math.ceil(artifactImages / batchSize));
     const answers: Array<{ approved: boolean; score: number; issues: string[]; suggestions: string[]; reason: string }> = [];
-    const receipts: NonNullable<ProducerVerdict["receipts"]> = [];
     const provider = new OpenAiCompatibleProvider(llm.model, {
       baseUrl: llm.baseUrl,
       apiKey: llm.apiKey,
@@ -491,6 +496,8 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
         const retryInstruction = attempt === 0
           ? ""
           : `\n上一次响应不是合法监制 JSON（第 ${attempt} 次重试）。只输出一个 JSON 对象，字段严格为 approved/score/issues/suggestions/reason，不要 Markdown。`;
+        nativeInvocations++;
+        nativePending = true;
         const result: ChatResult = await provider.chat([{ role: "user", content: [
           { type: "text", text: retryInstruction },
           ...content,
@@ -500,6 +507,7 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
           temperature: 0.2,
           retries: 0,
         });
+        nativePending = false;
         receipts.push({
           modelId: result.modelId,
           inputTokens: result.promptTokens,
@@ -513,6 +521,10 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
           policyVersion: result.policyVersion,
           registryVersion: result.registryVersion,
         });
+        try {
+          receiptUnverified ||= !OpenAiCompatibleProvider.prototype.matchesCurrentTransport.call(provider, result)
+            || result.finishReason !== "stop" || !result.responseId?.trim();
+        } catch (error) { receiptUnverified = true; throw error; }
         let parsed: unknown;
         try {
           parsed = JSON.parse(result.text.trim());
@@ -553,7 +565,8 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
     return { stage, status: approved ? "passed" : "failed", approved, contractHash: contract?.contractHash, score: Math.min(...answers.map((a) => a.score)),
       hardFailures: [], issues: [...softFailures, ...answers.flatMap((a) => a.issues)], suggestions: answers.flatMap((a) => a.suggestions),
       rerun: !approved, via: "llm", model: llm.model, ms: Date.now() - started,
-      reason: answers.map((a) => a.reason).join("；") + (approved ? "" : `（所有证据批次需通过且评分≥${minScore}）`), degraded: false, evidence, receipts };
+      reason: answers.map((a) => a.reason).join("；") + (approved ? "" : `（所有证据批次需通过且评分≥${minScore}）`), degraded: false, evidence, receipts,
+      dispatchEvidence: { invocations: nativeInvocations, receiptUnverified } };
   } catch (err) {
     return reject(err instanceof Error ? err.message : String(err), "fallback", llm.model);
   } finally {

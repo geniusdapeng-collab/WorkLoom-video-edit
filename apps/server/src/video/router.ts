@@ -53,12 +53,13 @@ import { mediaUrl } from "./gen/ingest.js";
 /** PollReport 类型再导出（web 端 AppRouter 类型可移植性，TS2883） */
 export type { PollReport } from "./render-poller.js";
 import { dealRouter } from "./deal.js";
-import { getRun, startResumedRun, startRun, startVideoProjectRun, summarizeWorkspaceRuns, StudioWorkerError } from "./studio-worker.js";
+import { getRun, startApprovedSourceRepairRun, startResumedRun, startRun, startVideoProjectRun, summarizeWorkspaceRuns, StudioWorkerError } from "./studio-worker.js";
 import { resolveScenePolicyForIntent, ScenePolicyRouteError } from "./scene-policy-routing.js";
 import { resolvePlatformForIntent } from "./platform-routing.js";
 import { BuiltinCharacterSelectionError } from "./builtin-character-selection.js";
 import { archiveWorkDir, makeStageArchive } from "./archive-host.js";
-import { readArchiveSummary, resumeProject, scanStaleRunsOnStartup } from "./archive-resume.js";
+import { readArchiveSummary, readPersistedPreproductionRun, resumeProject, scanStaleRunsOnStartup } from "./archive-resume.js";
+import { ApprovedSourcePlanError, readPromptRepairPlan, repairApprovedSourcePrompts } from "./approved-source-plan.js";
 import { applyRouteToMetadata, buildPipelineIntent, normalizeExplicitBriefDuration, PrdAuthorityError, routeVideoPipeline } from "@hyperreality/video-studio";
 import { routedLlmCall } from "../service/llm.js";
 import { deliveryIngestHook, mediaRouter } from "./media/index.js";
@@ -160,6 +161,10 @@ function renderScriptRethrow(err: unknown): never {
 }
 
 function preproductionRethrow(err: unknown): never {
+  if (err instanceof ApprovedSourcePlanError) {
+    throw new TRPCError({ code: ["SCOPE_INVALID", "SOURCE_ATTEMPT_INVALID", "SOURCE_HASH_INVALID"].includes(err.code)
+      ? "BAD_REQUEST" : "PRECONDITION_FAILED", message: err.message, cause: err });
+  }
   if (err instanceof ScenePolicyRouteError || err instanceof BuiltinCharacterSelectionError) {
     throw new TRPCError({
       code: err.kind === "catalog" ? "PRECONDITION_FAILED" : "BAD_REQUEST",
@@ -469,6 +474,23 @@ const deliveryRouter = router({
 /* ================= studio：预生产流水线 ================= */
 
 const studioRouter = router({
+  /** Read-only source/field plan. This query never dispatches an AI request. */
+  promptRepairPlan: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1).max(200) }).strict())
+    .query(({ ctx, input }) => readPromptRepairPlan(scopeOf(ctx.identity), input.projectId)),
+
+  /** Explicit text repair; the digest identifies one durable operation across retries. */
+  repairPrompts: writeProcedure
+    .input(z.object({
+      projectId: z.string().min(1).max(200),
+      expectedLatestAttempt: z.number().int().positive(),
+      planDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+    }).strict())
+    .mutation(async ({ ctx, input }) => {
+      try { return await repairApprovedSourcePrompts(scopeOf(ctx.identity), input, startApprovedSourceRepairRun); }
+      catch (error) { preproductionRethrow(error); }
+    }),
+
   /**
    * 启动预生产（异步；projectId 缺省按 VID-nnn 口径生成；LLM 未配置明确拒绝）。
    *
@@ -629,7 +651,7 @@ const studioRouter = router({
           const persisted = await new VideoPipelineRepository(scope).findByIntentContractId(`legacy:${input.runId}`);
           return persisted ? await new VideoPipelineQueryService(
             new VideoPipelineRepository(scope),
-          ).status(persisted.runId) : null;
+          ).status(persisted.runId) : await readPersistedPreproductionRun(scope, input.runId);
         }
         return {
           runId: explainer.runId,

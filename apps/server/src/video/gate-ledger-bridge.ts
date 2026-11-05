@@ -69,6 +69,8 @@ export function buildServerGateRecord(input: {
   approved: boolean;
   verdict?: ServerGateVerdictLike | null;
   producerMode?: string;
+  /** Host entry point that actually performed this gate; legacy onApproval remains the default. */
+  sourceStage?: string;
   at?: string;
 }): ServerGateRecord | null {
   const stepKey = SERVER_GATE_STEP_KEY[input.gate];
@@ -77,7 +79,7 @@ export function buildServerGateRecord(input: {
   const event = buildGateEvent({
     stepKey,
     projectId: input.projectId,
-    sourceStage: "apps/server:onApproval",
+    sourceStage: input.sourceStage ?? "apps/server:onApproval",
     shotIds: [],
     checks: [{
       id: "producer-verdict",

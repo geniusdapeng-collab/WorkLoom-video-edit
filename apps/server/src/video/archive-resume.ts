@@ -36,7 +36,7 @@ export interface StageBreakpoint {
   startedAt: string;
 }
 
-interface PreproductionResumeRequest {
+export interface PreproductionResumeRequest {
   intent: string;
   rawIntent: string;
   isMarketing: boolean;
@@ -59,7 +59,7 @@ function resumeRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
-function verifiedResumeRequest(
+export function verifiedResumeRequest(
   value: unknown,
   expected: { scope: Scope & { projectId: string; runId: string }; attempt: number; createdAt: string | null; isMarketing: boolean },
 ): PreproductionResumeRequest | null {
@@ -406,6 +406,33 @@ export interface ArchiveSummary {
   pendingApprovalId: string | null;
   recentEvents: Array<Record<string, unknown>>;
   findings: Array<Record<string, unknown>>;
+}
+
+/** Registry-independent status for a real preproduction run after the server restarts. */
+export async function readPersistedPreproductionRun(scope: Scope, runId: string) {
+  const [row] = await scopedRows<{
+    project_id: string; attempt: number; status: string; error_msg: string | null;
+    started_at: Date | string; finished_at: Date | string | null; output_ref: string | null;
+  }>(scope,
+  `SELECT r.project_id,r.attempt,r.status,r.error_msg,r.started_at,r.finished_at,r.output_ref
+     FROM production_stage_runs r
+     JOIN video_projects p ON p.id=r.project_id AND p.workspace_id=r.workspace_id
+     JOIN workspaces w ON w.id=p.workspace_id AND w.tenant_id=$3
+    WHERE r.workspace_id=$1 AND r.run_id=$2 AND r.stage_id='preproduction' AND r.pipeline_run_id IS NULL
+    ORDER BY r.attempt DESC LIMIT 1`, [scope.workspaceId, runId, scope.tenantId]);
+  if (!row) return null;
+  const succeeded = row.status === "done";
+  return {
+    runId, projectId: row.project_id,
+    status: row.status === "running" ? "running" as const : succeeded ? "finished" as const : "failed" as const,
+    currentGate: row.status === "running" ? "preproduction" : null,
+    pendingApprovalId: null,
+    startedAt: new Date(row.started_at).toISOString(),
+    finishedAt: row.finished_at ? new Date(row.finished_at).toISOString() : null,
+    error: row.error_msg ?? (row.status === "interrupted" ? "运行已中断，请先核对已有回执。" : null),
+    resultSummary: { success: succeeded, producerAttempts: 1, attempt: Number(row.attempt), persisted: true,
+      outputRef: row.output_ref },
+  };
 }
 
 /** 档案只读视图（任务详情页「制片档案」标签数据源）：文件本体 + PG 索引合并返回 */

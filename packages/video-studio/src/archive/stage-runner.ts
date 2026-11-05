@@ -126,7 +126,7 @@ export interface StageRunnerHooks {
  * 语义上是阶段内失败：产物照落（产物先落盘），但台账与交接包记 failed。
  */
 export interface StageOutcome {
-  status: "done" | "failed" | "skipped";
+  status: "done" | "failed" | "skipped" | "interrupted";
   errorClass?: string | null;
   errorMsg?: string | null;
 }
@@ -150,7 +150,7 @@ export class StageRunner {
   /** 执行一个环节并完整落盘。fn 抛错时：失败现场固化后原样上抛（不吞错、不改主流程语义）。 */
   async run(
     stageId: string,
-    input: Record<string, unknown>,
+    input: Record<string, unknown> | ((context: StageContext) => Record<string, unknown>),
     fn: (ctx: StageContext) => Promise<{
       output: Record<string, unknown>;
       cost?: Record<string, unknown>;
@@ -237,7 +237,7 @@ export class StageRunner {
     try {
       // 输入是执行前置证据：写失败不得开始模型/外部动作，更不能退回 attempt=1 覆盖历史。
       await this.store.writeJsonAtomic(inputRef, {
-        stageId, attempt, input, startedAt: new Date().toISOString(),
+        stageId, attempt, input: typeof input === "function" ? input(ctx) : input, startedAt: new Date().toISOString(),
       });
       await safe(() => this.store.appendJsonl("events.jsonl", { kind: "stage.start", stageId, attempt, runId: this.runId }));
       await safe(() => this.store.updateLedger(stageId, { attempt, status: "running", finishedAt: null }));

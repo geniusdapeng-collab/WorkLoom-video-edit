@@ -60,6 +60,50 @@ afterEach(async () => {
 });
 
 describe("StageRunner", () => {
+  it("binds a derived input to the actual atomic claim before any execution", async () => {
+    const ledger = new FakeLedger(6);
+    vi.spyOn(ledger, "nextAttempt").mockResolvedValue(99);
+    const runner = new StageRunner(store, ledger, "RUN-CLAIMED");
+    const execute = vi.fn(async (ctx: { attempt: number }) => {
+      const saved = await store.readJson<{ attempt: number; input: { adoptionRef: string } }>(
+        `stages/preproduction/attempt-${ctx.attempt}.input.json`,
+      );
+      expect(saved).toMatchObject({ attempt: 7, input: { adoptionRef: "stages/preproduction/attempt-7.approved-source-adoption.json" } });
+      return { output: { ok: true } };
+    });
+    await runner.run("preproduction", ctx => ({
+      adoptionRef: `stages/preproduction/attempt-${ctx.attempt}.approved-source-adoption.json`,
+    }), execute);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(ledger.nextAttempt).not.toHaveBeenCalled();
+    expect(await store.readJson("stages/preproduction/attempt-99.input.json")).toBeNull();
+  });
+
+  it("persists a failed claim when derived input construction fails and never executes work", async () => {
+    const ledger = new FakeLedger(3);
+    const execute = vi.fn(async () => ({ output: { ok: true } }));
+    const failure = new Error("approved source changed before input freeze");
+    await expect(new StageRunner(store, ledger, "RUN-SOURCE-DRIFT").run("preproduction", () => {
+      throw failure;
+    }, execute)).rejects.toBe(failure);
+    expect(execute).not.toHaveBeenCalled();
+    expect(ledger.finished).toEqual([expect.objectContaining({ attempt: 4, status: "failed", errorMsg: failure.message })]);
+    expect(await store.readJson("stages/preproduction/attempt-4.input.json")).toBeNull();
+  });
+
+  it("retains an actual uncertain external result as interrupted with a non-rerunnable receipt class", async () => {
+    const ledger = new FakeLedger();
+    const result = await new StageRunner(store, ledger, "RUN-UNKNOWN").run("preproduction", {}, async () => ({
+      output: { success: false, externalDispatch: "performed", usage: "unknown" },
+      outcome: { status: "interrupted", errorClass: "RECEIPT_UNVERIFIED", errorMsg: "Native completion usage was not measured" },
+    }));
+    expect(result).toEqual({ success: false, externalDispatch: "performed", usage: "unknown" });
+    expect(ledger.finished).toEqual([expect.objectContaining({ attempt: 1, status: "interrupted", errorClass: "RECEIPT_UNVERIFIED",
+      outputRef: "stages/preproduction/attempt-1.output.json", outputSha256: expect.stringMatching(/^[a-f0-9]{64}$/u) })]);
+    expect((await store.readManifest())?.ledger.preproduction?.status).toBe("interrupted");
+    expect(await store.readJson("stages/preproduction/attempt-1.output.json")).toEqual(result);
+  });
+
   it("成功路径：input → output → done 台账 → manifest 账本 → 交接包", async () => {
     const ledger = new FakeLedger();
     const runner = new StageRunner(store, ledger, "RUN-1");

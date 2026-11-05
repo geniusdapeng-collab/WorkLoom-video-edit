@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { continueNativeFilm, readFilmContinuation } from "./codex-video-film.mjs";
+import { continueNativeFilm, readFilmContinuation, verifyStudioHandoff } from "./codex-video-film.mjs";
 import { admitFilmBudget } from "./codex-video-film-admission.mjs";
 import { startProviderBudgetGateway } from "./provider-budget-gateway.ts";
 import { WORKFLOW_TASK_CAPS } from "./provider-budget-policy.ts";
@@ -199,6 +199,88 @@ test("a Studio source that changes while budget is admitted cannot launch Film",
   const f = fixture(t);
   f.input.refreshSource = async () => ({ archive: f.input.archive, production: { ...f.input.production, sourceAttempt: 3 } });
   await assert.rejects(continueNativeFilm(f.input), /STALE_OR_UNAPPROVED_PREPRODUCTION/u);
+  assert.equal(f.args.length, 0);
+  assert.equal(await readFilmContinuation(f.input), null);
+});
+
+function repairFixture(t) {
+  const f = fixture(t, { pipeline: "marketing" });
+  const scope = { tenantId: "TN-1", workspaceId: "WS-1", projectId, runId, attempt: 2 };
+  const identity = { scope: { ...scope, runId: "historical-run", attempt: 1 }, stageRunId: "STAGE-1",
+    inputRef: "stages/preproduction/attempt-1.input.json", inputSha256: hash("original input"),
+    outputRef: "stages/preproduction/attempt-1.output.json", outputSha256: hash("original output") };
+  const adoptionPath = join(dirname(f.outputPath), "attempt-2.approved-source-adoption.json");
+  const planDigest = hash("verified service plan");
+  const adoption = { schemaVersion: "workloom.approved-source-adoption/v1", mode: "approved-source-prompt-repair", planDigest,
+    source: identity, currentDraftSource: identity, rootApprovalSource: identity, target: scope };
+  const update = (mutate = () => {}) => {
+    mutate(adoption);
+    put(adoptionPath, adoption);
+    const descriptor = { mode: adoption.mode, planDigest, adoptionRef: relative(f.input.archive.archiveRoot, adoptionPath),
+      adoptionSha256: fileHash(adoptionPath) };
+    f.input.production.approvedSourceRepair = descriptor;
+    const sheet = JSON.parse(readFileSync(f.shotlistPath));
+    sheet.source = { ...sheet.source, kind: descriptor.mode, adoption: { ref: descriptor.adoptionRef, sha256: descriptor.adoptionSha256 } };
+    sheet.retainedApprovedSource = sheet.source.adoption;
+    put(f.shotlistPath, sheet);
+    const output = JSON.parse(readFileSync(f.outputPath));
+    output.mode = descriptor.mode;
+    output.productionEvidence.approvedSourceRepair = descriptor;
+    output.cliShotlistSha256 = fileHash(f.shotlistPath);
+    put(f.outputPath, output);
+    f.input.archiveReceipt.outputSha256 = fileHash(f.outputPath);
+    f.input.archive.stages[0].outputSha256 = fileHash(f.outputPath);
+  };
+  update();
+  return { ...f, adoptionPath, adoption, update };
+}
+
+function verifyFixture(f) {
+  return verifyStudioHandoff({ ...f.input, studio: f.input.receipt,
+    studioRoot: join(dirname(f.input.receiptPath), "studio"), requestedDuration: 18 });
+}
+
+test("approved-source handoff binds live descriptor, archived adoption and current target without Film dispatch", t => {
+  const f = repairFixture(t);
+  assert.deepEqual(verifyFixture(f).source.approvedSourceRepair, f.input.production.approvedSourceRepair);
+  assert.equal(f.args.length, 0);
+});
+
+for (const [name, alter] of [
+  ["descriptor absent on live service", f => { delete f.input.production.approvedSourceRepair; }],
+  ["descriptor drift", f => { f.input.production.approvedSourceRepair = { ...f.input.production.approvedSourceRepair, planDigest: hash("changed") }; }],
+  ["adoption byte change", f => { put(f.adoptionPath, {}); }],
+  ["target run change even with new digest", f => f.update(adoption => { adoption.target.runId = "other-run"; })],
+  ["historical tenant change even with new digest", f => f.update(adoption => { adoption.source.scope.tenantId = "TN-other"; })],
+  ["historical source after target", f => f.update(adoption => { adoption.source.scope.attempt = 3; })],
+]) {
+  test("adopted-source handoff rejects " + name, t => {
+    const f = repairFixture(t);
+    alter(f);
+    assert.throws(() => verifyFixture(f));
+    assert.equal(f.args.length, 0);
+  });
+}
+
+test("an adopted source that changes during admission cannot dispatch Film", async t => {
+  const f = repairFixture(t);
+  f.input.refreshSource = async () => {
+    f.update(adoption => { adoption.planDigest = hash("changed plan"); });
+    return { archive: f.input.archive, production: f.input.production };
+  };
+  await assert.rejects(continueNativeFilm(f.input), /APPROVED_SOURCE_HANDOFF_UNVERIFIED/u);
+  assert.equal(f.args.length, 0);
+  assert.equal(await readFilmContinuation(f.input), null);
+});
+
+
+test("a valid new adoption digest during admission is detected by the source refresh comparison", async t => {
+  const f = repairFixture(t);
+  f.input.refreshSource = async () => {
+    f.update(adoption => { adoption.boundary = "changed archived bytes"; });
+    return { archive: f.input.archive, production: f.input.production };
+  };
+  await assert.rejects(continueNativeFilm(f.input), /STUDIO_SOURCE_CHANGED_BEFORE_FILM/u);
   assert.equal(f.args.length, 0);
   assert.equal(await readFilmContinuation(f.input), null);
 });
