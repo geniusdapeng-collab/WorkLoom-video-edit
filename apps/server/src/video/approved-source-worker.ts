@@ -11,7 +11,7 @@ import {
   type GateKey, type ScenePolicyException, type ScenePolicyShot,
 } from "@hyperreality/video-studio";
 import { evaluateVideoSystemAutoApproval, VIDEO_SYSTEM_AUTO_APPROVAL_POLICY } from "@hyperreality/video-pipeline";
-import { loadPipelineFeatureFlags, type AutoApprovalCheck } from "@workloom/pipeline-control";
+import { effectiveVideoPolicy, type AutoApprovalCheck } from "@workloom/pipeline-control";
 import { modelPolicyFor } from "../service/llm.js";
 import { archiveWorkDir, makeLedgerWriter, readProjectMeta, serializeProjectArchive, type ProjectLease } from "./archive-host.js";
 import { createPreproductionResumeSnapshot } from "./archive-resume.js";
@@ -29,7 +29,7 @@ import { acceptPortraitArchiveReuse, portraitReuseEvidence, readCurrentPortraitA
 import { resolveScenePolicyForIntent } from "./scene-policy-routing.js";
 import {
   createLlmSemanticQualityReviewer, evaluatePromptPackage, promptContractSummary, promptQualityAutoChecks,
-  verifyCurrentPromptContracts, writePromptQualityEvidence,
+  promptQualityRunProjection, verifyCurrentPromptContracts, writePromptQualityEvidence,
 } from "./prompt-quality-gate.js";
 import type { RunEntry } from "./studio-worker.js";
 
@@ -49,7 +49,8 @@ export async function startApprovedSourceRepairWorker(
   if (scope.tenantId !== plan.source.scope.tenantId || scope.workspaceId !== plan.source.scope.workspaceId
     || lease.projectId !== projectId) fail("SCOPE_MISMATCH");
   await plan.verifyLatest(lease);
-  if ((process.env.ARCHIVE_ENABLED ?? "1") === "0" || loadPipelineFeatureFlags(process.env).promptContract !== "enforce") {
+  const effectivePolicy = effectiveVideoPolicy(process.env);
+  if ((process.env.ARCHIVE_ENABLED ?? "1") === "0" || effectivePolicy.promptContract !== "enforce") {
     fail("ENFORCEMENT_REQUIRED");
   }
   // Reuse the installed model route and its existing accounting/quota policy. No repair-specific cap or alternate model.
@@ -80,7 +81,7 @@ export async function startApprovedSourceRepairWorker(
   if (archive.root !== plan.archiveRoot) fail("ARCHIVE_CHANGED");
   const entry: RunEntry = { runId: newId("RUN"), projectId, workspaceId: scope.workspaceId, status: "running",
     currentGate: null, pendingApprovalId: null, startedAt: new Date().toISOString(), finishedAt: null,
-    error: null, resultSummary: null, aborted: false };
+    error: null, resultSummary: null, effectivePolicy: structuredClone(effectivePolicy), promptQuality: null, aborted: false };
   register(entry);
   const runner = new StageRunner(archive, makeLedgerWriter(scope), entry.runId);
   let resolveStarted!: (value: { runId: string; attempt: number }) => void;
@@ -205,6 +206,7 @@ export async function startApprovedSourceRepairWorker(
         maxFinalPromptChars: fieldSpec().lengths.hardMax,
         upstreamContext: { pipelineKind: "marketing", intent: plan.request.intent, brief: plan.request.metadata.brief ?? null,
           approvedProductionPlan: plan.g4.approvedProductionPlan } });
+      entry.promptQuality = promptQualityRunProjection(quality);
       await verifyCurrent();
       const qualityFiles = writePromptQualityEvidence(path.join(plan.workDir, "gates", projectId, `attempt-${ctx.attempt}`, "prompt-quality"), quality);
       const qualityEvidence = [
@@ -329,11 +331,13 @@ export async function startApprovedSourceRepairWorker(
     });
     entry.status = entry.error ? "failed" : "finished";
     entry.currentGate = null;
-    entry.resultSummary = { success: entry.status === "finished", mode: plan.mode, sourceAttempt: plan.source.scope.attempt };
+    entry.resultSummary = { success: entry.status === "finished", mode: plan.mode, sourceAttempt: plan.source.scope.attempt,
+      effectivePolicy: structuredClone(effectivePolicy), promptQuality: entry.promptQuality ?? null };
   })().catch(error => {
     entry.status = "failed";
     entry.error = error instanceof Error ? error.message : String(error);
-    entry.resultSummary = { success: false, mode: plan.mode, sourceAttempt: plan.source.scope.attempt };
+    entry.resultSummary = { success: false, mode: plan.mode, sourceAttempt: plan.source.scope.attempt,
+      effectivePolicy: structuredClone(effectivePolicy), promptQuality: entry.promptQuality ?? null };
     rejectStarted(error);
     console.error(`[approved-source-repair] ${projectId}/${entry.runId}: ${entry.error}`);
   }).finally(async () => {

@@ -16,6 +16,14 @@ PROMPT_CONTRACT_V2=enforce
 
 `shadow` 只用于校准。未达到稳定门槛前不要直接全量 enforce；切换回 `off` 时保留所有合同、报告、修复计划和历史门事件。
 
+实际运行策略可在以下位置只读核对，不包含模型密钥、地址或其它秘密：
+
+- `GET /health/product` 的 `videoPolicy`；
+- `video.studio.policy`；
+- `video.studio.status` 的 `effectivePolicy`；
+
+该投影同时披露 `PROMPT_CONTRACT_V2`、制片自动重试次数、修复协调器、控制面和当前真正支持的管线。非法重试值或未知控制面值 fail-closed，不把拼写错误静默解释为 `off`。
+
 ## 2. 字段合同
 
 代码事实源：
@@ -44,19 +52,21 @@ PROMPT_CONTRACT_V2=enforce
 | `SQ4_LIGHT_COLOR` | 光影、构图和色调是否统一？ |
 | `SQ5_PURPOSE` | 这一镜是否有明确叙事作用或传播价值？ |
 
-失败项必须带字段、稳定 `failureCode`、字段证据和 repair 建议。无效 JSON/缺证据只允许一次技术性重问；重问仍无效进入 `stalled`，不把内容判死，也不继续提交。
+失败项必须带字段、稳定 `failureCode`、字段证据和 repair 建议。无效 JSON/缺证据只允许一次技术性重问；重问仍无效只隔离该镜并记录 `technicalRetry=1`，不消耗内容修复次数。其它结构合法镜头仍可独立收敛，但整包不会在存在未解决镜头时通过。
 
-## 4. 一次定点修复
+## 4. 逐镜定点修复
 
-语义失败最多生成一份 `RepairPlan`：
+每个失败镜头最多执行一次定点修复；多镜同时失败时共享同一份可审计 `RepairPlan` 预算，但修复请求、异常和复验状态逐镜隔离：
 
 - playbook：`repair-prompt-semantic-fields-v1`
 - `maxAttempts=1`
-- allowlist 只来自失败问题引用的字段
+- 每个镜头的 allowlist 只来自该镜失败问题引用的字段
 - 禁止修改事实、授权、时长、画幅、模型能力、门槛和其它字段
-- 修改后重新编译全部镜头，并重新执行硬门和五项语义检查
+- 已通过镜头冻结并复用当前语义证明，不重新调用模型
+- 只重新编译并复验实际发生修改的镜头；最终包仍执行合同清单、数量、哈希和五问汇总
+- 修复 schema 从当前镜头的实际 `allowedFields` 生成，不再固定给 `camera_movement` 示例
 
-以下情况立即 `stalled`：允许字段外修改、字段/提示词哈希未变化、复验仍有失败、合同编译失败或修复期间上游字节变化。`stalled` 不触发真实供应商 POST。
+单镜出现允许字段外修改、字段/提示词哈希未变化、复验仍有失败或合同编译失败时标记为 `quarantined`；结构硬错误标记为 `needs_upstream`；未知外部回执标记为 `unknown_receipt`。其它镜头继续收敛，但最终包只有全部必需镜头均为 `accepted` 或 `repaired` 才可形成 G6 passed。任何未解决镜头都不触发真实供应商 POST。
 
 ## 5. 证据
 
@@ -73,7 +83,9 @@ gates/<projectId>/attempt-<n>/
   render-eligibility.json
 ```
 
-每个文件记录 SHA-256；G6/G7 门证据引用这些实际文件。`production_qualifications` 不复制合同正文作为第二事实源，而是把合同摘要写入 canonical script fields，使 request hash 绑定当前合同。
+每个文件记录 SHA-256；`semantic-quality-report.json` 同时保存每个镜头的 `shotOutcomes`，`prompt-semantic-repair-attempt.json` 保存 `shotRepairAttempts`。G6/G7 门证据引用这些实际文件。`production_qualifications` 不复制合同正文作为第二事实源，而是把合同摘要写入 canonical script fields，使 request hash 绑定当前合同。
+
+`video.studio.status` 的 `promptQuality` 返回同一状态的轻量投影，包含总体 `status/g6Eligible`、每镜 `status/findingCodes/nextAction`、技术重试次数、内容修复次数和失败原因；它不复制完整合同正文。
 
 ## 6. G7/G8 边界
 

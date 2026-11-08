@@ -31,6 +31,7 @@ export interface ApprovedSourceScope { tenantId: string; workspaceId: string }
 export const APPROVED_SOURCE_REPAIR_MODE = "approved-source-prompt-repair" as const;
 export const APPROVED_SOURCE_REPAIR_INPUT_SCHEMA = "workloom.approved-source-repair-input/v1" as const;
 export const APPROVED_SOURCE_ADOPTION_SCHEMA = "workloom.approved-source-adoption/v1" as const;
+export const SUPPORTED_APPROVED_SOURCE_PROMPT_REPAIR_PIPELINES = ["marketing"] as const;
 const hashPattern = /^[a-f0-9]{64}$/u;
 const sha256 = (bytes: string | Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -147,6 +148,9 @@ function immutableBody(plan: VerifiedApprovedSourcePlan): Json {
 
 export interface PromptRepairReady {
   kind: "ready";
+  supported: true;
+  pipelineKind: "marketing";
+  supportedPipelines: typeof SUPPORTED_APPROVED_SOURCE_PROMPT_REPAIR_PIPELINES;
   mode: typeof APPROVED_SOURCE_REPAIR_MODE;
   projectId: string;
   expectedLatestAttempt: number;
@@ -159,8 +163,23 @@ export interface PromptRepairReady {
   authoringFields: Array<{ shotId: string; field: string; reason: string }>;
   warnings: string[];
 }
-export interface PromptRepairUnavailable { kind: "unavailable"; projectId: string; code: string; message: string }
+export interface PromptRepairUnavailable {
+  kind: "unavailable";
+  supported: boolean;
+  pipelineKind: "marketing" | "narrative" | null;
+  supportedPipelines: typeof SUPPORTED_APPROVED_SOURCE_PROMPT_REPAIR_PIPELINES;
+  projectId: string;
+  code: string;
+  message: string;
+}
 export type PromptRepairPlanDto = PromptRepairReady | PromptRepairUnavailable;
+export function promptRepairCapabilityForKind(pipelineKind: "marketing" | "narrative" | null) {
+  return {
+    supported: pipelineKind === "marketing",
+    pipelineKind,
+    supportedPipelines: SUPPORTED_APPROVED_SOURCE_PROMPT_REPAIR_PIPELINES,
+  } as const;
+}
 export interface PromptRepairRequest { projectId: string; expectedLatestAttempt: number; planDigest: string }
 export type PromptRepairLaunch =
   | { kind: "started"; runId: string; sourceAttempt: number; deduped?: true }
@@ -572,7 +591,8 @@ async function loadApprovedSourcePlan(
 
 export function publicPromptRepairPlan(plan: VerifiedApprovedSourcePlan): PromptRepairReady {
   assertVerifiedApprovedSourcePlan(plan);
-  return { kind: "ready", mode: plan.mode, projectId: plan.source.scope.projectId,
+  return { kind: "ready", supported: true, pipelineKind: "marketing", supportedPipelines: ["marketing"],
+    mode: plan.mode, projectId: plan.source.scope.projectId,
     expectedLatestAttempt: plan.source.scope.attempt, sourceRunId: plan.source.scope.runId, planDigest: plan.planDigest,
     sourceCollectedAt: plan.sourceFacts.bundle.collectedAt, sourceExpiresAt: plan.sourceExpiresAt,
     retainedGates: ["G1", "G2", "G3", "G4"], retainedShotCount: plan.contracts.length,
@@ -582,9 +602,12 @@ export function publicPromptRepairPlan(plan: VerifiedApprovedSourcePlan): Prompt
 export async function readPromptRepairPlan(scope: ApprovedSourceScope, projectId: string): Promise<PromptRepairPlanDto> {
   try { return publicPromptRepairPlan(await prepareApprovedSourcePlan(scope, projectId)); }
   catch (error) {
-    if (error instanceof ApprovedSourcePlanError) return { kind: "unavailable", projectId, code: error.code, message: error.message };
+    const project = await readProjectMeta(scope, projectId).catch(() => null);
+    const pipelineKind = project?.kind === "marketing" || project?.kind === "narrative" ? project.kind : null;
+    const base = { kind: "unavailable" as const, ...promptRepairCapabilityForKind(pipelineKind), projectId };
+    if (error instanceof ApprovedSourcePlanError) return { ...base, code: error.code, message: error.message };
     // Missing files and rejected source helpers are source unavailability; no fallback starts work.
-    return { kind: "unavailable", projectId, code: "SOURCE_UNVERIFIED", message: "原始证据、有效期或图片无法核验，未启动修复。请查看制片档案。" };
+    return { ...base, code: "SOURCE_UNVERIFIED", message: "原始证据、有效期或图片无法核验，未启动修复。请查看制片档案。" };
   }
 }
 

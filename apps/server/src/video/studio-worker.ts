@@ -75,7 +75,7 @@ import { upsertProductProfileFromDossier } from "./media/products.js";
 import { appendScenePolicyGuidance, resolveScenePolicyForIntent } from "./scene-policy-routing.js";
 import { appendPlatformGuidance, resolvePlatformForIntent } from "./platform-routing.js";
 import { loadVideoPipelinePlan, type CompiledVideoPipelinePlan } from "@hyperreality/video-pipeline";
-import { loadPipelineFeatureFlags, sha256Json } from "@workloom/pipeline-control";
+import { effectiveVideoPolicy, sha256Json, type EffectiveVideoPolicy } from "@workloom/pipeline-control";
 import { findModelByProviderModel, getModel, loadCatalog, resolveProviderModel } from "./gen/catalog.js";
 import { PipelineShadowObserver, pipelineControlMode } from "./pipeline/shadow.js";
 import {
@@ -101,6 +101,7 @@ import {
   evaluatePromptPackage,
   promptContractSummary,
   promptQualityAutoChecks,
+  promptQualityRunProjection,
   resolvePromptAssets,
   verifyCurrentPromptContracts,
   writePromptQualityEvidence,
@@ -385,6 +386,10 @@ export interface RunEntry {
   finishedAt: string | null;
   error: string | null;
   resultSummary: Record<string, unknown> | null;
+  /** Immutable policy snapshot for this run; safe to expose and contains no secrets. */
+  effectivePolicy?: EffectiveVideoPolicy;
+  /** Latest G6 projection; includes per-shot outcome and next backend action. */
+  promptQuality?: ReturnType<typeof promptQualityRunProjection> | null;
   /** shouldAbort 位：置 true 后轮询下一拍中断（见文件头说明） */
   aborted: boolean;
 }
@@ -811,6 +816,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
   }
   // 在模型、vendor 桥、运行注册表和异步任务之前读取完整复用配置；坏 manifest 不可回退新出图。
   const portraitOptions = portraitConfig(runInput.metadata, selectedBuiltinCharacters);
+  const effectivePolicy = effectiveVideoPolicy(process.env);
   const llm = WorkloomLLMEngine.fromEnv();
   if (!llm) {
     throw new StudioWorkerError(
@@ -844,7 +850,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
    */
   const runWorkDir = path.join(WORK_DIR, "workspaces", scope.workspaceId);
   const portraitIndexPath = path.join(runWorkDir, "characters", input.projectId, "portrait-index.json");
-  const promptContractMode = loadPipelineFeatureFlags(process.env).promptContract;
+  const promptContractMode = effectivePolicy.promptContract;
   const promptContractModel = promptContractMode === "off" ? null : contractModelFor(runInput.metadata);
   const semanticQualityReviewer = promptContractMode === "off" ? null : createLlmSemanticQualityReviewer(llm);
   const uninstallPortraitBinding = installVendorPortraitBindingBridge({
@@ -874,6 +880,8 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
     finishedAt: null,
     error: null,
     resultSummary: null,
+    effectivePolicy: structuredClone(effectivePolicy),
+    promptQuality: null,
     aborted: false,
   };
   runs.set(entry.runId, entry);
@@ -1117,6 +1125,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             reviewedG4ArtifactSha256 = approvedProductionPlan.g4ArtifactSha256;
           }
           promptQualityRef.current = promptQualityForGate;
+          entry.promptQuality = promptQualityRunProjection(promptQualityForGate);
           promptQualityEvidence = writePromptQualityEvidence(
             path.join(path.dirname(artifact.path), "prompt-quality"),
             promptQualityForGate,
@@ -1583,7 +1592,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
        * 制片档案口径（T-2026-0926-0001）：每次重跑 = 新 attempt（`claimRun` 原子递增），
        * 「第几次尝试、耗时、错误分类」全部落盘，历史不丢。
        */
-      const maxAttempts = Math.max(1, Number(process.env.VM_PRODUCER_RETRY ?? 0) + 1);
+      const maxAttempts = effectivePolicy.producerRetry.maxAttempts;
       const runOnce = async (): Promise<Awaited<ReturnType<VideoStudio["runPreproduction"]>>> => {
         const runnerStore = archive;
         // 档案 output 是给索引/交接包使用的摘要，不能取代 vendor 业务结果。
@@ -1602,6 +1611,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
           async (ctx) => {
             gateProofs.clear();
             promptQualityRef.current = null;
+            entry.promptQuality = null;
             reviewedG4ArtifactSha256 = undefined;
             marketingGateEvidence?.reset(ctx.attempt);
             completedVendorResult = null;
@@ -1965,6 +1975,8 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
         success: result.success,
         stages: Object.keys(result.stages ?? {}),
         producerAttempts: attempts,
+        effectivePolicy: structuredClone(effectivePolicy),
+        promptQuality: entry.promptQuality ?? null,
         ...(dataMiningStage
           ? {
               dataMining: {

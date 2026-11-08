@@ -36,7 +36,7 @@ import { protectedProcedure, router, scopeOf, writeProcedure } from "../trpc/con
 import { accountingRouter } from "./accounting.js";
 import { pollRenderJobs } from "./render-poller.js";
 import { getModel, listModels } from "./gen/catalog.js";
-import { loadPipelineFeatureFlags, sha256Json, type AutoApprovalCheck } from "@workloom/pipeline-control";
+import { effectiveVideoPolicy, loadPipelineFeatureFlags, sha256Json, type AutoApprovalCheck } from "@workloom/pipeline-control";
 import { checkCostCaps, costCaps, estimateCost, renderSpendCny, usdCnyRate } from "./gen/cost.js";
 import { serviceTierRejectionReason } from "./gen/params.js";
 import { submitGenJob } from "./gen/submit.js";
@@ -57,9 +57,11 @@ import { getRun, startApprovedSourceRepairRun, startResumedRun, startRun, startV
 import { resolveScenePolicyForIntent, ScenePolicyRouteError } from "./scene-policy-routing.js";
 import { resolvePlatformForIntent } from "./platform-routing.js";
 import { BuiltinCharacterSelectionError } from "./builtin-character-selection.js";
-import { archiveWorkDir, makeStageArchive } from "./archive-host.js";
+import { archiveWorkDir, makeStageArchive, readProjectMeta } from "./archive-host.js";
 import { readArchiveSummary, readPersistedPreproductionRun, resumeProject, scanStaleRunsOnStartup } from "./archive-resume.js";
-import { ApprovedSourcePlanError, readPromptRepairPlan, repairApprovedSourcePrompts } from "./approved-source-plan.js";
+import {
+  ApprovedSourcePlanError, promptRepairCapabilityForKind, readPromptRepairPlan, repairApprovedSourcePrompts,
+} from "./approved-source-plan.js";
 import { applyRouteToMetadata, buildPipelineIntent, normalizeExplicitBriefDuration, PrdAuthorityError, routeVideoPipeline } from "@hyperreality/video-studio";
 import { routedLlmCall } from "../service/llm.js";
 import { deliveryIngestHook, mediaRouter } from "./media/index.js";
@@ -474,6 +476,17 @@ const deliveryRouter = router({
 /* ================= studio：预生产流水线 ================= */
 
 const studioRouter = router({
+  /** Read-only effective policy projection for authenticated backend clients. */
+  policy: protectedProcedure.query(() => effectiveVideoPolicy(process.env)),
+
+  /** Marketing is the only pipeline with the source-bound field repair worker today. */
+  promptRepairCapability: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1).max(200) }).strict())
+    .query(async ({ ctx, input }) => {
+      const project = await readProjectMeta(scopeOf(ctx.identity), input.projectId);
+      return promptRepairCapabilityForKind(project?.kind ?? null);
+    }),
+
   /** Read-only source/field plan. This query never dispatches an AI request. */
   promptRepairPlan: protectedProcedure
     .input(z.object({ projectId: z.string().min(1).max(200) }).strict())
@@ -629,6 +642,7 @@ const studioRouter = router({
           pipeline: decision.route,
           product: decision.product?.name ?? null,
           via: decision.via,
+          effectivePolicy: effectiveVideoPolicy(process.env),
         };
       } catch (err) {
         preproductionRethrow(err);
@@ -639,6 +653,7 @@ const studioRouter = router({
   status: protectedProcedure
     .input(z.object({ runId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
+      const effectivePolicy = effectiveVideoPolicy(process.env);
       const entry = getRun(input.runId, scopeOf(ctx.identity).workspaceId);
       if (!entry) {
         /**
@@ -649,9 +664,10 @@ const studioRouter = router({
         if (!explainer) {
           const scope = scopeOf(ctx.identity);
           const persisted = await new VideoPipelineRepository(scope).findByIntentContractId(`legacy:${input.runId}`);
-          return persisted ? await new VideoPipelineQueryService(
+          const response = persisted ? await new VideoPipelineQueryService(
             new VideoPipelineRepository(scope),
           ).status(persisted.runId) : await readPersistedPreproductionRun(scope, input.runId);
+          return response ? { ...response, effectivePolicy, promptQuality: null } : null;
         }
         return {
           runId: explainer.runId,
@@ -663,6 +679,8 @@ const studioRouter = router({
           finishedAt: explainer.finishedAt,
           error: explainer.error,
           resultSummary: explainer.resultSummary,
+          effectivePolicy,
+          promptQuality: null,
         };
       }
       return {
@@ -675,6 +693,8 @@ const studioRouter = router({
         finishedAt: entry.finishedAt,
         error: entry.error,
         resultSummary: entry.resultSummary,
+        effectivePolicy: entry.effectivePolicy ?? effectivePolicy,
+        promptQuality: entry.promptQuality ?? null,
       };
     }),
 
