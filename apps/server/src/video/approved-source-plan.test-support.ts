@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  ArchiveStore, canonicalJson, compilePromptShot, normalizePrdProductionProfile, promptFieldPolicy,
+  ArchiveStore, buildPortraitOwnerAuthorization, canonicalJson, compilePromptShot, loadCharacterEntry,
+  normalizePrdProductionProfile, preparePrdPortraitSources, promptFieldPolicy,
   SHOT_FIELD_SCHEMA_V2, sha256Json, type PromptCompileOptions,
 } from "@hyperreality/video-studio";
 import { evaluateVideoSystemAutoApproval } from "@hyperreality/video-pipeline";
@@ -24,6 +25,9 @@ export async function approvedSourceFixture(input: {
   /** Only for source-selection boundary negatives. */
   castState?: "missing" | "profile-mismatch";
   platformState?: "missing" | "conflict";
+  dualProfile?: boolean;
+  reverseContractAssets?: boolean;
+  mutatePortraitWitness?: (planning: Json) => void | Promise<void>;
 }) {
   const { workDir, scope, createdAt } = input;
   const collectedAt = input.collectedAt ?? new Date().toISOString();
@@ -37,22 +41,43 @@ export async function approvedSourceFixture(input: {
   };
   const putJson = (file: string, value: unknown) => put(file, canonicalJson(value));
   const actorId = "fixture-person", actorName = "合成人物";
-  const authorization = { status: "synthetic-no-real-person" };
+  const authorization = { status: "synthetic-no-real-person" as const };
   const profile = await putJson(path.join(workDir, "fixtures", "profile.json"), { id: actorId, name: actorName, kind: "generated", authorization });
   const angles = ["front", "threeQuarter", "closeup", "side"] as const;
   const sourceFiles: Record<string, Awaited<ReturnType<typeof put>>> = {};
   // A real tiny PNG in a test fixture; it is never published or passed to a provider.
-  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/6d8AAAAASUVORK5CYII=", "base64");
-  for (const angle of angles) sourceFiles[angle] = await put(path.join(workDir, "fixtures", `${angle}.png`), png);
-  const selection = { schemaVersion: "workloom.portrait-reuse-selection/v1", rawIntent: "本次明确选择已存合成人物第二版四角度", selectedVersion: 2, expectedPortraits: 4, selectedAt: collectedAt };
+  const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/6d8AAAAASUVORK5CYII=", "base64");
+  const png = input.dualProfile ? Buffer.concat([tinyPng, Buffer.alloc(60_000)]) : tinyPng;
+  for (const angle of angles) sourceFiles[angle] = await put(path.join(workDir, "fixtures", `${angle}.png`),
+    input.dualProfile ? Buffer.concat([png, Buffer.from(angle)]) : png);
+  const rawIntent = "只使用第二版合成人物，分两段拍摄。";
+  const selection = { schemaVersion: "workloom.portrait-reuse-selection/v1" as const, rawIntent: input.dualProfile ? rawIntent : "本次明确选择已存合成人物第二版四角度", selectedVersion: 2, expectedPortraits: 4, selectedAt: collectedAt };
   const character = { id: actorId, name: actorName, aliases: ["主角"], version: 2, authorization, profile, files: sourceFiles };
   const portraitManifest = await putJson(path.join(workDir, "fixtures", "portrait-manifest.json"), {
     schemaVersion: "workloom.portrait-reuse-manifest/v1", approvedSelection: selection, characters: [character],
   });
   const manifestRef = { path: portraitManifest.path, sha256: portraitManifest.sha256 };
+  let catalogProfile = profile;
+  if (input.dualProfile) {
+    const catalogDir = path.join(workDir, "fixtures", "catalog");
+    for (const angle of angles) await put(path.join(catalogDir, "portraits", "v2", `${actorId}-${angle}.png`), await readFile(sourceFiles[angle]!.path));
+    catalogProfile = await putJson(path.join(catalogDir, "profile.json"), { schemaVersion: "workloom.character-profile/v1",
+      id: actorId, name: actorName, kind: "generated", authorization, wardrobe: [{ id: "w2", detail: "本次已审纯色保护服，历史肖像档案保持原字节。" }],
+      portraitSets: [{ version: 2, dir: "portraits/v2", angles: [...angles], source: "pure-t2i", active: true }] });
+    const owner = buildPortraitOwnerAuthorization(loadCharacterEntry(catalogDir)!, { decisionOwner: "synthetic-fixture-owner",
+      recordedBy: "offline-test-harness", statement: "仅供离线用例核验既有合成角色与四角度图片，不产生真实授权或视觉验收。",
+      anchorFile: path.join(catalogDir, "portraits", "v2", `${actorId}-front.png`) });
+    const ownerReceipt = await putJson(path.join(catalogDir, "reviews", "fixture-owner-acceptance.json"), {
+      kind: "owner-acceptance", basis: owner.basis, approved: true, characterId: actorId, version: 2,
+      acceptedBy: owner.decisionOwner, note: owner.statement, authorization: owner, artifacts: owner.artifacts, anchors: [owner.anchor] });
+    await put(path.join(catalogDir, "gates.jsonl"), canonicalJson({ stepKey: "g5-portrait-confirm", projectId: `portrait:${actorId}:v2`,
+      via: "owner-acceptance", sourceStage: "owner-acceptance", approved: true, evidence: { basis: owner.basis,
+        characterId: actorId, version: 2, ownerAcceptance: "reviews/fixture-owner-acceptance.json", ownerAcceptanceSha256: ownerReceipt.sha256,
+        authorization: owner } }) + "\n");
+  }
   const outputs: Record<string, Awaited<ReturnType<typeof put>>> = {}, receipts: Record<string, Json> = {}, files: Record<string, string> = {};
   for (const angle of angles) {
-    const output = await put(path.join(runDir, "characters", scope.projectId, actorId, `${angle}.png`), png);
+    const output = await put(path.join(runDir, "characters", scope.projectId, actorId, `${angle}.png`), await readFile(sourceFiles[angle]!.path));
     outputs[angle] = output; files[angle] = output.path;
     receipts[angle] = { schemaVersion: "workloom.portrait-reuse/v1", projectId: scope.projectId, kind: "character", id: actorId, angle,
       archiveId: actorId, archiveName: actorName, version: 2, generationCount: 0, copiedAt: collectedAt,
@@ -95,9 +120,10 @@ export async function approvedSourceFixture(input: {
     segmentContract: { count: 2, totalSeconds: 20, secondsPerSegment: 10, hardCuts: true,
       intervals: [{ startSec: 0, endSec: 10, brief: "主角完整观察合成商品" }, { startSec: 10, endSec: 20, brief: "主角轻轻点头" }] } };
   if (input.platformState === "missing") delete (brief as { platform?: string }).platform;
-  const metadata = { brief, characterId: actorId, dataMining: { name: "合成商品" },
+  const metadata = { brief: { ...brief, ...(input.dualProfile ? { portraitReferenceSelection: {
+    characterId: actorId, portraitVersion: 2, angles: ["front", "closeup"] } } : {}) }, characterId: actorId, dataMining: { name: "合成商品" },
     ...(input.platformState === "conflict" ? { platform: "youtube" } : {}) };
-  const request = { intent: "制作完整合成营销片，保留全部条件与最后一行。", rawIntent: "只使用第二版合成人物，分两段拍摄。", isMarketing: true, metadata };
+  const request = { intent: "制作完整合成营销片，保留全部条件与最后一行。", rawIntent, isMarketing: true, metadata };
   const g1File = await putJson(path.join(gateDir, "G1_DOSSIER.md"), { facts, requestedIntent: request.intent, requestedMetadata: metadata });
   const g2File = await put(path.join(gateDir, "G2_THEME.md"), "完整已审合成主题、受众与创作目标。".repeat(15));
   const g3File = await put(path.join(gateDir, "G3_INSIGHT.md"), "完整已审合成场景、人物、动作与素材限制。".repeat(15));
@@ -106,9 +132,9 @@ export async function approvedSourceFixture(input: {
   const registrySha256 = fixtureHash("offline-synthetic-character-registry");
   const castSelection = { schemaVersion: "workloom.video-character-selection/v1", mode: "builtin", reason: "offline explicit archived actor",
     registryPath: path.join(workDir, "fixtures", "registry.json"), registrySha256, characters: [{ id: actorId, name: actorName, ordinal: 1,
-      source: "builtin", profilePath: profile.path, profileSha256: input.castState === "profile-mismatch" ? "f".repeat(64) : profile.sha256 }] };
+      source: "builtin", profilePath: catalogProfile.path, profileSha256: input.castState === "profile-mismatch" ? "f".repeat(64) : catalogProfile.sha256 }] };
   const castCharacter = { id: actorId, name: actorName, role: "protagonist", kind: "generated", authorization,
-    builtinCharacterSource: { profilePath: profile.path, profileSha256: castSelection.characters[0]!.profileSha256, registrySha256 } };
+    builtinCharacterSource: { profilePath: catalogProfile.path, profileSha256: castSelection.characters[0]!.profileSha256, registrySha256 } };
   const castBody = { mode: "builtin", selection: castSelection, characters: [castCharacter] };
   const requirementBody = { schemaVersion: "workloom.requirement-contract/v1", status: "ready-for-g3", scenes,
     ...(input.castState === "missing" ? {} : { cast: { ...castBody, hash: sha256Json(castBody) } }) };
@@ -117,7 +143,14 @@ export async function approvedSourceFixture(input: {
     g1: { path: g1File.path, sha256: g1File.sha256 }, profile: profileRequirements, requirementContractHash: contract.hash },
     profile: profileRequirements, approvedRequirementContract: contract };
   const planning = { status: "plan-only-not-executed", sceneVerificationPlans: scenes.map(scene => ({ sceneId: scene.id,
-    duration: 10, visualRequirements: ["合成人物与商品完整可见"], audioRequirements: ["只保留现场动作声"], dialogue: "" })) };
+    duration: 10, visualRequirements: ["合成人物与商品完整可见"], audioRequirements: ["只保留现场动作声"], dialogue: "" })),
+    ...(input.dualProfile ? { verifiedPortraitSourcesAwaitingG5: preparePrdPortraitSources({ manifestPath: portraitManifest.path,
+      manifestSha256: portraitManifest.sha256, approvedSelection: selection, characters: [character] }, {
+      ...metadata, customerOriginalIntent: rawIntent, characters: [castCharacter], builtinCharacterSelection: castSelection }),
+      characterPlans: [{ characterId: actorId, name: actorName, portraitPath: "", source: structuredClone(castCharacter), selection: structuredClone(castSelection) }],
+      portraitReferenceSelection: { characterId: actorId, portraitVersion: 2, angles: ["front", "closeup"],
+        originalSha256InOrder: [sourceFiles.front!.sha256, sourceFiles.closeup!.sha256] } } : {}) };
+  await input.mutatePortraitWitness?.(planning);
   const g4File = await put(path.join(gateDir, "G4_PRD.md"), "完整已审 PRD。\n\n## 宿主本次权威生产与交付要求\n\n```json\n"
     + canonicalJson(sourceAuthority) + "\n```\n\n## 本次 G4 执行与核验计划原文\n\n```json\n" + canonicalJson(planning) + "\n```\n");
   const gateFiles = [g1File, g2File, g3File, g4File], gateNames = ["G1_DOSSIER", "G2_THEME", "G3_INSIGHT", "G4_PRD"];
@@ -132,7 +165,7 @@ export async function approvedSourceFixture(input: {
       evidenceRefs: [{ id: key, kind: "file", ref: file.path, sha256: file.sha256 }] });
     return { ...gate, autoApproval: auto.receipt };
   });
-  const assets: PromptCompileOptions["assets"] = ["front", "closeup"].map(angle => ({ field: "portraits", role: "reference_image",
+  const assets: PromptCompileOptions["assets"] = (input.reverseContractAssets ? ["closeup", "front"] : ["front", "closeup"]).map(angle => ({ field: "portraits", role: "reference_image",
     sha256: outputs[angle]!.sha256, bytes: outputs[angle]!.bytes, mediaType: "image/png", sourceRef: path.relative(runDir, outputs[angle]!.path) }));
   const options: PromptCompileOptions = { schemaVersion: SHOT_FIELD_SCHEMA_V2, titleCard: false, createdAt: collectedAt,
     delivery: input.compileDelivery ?? { aspectRatio: "9:16", resolution: "1080p", fps: 30, format: "mp4", generateAudio: true },

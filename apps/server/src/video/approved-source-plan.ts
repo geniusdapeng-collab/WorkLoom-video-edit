@@ -6,7 +6,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import {
-  ArchiveStore, canonicalJson, platformIdOf, sha256Json, type PrdMarketingAuthority,
+  ArchiveStore, canonicalJson, platformIdOf, preparePrdPortraitReferenceSelection, preparePrdPortraitSources,
+  sha256Json, type PrdMarketingAuthority,
 } from "@hyperreality/video-studio";
 import { assertSystemAutoApprovalReceipt } from "@workloom/pipeline-control";
 import { VIDEO_SYSTEM_AUTO_APPROVAL_POLICY } from "@hyperreality/video-pipeline";
@@ -456,13 +457,48 @@ async function loadApprovedSourcePlan(
     const character = record(value, "SOURCE_CAST_UNAVAILABLE"), choice = record(selectedCastCharacters[index], "SOURCE_CAST_UNAVAILABLE");
     const portrait = portraits.characters[index]!;
     if (character.id !== portrait.id || character.name !== portrait.name || choice.id !== character.id || choice.name !== character.name
-      || choice.profileSha256 !== portrait.profile.sha256
-      || choice.profilePath !== null && choice.profilePath !== portrait.profile.path
       || !["builtin", "explicit-custom"].includes(String(choice.source))) {
       return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "原 G4 人物选择、档案摘要与当前受控角色图片不是同一份来源。");
     }
     return structuredClone(character);
   });
+  const needsDualProfileWitness = selectedCastCharacters.some((value, index) => {
+    const choice = record(value), portrait = portraits.characters[index]!;
+    return choice.profileSha256 !== portrait.profile.sha256
+      || choice.profilePath !== null && choice.profilePath !== portrait.profile.path;
+  });
+  const verifyDualProfileWitness = (): void => {
+    if (!needsDualProfileWitness) return;
+    try {
+      // Reuse the same native owner/asset verifier that produced the original G4 annex.
+      // Archive identity and current catalog profiles retain their distinct exact paths and hashes.
+      const sources = preparePrdPortraitSources(portraits, { ...rootRequest.metadata,
+        customerOriginalIntent: rootRequest.rawIntent, characters: exportCharacters, builtinCharacterSelection: castSelection });
+      if (sources.length !== exportCharacters.length || !isDeepStrictEqual(sources, planning.verifiedPortraitSourcesAwaitingG5)
+        || !Array.isArray(planning.characterPlans) || planning.characterPlans.length !== exportCharacters.length) {
+        return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "原 G4 缺少同一人物、版本、档案、所有者用途与全部原图的完整双档案见证。");
+      }
+      for (const character of exportCharacters) {
+        const plans = planning.characterPlans.map(value => record(value)).filter(item => item.characterId === character.id && item.name === character.name);
+        if (plans.length !== 1 || !isDeepStrictEqual(plans[0]!.source, character)
+          || !isDeepStrictEqual(plans[0]!.selection, castSelection)) {
+          return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "原 G4 人物执行计划与已审完整人物档案和选择不一致。");
+        }
+      }
+      const selected = preparePrdPortraitReferenceSelection(record(rootRequest.metadata.brief).portraitReferenceSelection, sources);
+      if (!selected) return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "原双档案来源缺少明确的逐镜参考图顺序。");
+      const source = sources.find(item => item.characterId === selected.characterId && item.portraitVersion === selected.portraitVersion)!;
+      const orderedHashes = selected.angles.map(angle => source.originals[angle]!.sha256);
+      if (!isDeepStrictEqual(planning.portraitReferenceSelection, { ...selected, originalSha256InOrder: orderedHashes })
+        || contracts.some(shot => !isDeepStrictEqual(shot.sourceContract.bindings.flatMap(binding => binding.assets ?? []).map(asset => asset.sha256), orderedHashes))) {
+        return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "原 G4 逐镜参考图选择与完整字段合同的原图顺序或字节不一致。");
+      }
+    } catch (error) {
+      if (error instanceof ApprovedSourcePlanError) throw error;
+      return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "原 G4 双档案见证、所有者用途授权或原图字节无法核验，未启动修复。");
+    }
+  };
+  verifyDualProfileWitness();
   // Old failed G6 attempts have no formal shotlist. Reuse their reviewed cast and explicit platform,
   // rather than inventing a past handoff or selecting a new default from current prose.
   const explicitPlatforms = [rootRequest.metadata.platform, frozenProfile.targetPlatform]
@@ -511,6 +547,7 @@ async function loadApprovedSourcePlan(
     await restoreApprovedMarketingFactsSource({ root: archive.root, scope: rootApprovalSource.scope,
       g1Content: g1.artifact.content, g1ContentSha256: g1.artifact.sha256, proof: g1.proof, g1ArtifactPath: g1.artifact.ref });
     const currentPortraits = loadPortraitReuseManifest(portraitBinding.manifestPath, portraitBinding.manifestSha256);
+    verifyDualProfileWitness();
     const currentCopies = readCurrentPortraitArchiveCopies({ workDir: runWorkDir, projectId,
       manifest: { path: currentPortraits.manifestPath, sha256: currentPortraits.manifestSha256 } });
     if (!isDeepStrictEqual(currentCopies, copies)) return fail("SOURCE_PORTRAIT_CHANGED", "受控角色图片或来源已变化。");
