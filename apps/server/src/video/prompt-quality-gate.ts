@@ -197,12 +197,56 @@ export interface PromptQualityRepairAttempt {
   beforePromptSha256: string;
   afterPromptSha256: string;
   changes: Array<{ shotId: string; field: string; reason: string }>;
+  shotRepairAttempts?: PromptQualityShotRepairAttempt[];
   eventWitnesses?: G6EventWitnessProof[];
   status: "applied" | "stalled";
   reason?: string;
   lengthDiagnostic?: {
     shotId: string; field: string; kind: "nontext-or-empty" | "not-shorter" | "field-marker";
     beforeChars: number | null; proposedChars: number | null;
+  };
+}
+
+export type PromptQualityShotStatus =
+  | "accepted"
+  | "repaired"
+  | "quarantined"
+  | "needs_upstream"
+  | "blocked"
+  | "unknown_receipt";
+
+export interface PromptQualityShotRepairAttempt {
+  shotId: string;
+  attempt: 1;
+  allowedFields: string[];
+  changes: Array<{ field: string; reason: string }>;
+  status: "applied" | "stalled";
+  reason?: string;
+  lengthDiagnostic?: PromptQualityRepairAttempt["lengthDiagnostic"];
+}
+
+export interface PromptQualityShotOutcome {
+  shotId: string;
+  status: PromptQualityShotStatus;
+  technicalRetry: number;
+  contentRepairAttempts: number;
+  findingCodes: string[];
+  nextAction: "continue" | "repair_shot" | "fix_upstream" | "manual_fix" | "reconcile";
+  reason?: string;
+}
+
+export interface PromptQualityRunProjection {
+  schemaVersion: typeof SEMANTIC_QUALITY_POLICY_VERSION;
+  status: PromptQualityStatus;
+  g6Eligible: boolean;
+  renderEligible: false;
+  shotOutcomes: PromptQualityShotOutcome[];
+  findings: Array<Pick<PromptQualityFinding, "code" | "shotId" | "field" | "detail" | "repairClass">>;
+  repairAttempt: null | {
+    status: PromptQualityRepairAttempt["status"];
+    reason?: string;
+    changes: PromptQualityRepairAttempt["changes"];
+    shotRepairAttempts?: PromptQualityShotRepairAttempt[];
   };
 }
 
@@ -236,6 +280,7 @@ export interface PromptQualityResult {
   approvedProductionPlanSha256?: string;
   repairPlan?: RepairPlan;
   repairAttempt?: PromptQualityRepairAttempt;
+  shotOutcomes: PromptQualityShotOutcome[];
   decision: GateDecision;
   /** G6 contract/quality passed; G7 must still prove currentness before render eligibility. */
   g6Eligible: boolean;
@@ -717,18 +762,24 @@ function semanticPrompt(
 function repairSchema(context: SemanticRepairContext): Record<string, unknown> {
   if (context.finalPromptFieldBudget) {
     const semantic = context.finalPromptFieldBudget.semanticFields;
-    const descriptive = context.finalPromptLength ? context.allowedFields.find(field => !semantic.includes(field)) : undefined;
-    return { changes: [
-      ...semantic.map(field => ({ field, value: "按本镜审核证据修复并保留原有义务", reason: "修复此字段的已诊断语义问题" })),
-      ...(descriptive ? [{ field: descriptive, value: "保留原意的简洁表述", reason: "缩短完整提示词" }] : []),
-    ] };
+    return { changes: context.allowedFields.map(field => semantic.includes(field)
+      ? { field, value: "按本镜审核证据修复并保留原有义务", reason: "修复此字段的已诊断语义问题" }
+      : { field, value: "保留原意的简洁表述", reason: "缩短完整提示词，不改写制作语义" }) };
   }
-  if (context.allowedFields.includes("transition")) return {
-    changes: [{ field: "transition", value: "保留原硬切与已审自然末态的完整描述", reason: "修复已诊断的转场与末态冲突" }],
-  };
-  return {
-    changes: [{ field: "camera_movement", value: "只包含在目标时长内可完成的一个主动作", reason: "修复 SQ3" }],
-  };
+  return { changes: context.allowedFields.map(field => {
+    const matching = context.findings.filter(finding => finding.field === field);
+    return {
+      field,
+      value: field === "transition" ? "保留原硬切与已审自然末态的完整描述"
+        : field === "lighting" ? "按本镜审核证据明确主光方向与光比"
+          : field === "composition" ? "按本镜审核证据落实构图要求"
+            : field === "action" || field === "timeline"
+              ? "按本镜已审动作补齐可见的起点、过程与完成状态"
+              : "只修复该字段的已诊断问题并保留原有事实与时长",
+      reason: matching.map(finding => finding.repair?.trim()).filter(Boolean).join("；")
+        || `修复 ${field} 的已诊断问题`,
+    };
+  }) };
 }
 
 function repairPrompt(
@@ -1231,19 +1282,21 @@ async function evaluateCompiledShots(
       findings.push(hardFinding({ code: "FINAL_PROMPT_REPAIR_REQUEST_DRIFT", field: null, detail: "缩短提示词时请求参数发生变化" }, item.shotId));
     }
   }
-  const structureValid = findings.length === 0;
+  const deterministicShotIds = new Set(findings.filter(finding => finding.repairClass !== "semantic").map(finding => finding.shotId));
   for (const item of compiled) {
     const length = finalPromptOverflow(item.compiled.contract, input.maxFinalPromptChars);
     if (!length) continue;
-    const repairable = allowLengthRepair && structureValid && reviewer?.repair
+    const repairable = allowLengthRepair && !deterministicShotIds.has(item.shotId) && reviewer?.repair
       && finalLengthEditableFields(item.compiled.contract, item.source, length, input.upstreamContext).length > 0;
     findings.push({ code: FINAL_PROMPT_LENGTH_CODE, field: null, shotId: item.shotId, blocking: true,
       detail: `完整提示词 ${length.actualChars} 字符超过最终原生上限 ${length.maxFinalPromptChars}（UTF-16）`,
       repairClass: repairable ? "semantic" : "deterministic" });
+    if (!repairable) deterministicShotIds.add(item.shotId);
   }
-  if (findings.some(finding => finding.repairClass !== "semantic")) return { compiled, reports, findings };
+  const reviewable = compiled.filter(item => !deterministicShotIds.has(item.shotId));
+  if (reviewable.length === 0) return { compiled, reports, findings };
   if (!reviewer) {
-    for (const item of compiled) {
+    for (const item of reviewable) {
       reports.push({ shotId: item.shotId, checks: [], valid: false, errors: ["SEMANTIC_REVIEWER_UNAVAILABLE"], technicalRetry: 0 });
       findings.push({ code: "SEMANTIC_REVIEWER_UNAVAILABLE", field: null, shotId: item.shotId, detail: "无可用语义评审器", blocking: true, repairClass: "no_repair" });
     }
@@ -1253,6 +1306,7 @@ async function evaluateCompiledShots(
   const proofs = proofPass && compiled.every((item) => item.shotId)
     && new Set(compiled.map((item) => item.shotId)).size === compiled.length ? proofPass : undefined;
   for (const item of compiled) {
+    if (deterministicShotIds.has(item.shotId)) continue;
     const context: SemanticReviewContext = {
       projectId: input.projectId,
       runId: input.runId,
@@ -1313,8 +1367,9 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
     ? new Map<string, PassedSemanticReviewProof>() : undefined;
   const first = await evaluateCompiledShots(input, reviewer, input.shots, proofs && { phase: "capture", byShot: proofs },
     input.mode === "enforce");
-  const hardOrReviewFindings = first.findings.filter((finding) => finding.repairClass !== "semantic");
+  const nonSemanticFindings = first.findings.filter((finding) => finding.repairClass !== "semantic");
   const semanticFindings = first.findings.filter((finding) => finding.repairClass === "semantic");
+  const blockedShotIds = new Set(nonSemanticFindings.map(finding => finding.shotId));
   const firstContracts = first.compiled.map((item) => item.compiled.contract);
   const eventWitnesses = first.compiled.flatMap(item => item.executionFindings.flatMap(check =>
     check.eventWitness ? [structuredClone(check.eventWitness)] : []));
@@ -1322,19 +1377,21 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
   const firstStatus: PromptQualityStatus = input.mode === "shadow"
     ? "shadow"
     : reviewInvalid ? "stalled"
-    : hardOrReviewFindings.length > 0 || semanticFindings.length > 0 ? "rejected" : "passed";
+    : nonSemanticFindings.length > 0 || semanticFindings.length > 0 ? "rejected" : "passed";
   let finalStatus: PromptQualityStatus = firstStatus;
   let repairPlan: RepairPlan | undefined;
   let repairAttempt: PromptQualityRepairAttempt | undefined;
+  const shotRepairAttempts: PromptQualityShotRepairAttempt[] = [];
   let finalCompiled = first.compiled;
   let finalReports = first.reports;
   let finalFindings = first.findings;
 
-  if (input.mode === "enforce" && hardOrReviewFindings.length === 0 && semanticFindings.length > 0) {
-    const repairs = [...new Set(semanticFindings.map(finding => finding.shotId))].map(shotId => {
+  const repairableSemanticFindings = semanticFindings.filter(finding => !blockedShotIds.has(finding.shotId));
+  if (input.mode === "enforce" && repairableSemanticFindings.length > 0) {
+    const repairs = [...new Set(repairableSemanticFindings.map(finding => finding.shotId))].map(shotId => {
       const firstShot = first.compiled.find(item => item.shotId === shotId)!;
       const finalPromptLength = finalPromptOverflow(firstShot.compiled.contract, input.maxFinalPromptChars);
-      const diagnosed = [...new Set(semanticFindings.filter(finding => finding.shotId === shotId)
+      const diagnosed = [...new Set(repairableSemanticFindings.filter(finding => finding.shotId === shotId)
         .flatMap(finding => finding.field ? [finding.field] : []))];
       const semanticFields = finalPromptLength ? diagnosed.filter(field => FINAL_COMBINED_SEMANTIC_FIELDS.has(field)
         || (field === "transition" && hasCurrentG4Shot(input.upstreamContext, shotId))) : diagnosed;
@@ -1345,204 +1402,253 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
       return { firstShot, fields, semanticFields, finalPromptLength, fieldBudget, allDiagnosesWritable: semanticFields.length === diagnosed.length };
     });
     const allowedFields = [...new Set(repairs.flatMap(repair => repair.fields))];
-    if (!reviewer?.repair || repairs.some(repair => repair.fields.length === 0 || !repair.allDiagnosesWritable
-      || (repair.finalPromptLength && (!repair.fieldBudget || repair.fieldBudget.maxEditableValueChars < repair.fields.length)))) {
-      finalStatus = "stalled";
-    } else {
-      const decision = makeDecision({
-        projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
-        contracts: firstContracts, findings: semanticFindings, reviewer, status: "rejected", maxFinalPromptChars: input.maxFinalPromptChars,
-        approvedProductionPlanSha256,
-      });
-      const playbook = promptSemanticRepairPlaybook(allowedFields);
-      const findingSignature = sha256Json(semanticFindings.map((finding) => ({
-        code: finding.code, field: finding.field, shotId: finding.shotId,
-      })).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))));
-      repairPlan = {
-        id: `RP-${digest(`${input.stageRunId}:${findingSignature}`).slice(0, 16)}`,
-        runId: input.runId,
-        rootDecisionId: decision.id,
-        targetStageRunId: input.stageRunId,
-        targetRevision: input.revision,
-        playbookId: playbook.id,
-        playbookVersion: playbook.version,
-        planHash: sha256Json({ findingSignature, allowedFields, playbook,
-          ...(input.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: input.maxFinalPromptChars } : {}),
-          ...(approvedProductionPlanSha256 ? { approvedProductionPlanSha256 } : {}) }),
-        findings: semanticFindings.map(asGateFinding),
-        allowedChanges: playbook.allowedChanges,
-        forbiddenChanges: playbook.forbiddenChanges,
-        invalidationClosure: ["prompt-package", "g6-prompt-confirm"],
-        budgetEnvelope: {
-          maxAttempts: 1,
-          maxWallMs: input.maxWallMs ?? 120_000,
-          maxModelTokens: 2_000,
-          maxCny: 0,
-        },
-        requiresApproval: false,
-        status: "running",
+    const decision = makeDecision({
+      projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
+      contracts: firstContracts, findings: repairableSemanticFindings, reviewer, status: "rejected", maxFinalPromptChars: input.maxFinalPromptChars,
+      approvedProductionPlanSha256,
+    });
+    const playbook = promptSemanticRepairPlaybook(allowedFields);
+    const findingSignature = sha256Json(repairableSemanticFindings.map((finding) => ({
+      code: finding.code, field: finding.field, shotId: finding.shotId,
+    })).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))));
+    repairPlan = {
+      id: `RP-${digest(`${input.stageRunId}:${findingSignature}`).slice(0, 16)}`,
+      runId: input.runId,
+      rootDecisionId: decision.id,
+      targetStageRunId: input.stageRunId,
+      targetRevision: input.revision,
+      playbookId: playbook.id,
+      playbookVersion: playbook.version,
+      planHash: sha256Json({ findingSignature, allowedFields, playbook,
+        ...(input.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: input.maxFinalPromptChars } : {}),
+        ...(approvedProductionPlanSha256 ? { approvedProductionPlanSha256 } : {}) }),
+      findings: repairableSemanticFindings.map(asGateFinding),
+      allowedChanges: playbook.allowedChanges,
+      forbiddenChanges: playbook.forbiddenChanges,
+      invalidationClosure: ["prompt-package", "g6-prompt-confirm"],
+      budgetEnvelope: {
+        maxAttempts: 1,
+        maxWallMs: input.maxWallMs ?? 120_000,
+        maxModelTokens: 2_000,
+        maxCny: 0,
+      },
+      requiresApproval: false,
+      status: "running",
+    };
+    const patchedSources = new Map<string, Parameters<typeof evaluateCompiledShots>[2][number]>();
+    const compileById = new Map(input.shots.map((item) => [String((item.source as Record<string, unknown>).shotId), item.compile]));
+    const changes: Array<{ shotId: string; field: string; value: unknown; reason: string }> = [];
+    for (const { firstShot, fields: shotAllowedFields, finalPromptLength, fieldBudget, semanticFields } of repairs) {
+      const shotId = firstShot.shotId;
+      const shotAttempt: PromptQualityShotRepairAttempt = {
+        shotId, attempt: 1, allowedFields: [...shotAllowedFields], changes: [], status: "stalled",
       };
-      let lengthDiagnostic: PromptQualityRepairAttempt["lengthDiagnostic"];
       try {
-        const patchedSources = new Map<string, Parameters<typeof evaluateCompiledShots>[2][number]>(
-          input.shots.map(item => [String(item.source.shotId), item]));
-        const compileById = new Map(input.shots.map((item) => [String((item.source as Record<string, unknown>).shotId), item.compile]));
-        const changes: Array<{ shotId: string; field: string; value: unknown; reason: string }> = [];
-        for (const { firstShot, fields: shotAllowedFields, finalPromptLength, fieldBudget, semanticFields } of repairs) {
-          const shotId = firstShot.shotId;
-          const actualFindings = finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [];
-          const { executionFindings } = firstShot;
-          const raceFindings = executionFindings.filter(isApprovedRaceFinding);
-          const racePlan = raceFindings.length ? input.upstreamContext?.approvedProductionPlan as {
-            scenes: Array<{ shotId: string; approvedScene: { purpose?: unknown } }>;
-          } : undefined;
-          const openingDeadline = shotId === "opening" && racePlan
-            ? approvedOpeningFirstPassDeadline(racePlan.scenes.find(scene => scene?.shotId === shotId)?.approvedScene.purpose) : undefined;
-          const helmetCustodyFields = approvedHelmetCustodyFields(executionFindings).filter(field => shotAllowedFields.includes(field));
-          const helmetCustodyArm = executionFindings.find(check => check.helmetCustodyArm)?.helmetCustodyArm;
-          const shotEventWitnesses = eventWitnesses.filter(proof => proof.shotId === shotId);
-          if (helmetCustodyArm && shotAllowedFields.includes("props")) throw new Error("APPROVED_MOTION_HELMET_REPAIR_DRIFT");
-          const scopedFindings = executionFindings
-            .filter(check => !actualFindings.some(actual => actual.field === check.field && actual.failureCode === check.failureCode));
-          const changesRaw = await reviewer.repair({
-            projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
-            shot: finalPromptLength ? structuredClone(firstShot.source) : firstShot.source,
-            contract: finalPromptLength ? structuredClone(firstShot.compiled.contract) : firstShot.compiled.contract,
-            attempt: 1,
-            upstreamContext: input.upstreamContext,
-            findings: [...actualFindings, ...scopedFindings],
-            allowedFields: [...shotAllowedFields],
-            ...(helmetCustodyFields.length ? { helmetCustodyFields, helmetCustodyArm } : {}),
-            ...(finalPromptLength ? { finalPromptLength: { ...finalPromptLength } } : {}),
-            ...(fieldBudget ? { finalPromptFieldBudget: structuredClone(fieldBudget) } : {}),
-          });
-          const parsedChanges = validateRepairChanges(changesRaw, shotAllowedFields);
-          if (new Set(parsedChanges.map((change) => change.field)).size !== parsedChanges.length) throw new Error("REPAIR_CHANGE_DUPLICATE");
-          let shotChanges = parsedChanges;
-          const reviewedTransition = shotChanges.find(change => change.field === "transition");
-          if (reviewedTransition) {
-            const prior = fieldValueFromSource(firstShot.source, "transition");
-            if (!semanticFields.includes("transition") || !hasCurrentG4Shot(input.upstreamContext, shotId)
-              || typeof reviewedTransition.value !== "string" || !reviewedTransition.value.trim()
-              || (typeof prior === "string" && prior.includes("硬切") && !reviewedTransition.value.includes("硬切"))) {
-              throw new Error("APPROVED_TRANSITION_REPAIR_DRIFT");
-            }
+        if (!reviewer?.repair) throw new Error("SEMANTIC_REPAIRER_UNAVAILABLE");
+        if (shotAllowedFields.length === 0) throw new Error("REPAIR_ALLOWED_FIELDS_MISSING");
+        if (!repairPlan.allowedChanges.length) throw new Error("REPAIR_PLAYBOOK_EMPTY");
+        if (!repairs.find(repair => repair.firstShot.shotId === shotId)?.allDiagnosesWritable) {
+          throw new Error("REPAIR_DIAGNOSED_FIELD_NOT_WRITABLE");
+        }
+        if (finalPromptLength && (!fieldBudget || fieldBudget.maxEditableValueChars < shotAllowedFields.length)) {
+          throw new Error("FINAL_PROMPT_REPAIR_BUDGET_INSUFFICIENT");
+        }
+        const actualFindings = finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [];
+        const { executionFindings } = firstShot;
+        const raceFindings = executionFindings.filter(isApprovedRaceFinding);
+        const racePlan = raceFindings.length ? input.upstreamContext?.approvedProductionPlan as {
+          scenes: Array<{ shotId: string; approvedScene: { purpose?: unknown } }>;
+        } : undefined;
+        const openingDeadline = shotId === "opening" && racePlan
+          ? approvedOpeningFirstPassDeadline(racePlan.scenes.find(scene => scene?.shotId === shotId)?.approvedScene.purpose) : undefined;
+        const helmetCustodyFields = approvedHelmetCustodyFields(executionFindings).filter(field => shotAllowedFields.includes(field));
+        const helmetCustodyArm = executionFindings.find(check => check.helmetCustodyArm)?.helmetCustodyArm;
+        const shotEventWitnesses = eventWitnesses.filter(proof => proof.shotId === shotId);
+        if (helmetCustodyArm && shotAllowedFields.includes("props")) throw new Error("APPROVED_MOTION_HELMET_REPAIR_DRIFT");
+        const scopedFindings = executionFindings
+          .filter(check => !actualFindings.some(actual => actual.field === check.field && actual.failureCode === check.failureCode));
+        const changesRaw = await reviewer.repair({
+          projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
+          shot: finalPromptLength ? structuredClone(firstShot.source) : firstShot.source,
+          contract: finalPromptLength ? structuredClone(firstShot.compiled.contract) : firstShot.compiled.contract,
+          attempt: 1,
+          upstreamContext: input.upstreamContext,
+          findings: [...actualFindings, ...scopedFindings],
+          allowedFields: [...shotAllowedFields],
+          ...(helmetCustodyFields.length ? { helmetCustodyFields, helmetCustodyArm } : {}),
+          ...(finalPromptLength ? { finalPromptLength: { ...finalPromptLength } } : {}),
+          ...(fieldBudget ? { finalPromptFieldBudget: structuredClone(fieldBudget) } : {}),
+        });
+        const parsedChanges = validateRepairChanges(changesRaw, shotAllowedFields);
+        if (new Set(parsedChanges.map((change) => change.field)).size !== parsedChanges.length) throw new Error("REPAIR_CHANGE_DUPLICATE");
+        let shotChanges = parsedChanges;
+        const reviewedTransition = shotChanges.find(change => change.field === "transition");
+        if (reviewedTransition) {
+          const prior = fieldValueFromSource(firstShot.source, "transition");
+          if (!semanticFields.includes("transition") || !hasCurrentG4Shot(input.upstreamContext, shotId)
+            || typeof reviewedTransition.value !== "string" || !reviewedTransition.value.trim()
+            || (typeof prior === "string" && prior.includes("硬切") && !reviewedTransition.value.includes("硬切"))) {
+            throw new Error("APPROVED_TRANSITION_REPAIR_DRIFT");
           }
-          if (finalPromptLength) {
-            shotChanges = parsedChanges.filter(change => {
-              const prior = fieldValueFromSource(firstShot.source, change.field);
-              const proposed = change.value;
-              const beforeChars = typeof prior === "string" ? prior.trim().length : null;
-              const proposedChars = typeof proposed === "string" ? proposed.trim().length : null;
-              if (typeof prior !== "string" || typeof proposed !== "string"
-                || beforeChars === null || proposedChars === null || proposedChars === 0) {
-                lengthDiagnostic = { shotId, field: change.field, kind: "nontext-or-empty", beforeChars, proposedChars };
+        }
+        if (finalPromptLength) {
+          shotChanges = parsedChanges.filter(change => {
+            const prior = fieldValueFromSource(firstShot.source, change.field);
+            const proposed = change.value;
+            const beforeChars = typeof prior === "string" ? prior.trim().length : null;
+            const proposedChars = typeof proposed === "string" ? proposed.trim().length : null;
+            if (typeof prior !== "string" || typeof proposed !== "string"
+              || beforeChars === null || proposedChars === null || proposedChars === 0) {
+              shotAttempt.lengthDiagnostic = { shotId, field: change.field, kind: "nontext-or-empty", beforeChars, proposedChars };
+              throw new Error("FINAL_PROMPT_REPAIR_NOT_SHORTER");
+            }
+            if (!semanticFields.includes(change.field)) {
+              // An exact no-op preserves the source field and its digest.
+              if (proposed.trim() === prior.trim()) return false;
+              if (proposedChars >= beforeChars) {
+                shotAttempt.lengthDiagnostic = { shotId, field: change.field, kind: "not-shorter", beforeChars, proposedChars };
                 throw new Error("FINAL_PROMPT_REPAIR_NOT_SHORTER");
               }
-              if (!semanticFields.includes(change.field)) {
-                // An exact no-op preserves the source field and its digest.
-                if (proposed.trim() === prior.trim()) return false;
-                if (proposedChars >= beforeChars) {
-                  lengthDiagnostic = { shotId, field: change.field, kind: "not-shorter", beforeChars, proposedChars };
-                  throw new Error("FINAL_PROMPT_REPAIR_NOT_SHORTER");
-                }
-              }
-              if (/【[^】]+】/u.test(proposed)) {
-                lengthDiagnostic = { shotId, field: change.field, kind: "field-marker", beforeChars, proposedChars };
-                throw new Error("FINAL_PROMPT_REPAIR_FIELD_MARKER");
-              }
-              return true;
-            });
-            if (shotChanges.length === 0) throw new Error("REPAIR_CHANGES_MISSING");
-            proofs?.delete(shotId);
-          }
-          const patched = patchSource(firstShot.source, shotChanges);
-          const allowReviewedTimeline = semanticFields.includes("timeline") && shotChanges.some(change => change.field === "timeline");
-          const allowReviewedCharacterConstraint = shotEventWitnesses.some(proof => proof.family === "rival-driver")
-            && semanticFields.includes("character_constraint") && shotChanges.some(change => change.field === "character_constraint");
-          const motionFindings = executionFindings.filter(isApprovedMotionFinding);
-          if (motionFindings.length) {
-            const drift = approvedMotionRepairDrift({ findings: motionFindings, action: fieldValueFromSource(patched, "action"),
-              timeline: fieldValueFromSource(patched, "timeline"), cameraMovement: fieldValueFromSource(patched, "camera_movement"),
-              duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
-              revisedTimeline: allowReviewedTimeline, revisedAction: shotChanges.some(change => change.field === "action") });
-            if (drift) throw new Error(drift);
-          }
-          if (raceFindings.length && approvedRaceRepairDrift({ findings: raceFindings, openingDeadline,
-            duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
-            action: fieldValueFromSource(patched, "action"), timeline: fieldValueFromSource(patched, "timeline"),
-            camera: fieldValueFromSource(patched, "camera_movement") })) {
-            throw new Error("APPROVED_RACE_REPAIR_DRIFT");
-          }
-          if (shotEventWitnesses.length && g6EventWitnessRepairDrift({
-            approvedProductionPlan: input.upstreamContext?.approvedProductionPlan, shotId,
-            duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
-            action: fieldValueFromSource(patched, "action"), timeline: fieldValueFromSource(patched, "timeline"),
-            cameraMovement: fieldValueFromSource(patched, "camera_movement"),
-            characterConstraint: fieldValueFromSource(patched, "character_constraint"),
-          }, shotEventWitnesses)) throw new Error("APPROVED_EVENT_WITNESS_REPAIR_DRIFT");
-          patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,
-            ...(finalPromptLength || reviewedTransition || motionFindings.length || raceFindings.length || shotEventWitnesses.length ? {
-              expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline, allowReviewedCharacterConstraint),
-              allowReviewedTimeline, allowReviewedCharacterConstraint } : {}) });
-          changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
+            }
+            if (/【[^】]+】/u.test(proposed)) {
+              shotAttempt.lengthDiagnostic = { shotId, field: change.field, kind: "field-marker", beforeChars, proposedChars };
+              throw new Error("FINAL_PROMPT_REPAIR_FIELD_MARKER");
+            }
+            return true;
+          });
+          if (shotChanges.length === 0) throw new Error("REPAIR_CHANGES_MISSING");
         }
-        if (changes.length === 0) throw new Error("REPAIR_CHANGES_MISSING");
-        const second = await evaluateCompiledShots(input, reviewer, [...patchedSources.values()],
-          proofs && { phase: "reuse", byShot: proofs });
-        const beforeFields = sha256Json(firstContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.fieldsSha256 })));
-        const afterContracts = second.compiled.map((item) => item.compiled.contract);
-        const afterFields = sha256Json(afterContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.fieldsSha256 })));
-        const beforePrompt = sha256Json(firstContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.promptSha256 })));
-        const afterPrompt = sha256Json(afterContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.promptSha256 })));
-        const unchanged = beforeFields === afterFields || beforePrompt === afterPrompt;
-        if (unchanged) {
-          finalStatus = "stalled";
-          repairPlan = { ...repairPlan, status: "stalled" };
-          repairAttempt = {
-            attempt: 1, allowedFields, beforeFieldsSha256: beforeFields,
-            afterFieldsSha256: afterFields, beforePromptSha256: beforePrompt,
-            afterPromptSha256: afterPrompt,
-            changes: changes.map((change) => ({ shotId: change.shotId, field: change.field, reason: change.reason })),
-            status: "stalled", reason: "REPAIR_HASH_UNCHANGED",
-          };
-        } else {
-          finalCompiled = second.compiled;
-          finalReports = second.reports;
-          finalFindings = second.findings;
-          finalStatus = second.findings.length === 0 ? "passed" : "stalled";
-          const repeated = second.findings.some((finding) => semanticFindings.some((prior) =>
-            prior.shotId === finding.shotId && prior.field === finding.field && prior.code === finding.code));
-          repairAttempt = {
-            attempt: 1, allowedFields, beforeFieldsSha256: beforeFields,
-            afterFieldsSha256: afterFields, beforePromptSha256: beforePrompt,
-            afterPromptSha256: afterPrompt,
-            changes: changes.map((change) => ({ shotId: change.shotId, field: change.field, reason: change.reason })),
-            status: finalStatus === "passed" ? "applied" : "stalled",
-            ...(finalStatus === "passed" ? {}
-              : { reason: repeated ? "SAME_FAILURE_SIGNATURE_REPEATED" : "FULL_REVALIDATION_FAILED" }),
-          };
-          if (finalStatus === "passed") repairPlan = { ...repairPlan, status: "applied" };
-          else repairPlan = { ...repairPlan, status: "stalled" };
+        const patched = patchSource(firstShot.source, shotChanges);
+        const allowReviewedTimeline = semanticFields.includes("timeline") && shotChanges.some(change => change.field === "timeline");
+        const allowReviewedCharacterConstraint = shotEventWitnesses.some(proof => proof.family === "rival-driver")
+          && semanticFields.includes("character_constraint") && shotChanges.some(change => change.field === "character_constraint");
+        const motionFindings = executionFindings.filter(isApprovedMotionFinding);
+        if (motionFindings.length) {
+          const drift = approvedMotionRepairDrift({ findings: motionFindings, action: fieldValueFromSource(patched, "action"),
+            timeline: fieldValueFromSource(patched, "timeline"), cameraMovement: fieldValueFromSource(patched, "camera_movement"),
+            duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
+            revisedTimeline: allowReviewedTimeline, revisedAction: shotChanges.some(change => change.field === "action") });
+          if (drift) throw new Error(drift);
         }
+        if (raceFindings.length && approvedRaceRepairDrift({ findings: raceFindings, openingDeadline,
+          duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
+          action: fieldValueFromSource(patched, "action"), timeline: fieldValueFromSource(patched, "timeline"),
+          camera: fieldValueFromSource(patched, "camera_movement") })) {
+          throw new Error("APPROVED_RACE_REPAIR_DRIFT");
+        }
+        if (shotEventWitnesses.length && g6EventWitnessRepairDrift({
+          approvedProductionPlan: input.upstreamContext?.approvedProductionPlan, shotId,
+          duration: Number(firstShot.compiled.contract.request.parameters.duration_sec),
+          action: fieldValueFromSource(patched, "action"), timeline: fieldValueFromSource(patched, "timeline"),
+          cameraMovement: fieldValueFromSource(patched, "camera_movement"),
+          characterConstraint: fieldValueFromSource(patched, "character_constraint"),
+        }, shotEventWitnesses)) throw new Error("APPROVED_EVENT_WITNESS_REPAIR_DRIFT");
+        patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,
+          ...(finalPromptLength || reviewedTransition || motionFindings.length || raceFindings.length || shotEventWitnesses.length ? {
+            expectedRequestSha256: repairRequestHash(firstShot.compiled.contract, allowReviewedTimeline, allowReviewedCharacterConstraint),
+            allowReviewedTimeline, allowReviewedCharacterConstraint } : {}) });
+        shotAttempt.changes = shotChanges.map(change => ({ field: change.field, reason: change.reason }));
+        shotAttempt.status = "applied";
+        changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
+        if (finalPromptLength) proofs?.delete(shotId);
       } catch (error) {
-        finalStatus = "stalled";
-        if (repairPlan) repairPlan = { ...repairPlan, status: "stalled" };
-        repairAttempt = {
-          attempt: 1,
-          allowedFields,
-          beforeFieldsSha256: firstContracts.find((contract) => contract.shotId === semanticFindings[0]!.shotId)?.fieldsSha256 ?? "",
-          afterFieldsSha256: "",
-          beforePromptSha256: firstContracts.find((contract) => contract.shotId === semanticFindings[0]!.shotId)?.promptSha256 ?? "",
-          afterPromptSha256: "",
-          changes: [],
-          status: "stalled",
-          reason: errorText(error),
-          ...(lengthDiagnostic ? { lengthDiagnostic } : {}),
-        };
+        shotAttempt.status = "stalled";
+        shotAttempt.reason = errorText(error);
       }
+      shotRepairAttempts.push(shotAttempt);
     }
+
+    const beforeFields = sha256Json(firstContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.fieldsSha256 })));
+    const beforePrompt = sha256Json(firstContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.promptSha256 })));
+    if (patchedSources.size > 0) {
+      const initialFailureIds = new Set(first.findings.map(finding => finding.shotId));
+      const revalidationSources = input.shots
+        .map(item => {
+          const shotId = String((item.source as Record<string, unknown>).shotId);
+          return patchedSources.get(shotId) ?? item;
+        })
+        .filter(item => {
+          const shotId = String((item.source as Record<string, unknown>).shotId);
+          return patchedSources.has(shotId) || !initialFailureIds.has(shotId);
+        });
+      const second = await evaluateCompiledShots(input, reviewer, revalidationSources,
+        proofs && { phase: "reuse", byShot: proofs });
+      const secondCompiled = new Map(second.compiled.map(item => [item.shotId, item]));
+      const secondReports = new Map(second.reports.map(report => [report.shotId, report]));
+      const secondFindings = new Map(second.compiled.map(item => [
+        item.shotId, second.findings.filter(finding => finding.shotId === item.shotId),
+      ]));
+      finalCompiled = first.compiled.map(item => secondCompiled.get(item.shotId) ?? item);
+      finalReports = finalCompiled.flatMap(item => {
+        const replacement = secondReports.get(item.shotId);
+        if (replacement) return [replacement];
+        if (patchedSources.has(item.shotId)) return [];
+        const prior = first.reports.find(report => report.shotId === item.shotId);
+        return prior ? [prior] : [];
+      });
+      finalFindings = finalCompiled.flatMap(item => secondFindings.get(item.shotId)
+        ?? first.findings.filter(finding => finding.shotId === item.shotId));
+    }
+    const afterContracts = finalCompiled.map((item) => item.compiled.contract);
+    const afterFields = sha256Json(afterContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.fieldsSha256 })));
+    const afterPrompt = sha256Json(afterContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.promptSha256 })));
+    const unchanged = patchedSources.size === 0 || beforeFields === afterFields || beforePrompt === afterPrompt;
+    const failedAttempt = shotRepairAttempts.find(attempt => attempt.status === "stalled");
+    const successfulChanges = changes.map(change => ({ shotId: change.shotId, field: change.field, reason: change.reason }));
+    const repeated = finalFindings.some((finding) => semanticFindings.some((prior) =>
+      prior.shotId === finding.shotId && prior.field === finding.field && prior.code === finding.code));
+    finalStatus = finalFindings.length === 0 && !unchanged ? "passed" : "stalled";
+    const reason = finalStatus === "passed" ? undefined
+      : failedAttempt?.reason
+        ?? (unchanged ? changes.length === 0 ? "REPAIR_CHANGES_MISSING" : "REPAIR_HASH_UNCHANGED"
+          : repeated ? "SAME_FAILURE_SIGNATURE_REPEATED" : "FULL_REVALIDATION_FAILED");
+    repairAttempt = {
+      attempt: 1,
+      allowedFields,
+      beforeFieldsSha256: beforeFields,
+      afterFieldsSha256: afterFields,
+      beforePromptSha256: beforePrompt,
+      afterPromptSha256: afterPrompt,
+      changes: successfulChanges,
+      shotRepairAttempts: structuredClone(shotRepairAttempts),
+      status: finalStatus === "passed" ? "applied" : "stalled",
+      ...(reason ? { reason } : {}),
+      ...(failedAttempt?.lengthDiagnostic ? { lengthDiagnostic: failedAttempt.lengthDiagnostic } : {}),
+    };
+    repairPlan = { ...repairPlan, status: finalStatus === "passed" ? "applied" : "stalled" };
   }
+
+  const shotOutcomes: PromptQualityShotOutcome[] = finalCompiled.map((item) => {
+    const findings = finalFindings.filter(finding => finding.shotId === item.shotId);
+    const report = finalReports.find(report => report.shotId === item.shotId);
+    const attempts = shotRepairAttempts.filter(attempt => attempt.shotId === item.shotId);
+    const initial = first.findings.filter(finding => finding.shotId === item.shotId);
+    const codes = [...new Set(findings.map(finding => finding.code))];
+    const unknownReceipt = codes.some(code => /(?:RECEIPT_UNVERIFIED|UNKNOWN_RECEIPT|OUTCOME_UNKNOWN)/u.test(code));
+    const hard = findings.some(finding => finding.repairClass === "deterministic" || finding.code.startsWith("HARD_"));
+    const status: PromptQualityShotStatus = findings.length === 0
+      ? attempts.some(attempt => attempt.status === "applied") || initial.some(finding => finding.repairClass === "semantic")
+        ? "repaired" : "accepted"
+      : unknownReceipt ? "unknown_receipt"
+        : hard ? "needs_upstream"
+          : findings.some(finding => finding.repairClass === "semantic") ? "quarantined" : "blocked";
+    const nextAction: PromptQualityShotOutcome["nextAction"] = status === "accepted" || status === "repaired" ? "continue"
+      : status === "needs_upstream" ? "fix_upstream"
+        : status === "quarantined" ? "repair_shot"
+          : status === "unknown_receipt" ? "reconcile" : "manual_fix";
+    return {
+      shotId: item.shotId,
+      status,
+      technicalRetry: report?.proofReuse?.sourceTechnicalRetry
+        ?? report?.technicalRetry
+        ?? first.reports.find(candidate => candidate.shotId === item.shotId)?.technicalRetry
+        ?? 0,
+      contentRepairAttempts: attempts.length,
+      findingCodes: codes,
+      nextAction,
+      ...(attempts.find(attempt => attempt.reason)?.reason ? { reason: attempts.find(attempt => attempt.reason)!.reason } : {}),
+    };
+  });
 
   if (repairAttempt && eventWitnesses.length) repairAttempt = { ...repairAttempt, eventWitnesses };
   const finalContracts = finalCompiled.map((item) => item.compiled.contract);
@@ -1577,6 +1683,7 @@ export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): 
     ...(approvedProductionPlanSha256 ? { approvedProductionPlanSha256 } : {}),
     ...(repairPlan ? { repairPlan } : {}),
     ...(repairAttempt ? { repairAttempt } : {}),
+    shotOutcomes,
     decision,
     g6Eligible: input.mode === "enforce" && finalStatus === "passed"
       && finalContracts.every((contract) => validatePromptContract(contract).valid)
@@ -1610,6 +1717,7 @@ export function writePromptQualityEvidence(directory: string, result: PromptQual
     ...(result.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: result.maxFinalPromptChars } : {}),
     ...(result.approvedProductionPlanSha256 ? { approvedProductionPlanSha256: result.approvedProductionPlanSha256 } : {}),
     repairAttempt: result.repairAttempt ?? null,
+    shotOutcomes: result.shotOutcomes,
   });
   const decision = write("prompt-quality-decision.json", result.decision);
   const repairPlan = result.repairPlan ? write("prompt-semantic-repair-plan.json", result.repairPlan) : undefined;
@@ -1672,4 +1780,25 @@ export function promptQualityAutoChecks(result: PromptQualityResult): AutoApprov
       };
     }),
   ];
+}
+
+/** Small, secret-free status projection for run polling and persisted summaries. */
+export function promptQualityRunProjection(result: PromptQualityResult): PromptQualityRunProjection {
+  return {
+    schemaVersion: result.schemaVersion,
+    status: result.status,
+    g6Eligible: result.g6Eligible,
+    renderEligible: false,
+    shotOutcomes: structuredClone(result.shotOutcomes),
+    findings: result.findings.map(({ code, shotId, field, detail, repairClass }) => ({
+      code, shotId, field, detail, repairClass,
+    })),
+    repairAttempt: result.repairAttempt ? {
+      status: result.repairAttempt.status,
+      ...(result.repairAttempt.reason ? { reason: result.repairAttempt.reason } : {}),
+      changes: structuredClone(result.repairAttempt.changes),
+      ...(result.repairAttempt.shotRepairAttempts
+        ? { shotRepairAttempts: structuredClone(result.repairAttempt.shotRepairAttempts) } : {}),
+    } : null,
+  };
 }

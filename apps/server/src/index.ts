@@ -38,6 +38,7 @@ import { registerAskKbSearch } from "@workloom/runtime";
 import { searchKB } from "./service/kb.js";
 
 import { readVoiceFile, synthesizeVoice, voiceStationConfig } from "./voice/station.js";
+import { effectiveVideoPolicy } from "@workloom/pipeline-control";
 const app = new Hono();
 
 app.use(
@@ -76,8 +77,11 @@ app.get("/health/product", async (c) => {
       const studioRoot = await realpath(archiveWorkDir()).catch(() => null);
       const videoStudio = { deferRender: (process.env.HR_DEFER_RENDER ?? "1") !== "0",
         workDirSha256: studioRoot === null ? null : createHash("sha256").update(studioRoot).digest("hex") };
+      let videoPolicy;
+      try { videoPolicy = effectiveVideoPolicy(process.env); }
+      catch { return c.json({ error: "VIDEO_POLICY_INVALID" }, 503); }
       return c.json({ schemaVersion: "workloom.service-product/v1", productId: manifest.productId,
-        repository: manifest.repository, sourceCommit, videoStudio });
+        repository: manifest.repository, sourceCommit, videoStudio, videoPolicy });
     }
   } catch {
     return c.json({ error: "PRODUCT_IDENTITY_UNAVAILABLE" }, 503);

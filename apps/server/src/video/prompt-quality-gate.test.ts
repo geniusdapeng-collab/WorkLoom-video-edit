@@ -6,6 +6,7 @@ import {
   compilePromptPackage,
   parseSemanticQualityReview,
   promptQualityAutoChecks,
+  promptQualityRunProjection,
   promptContractSummary,
   resolvePromptAssets,
   verifyCurrentPromptContracts,
@@ -98,6 +99,19 @@ function failCameraReview() {
     failureCode: "CAMERA_COMPLEXITY_EXCEEDS_DURATION",
     evidence: "camera_movement：固定机位，轻微呼吸感",
     repair: "只修改 camera_movement，保留固定机位",
+  };
+  return review;
+}
+
+function failLightingReview() {
+  const review = passReview();
+  review.checks[3] = {
+    ...review.checks[3]!,
+    pass: false,
+    field: "lighting",
+    failureCode: "LIGHT_DIRECTION_UNCLEAR",
+    evidence: "lighting：侧后方晨光与水面反射补光",
+    repair: "只修改 lighting，明确主光方向",
   };
   return review;
 }
@@ -235,6 +249,109 @@ function workerModelFixture({ rejectDuplicates = false } = {}) {
 }
 
 describe("G6 同次修复的真实模型路由", () => {
+  it("isolates a failed repair to its own shot while another failed shot is repaired", async () => {
+    const repairedLighting = "左前方柔和主光，右侧水面反射补光。";
+    const review = vi.fn<SemanticQualityReviewer["review"]>(async ({ contract, shot }) => {
+      const current = shot.fields as Record<string, unknown>;
+      const row = contract.shotId === "S01" && current.camera_movement === fields.camera_movement
+        ? failCameraReview() : contract.shotId === "S02" && current.lighting === fields.lighting
+          ? failLightingReview() : passReview();
+      row.checks[3]!.evidence = `lighting：${String(current.lighting)}`;
+      row.shotId = contract.shotId;
+      return row;
+    });
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async context => {
+      if (context.contract.shotId === "S01") throw new Error("REPAIR_PROVIDER_UNAVAILABLE");
+      return { changes: [{ field: "lighting", value: repairedLighting, reason: "明确主光方向" }] };
+    });
+    const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [
+      { source, compile },
+      { source: { ...source, shotId: "S02" }, compile },
+    ] });
+    expect(review.mock.calls.map(([context]) => context.contract.shotId)).toEqual(["S01", "S02", "S02"]);
+    expect(repair.mock.calls.map(([context]) => context.contract.shotId)).toEqual(["S01", "S02"]);
+    expect(result).toMatchObject({ status: "stalled", g6Eligible: false, renderEligible: false });
+    expect(result.findings).toEqual([
+      expect.objectContaining({ shotId: "S01", code: "CAMERA_COMPLEXITY_EXCEEDS_DURATION" }),
+    ]);
+    expect(result.shotContracts.find(item => item.shotId === "S01")?.source.fields)
+      .toEqual({ ...fields });
+    expect(result.shotContracts.find(item => item.shotId === "S02")?.source.fields)
+      .toEqual({ ...fields, lighting: repairedLighting });
+    expect(result.repairAttempt).toMatchObject({
+      status: "stalled",
+      reason: "REPAIR_PROVIDER_UNAVAILABLE",
+      changes: [{ shotId: "S02", field: "lighting", reason: "明确主光方向" }],
+    });
+    expect(result.shotOutcomes).toEqual([
+      expect.objectContaining({
+        shotId: "S01", status: "quarantined", technicalRetry: 0, contentRepairAttempts: 1,
+        findingCodes: ["CAMERA_COMPLEXITY_EXCEEDS_DURATION"],
+      }),
+      expect.objectContaining({
+        shotId: "S02", status: "repaired", technicalRetry: 0, contentRepairAttempts: 1,
+        findingCodes: [],
+      }),
+    ]);
+  });
+
+  it("reviews a structurally valid shot even when another shot has a hard contract error", async () => {
+    const repairedLighting = "正前方柔和主光。";
+    const bad = { ...source, fields: { ...fields, scene: "" } };
+    const review = vi.fn<SemanticQualityReviewer["review"]>(async ({ contract, shot }) => {
+      const current = shot.fields as Record<string, unknown>;
+      const row = current.lighting === fields.lighting ? failLightingReview() : passReview();
+      row.checks[3]!.evidence = `lighting：${String(current.lighting)}`;
+      row.shotId = contract.shotId;
+      return row;
+    });
+    const repair = vi.fn<NonNullable<SemanticQualityReviewer["repair"]>>(async () => ({
+      changes: [{ field: "lighting", value: repairedLighting, reason: "明确主光方向" }],
+    }));
+    const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [
+      { source: bad, compile },
+      { source: { ...source, shotId: "S02" }, compile },
+    ] });
+    expect(review.mock.calls.map(([context]) => context.contract.shotId)).toEqual(["S02", "S02"]);
+    expect(repair).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("stalled");
+    expect(result.findings).toEqual([
+      expect.objectContaining({ shotId: "S01", code: "HARD_FIELD_VALUE_MISSING" }),
+    ]);
+    expect(result.shotOutcomes).toEqual([
+      expect.objectContaining({
+        shotId: "S01", status: "needs_upstream", contentRepairAttempts: 0,
+        findingCodes: ["HARD_FIELD_VALUE_MISSING"],
+      }),
+      expect.objectContaining({
+        shotId: "S02", status: "repaired", contentRepairAttempts: 1, findingCodes: [],
+      }),
+    ]);
+  });
+
+  it("builds the repair response example from the diagnosed writable field", async () => {
+    const calls: Array<{ prompt: string; schema: unknown }> = [];
+    const engine = {
+      model: "fixture-model",
+      reasonStructured: vi.fn(async (prompt: string, schema: unknown) => {
+        calls.push({ prompt, schema });
+        return { success: true, data: { changes: [{ field: "lighting", value: "正前方柔和主光。", reason: "明确主光方向" }] } };
+      }),
+    };
+    const reviewer = createLlmSemanticQualityReviewer(engine as never);
+    const contract = compilePromptPackage({ shots: [{ source, compile }] })[0]!.contract;
+    await reviewer.repair!({
+      projectId: "P1", runId: "R1", stageRunId: "SR1", shot: source, contract, attempt: 1,
+      findings: failLightingReview().checks.filter(check => !check.pass),
+      allowedFields: ["lighting"],
+    });
+    expect(calls[0]!.prompt).toContain("只允许修改 allowedFields");
+    expect(calls[0]!.schema).toMatchObject({
+      changes: [{ field: "lighting", reason: "只修改 lighting，明确主光方向" }],
+    });
+    expect(JSON.stringify(calls[0]!.schema)).not.toContain("camera_movement");
+  });
+
   it.each([
     ["JSON 语法", '{"fixture_private_previous_payload":', "SEMANTIC_REVIEW_JSON_SYNTAX"],
     ["评审契约", { shotId: "S02", checks: [] }, "SEMANTIC_REVIEW_CONTRACT_INVALID"],
@@ -250,6 +367,9 @@ describe("G6 同次修复的真实模型路由", () => {
     expect(result).toMatchObject({ status: "passed", g6Eligible: true, renderEligible: false });
     expect(result.semanticReports[1]).toMatchObject({ valid: true, technicalFailure: failure,
       proofReuse: { sourceTechnicalRetry: 1, sourceRequestSha256: fixture.traces[2]!.requestHash } });
+    expect(result.shotOutcomes[1]).toMatchObject({
+      shotId: "S02", status: "accepted", technicalRetry: 1, contentRepairAttempts: 0,
+    });
     const initial = JSON.parse(fixture.requests[1]!);
     const corrected = JSON.parse(fixture.requests[2]!);
     expect(corrected.messages.at(-1).content).toMatch(/^【G6 评审响应技术纠正】\n/u);
@@ -447,7 +567,7 @@ describe("G6 同次修复的真实模型路由", () => {
     expect(result.status).toBe("stalled");
     expect(result.g6Eligible).toBe(false);
     expect(result.findings).toContainEqual(expect.objectContaining({ shotId: "S01", code: "HARD_FIELD_VALUE_MISSING" }));
-    expect(result.semanticReports).toEqual([]);
+    expect(result.semanticReports.map(report => report.shotId)).toEqual(["S02"]);
   });
 
   it("变化镜头复验缺一问仍按原预算重试并停止", async () => {
@@ -463,15 +583,19 @@ describe("G6 同次修复的真实模型路由", () => {
     expect(result.semanticReports[1]!.proofReuse?.sourcePass).toBe(1);
   });
 
-  it("首轮无效语义报告不会成为通过证明，也不触发修复", async () => {
+  it("首轮无效语义报告只隔离该镜，不阻止其他可修镜头收敛", async () => {
     const fixture = workerModelFixture();
     fixture.onReview.mockImplementation((_context: unknown, response: SemanticQualityReview) =>
       response.shotId === "S02" ? { ...response, checks: [] } : response);
     const result = await evaluatePromptPackage(fixture.evaluation);
-    expect(fixture.calls).toEqual(["review:S01", "review:S02", "review:S02"]);
+    expect(fixture.calls).toEqual(["review:S01", "review:S02", "review:S02", "repair:S01", "review:S01"]);
     expect(result.status).toBe("stalled");
     expect(result.semanticReports[1]).toMatchObject({ valid: false, technicalRetry: 1 });
     expect(result.semanticReports.every((report) => report.proofReuse === undefined)).toBe(true);
+    expect(result.shotOutcomes).toEqual([
+      expect.objectContaining({ shotId: "S01", status: "repaired" }),
+      expect.objectContaining({ shotId: "S02", status: "blocked" }),
+    ]);
   });
 
   it("新鲜复验传输故障不作技术纠正，路由故障后不消费旧证明", async () => {
@@ -1132,6 +1256,14 @@ describe("prompt semantic quality gate", () => {
     expect(result.g6Eligible).toBe(true);
     expect(result.renderEligible).toBe(false);
     expect(promptQualityAutoChecks(result)).toHaveLength(6);
+    expect(promptQualityRunProjection(result)).toMatchObject({
+      schemaVersion: "workloom.video-prompt-quality/v2",
+      status: "passed",
+      g6Eligible: true,
+      renderEligible: false,
+      shotOutcomes: [{ shotId: "S01", status: "repaired", nextAction: "continue" }],
+      repairAttempt: { status: "applied", changes: [{ shotId: "S01", field: "camera_movement" }] },
+    });
   });
 
   it("stalls forbidden changes and unchanged repair output", async () => {

@@ -7,7 +7,7 @@ import { createPreproductionResumeSnapshot, readPersistedPreproductionRun } from
 import { approvedSourceFixture, fixtureHash } from "./approved-source-plan.test-support.js";
 import {
   adoptApprovedSourcePlan, assertVerifiedApprovedSourcePlan, prepareApprovedSourcePlan, publicPromptRepairPlan,
-  readPromptRepairPlan, repairApprovedSourcePrompts, verifyApprovedSourceAdoption,
+  promptRepairCapabilityForKind, readPromptRepairPlan, repairApprovedSourcePrompts, verifyApprovedSourceAdoption,
   APPROVED_SOURCE_REPAIR_INPUT_SCHEMA, type VerifiedApprovedSourcePlan,
 } from "./approved-source-plan.js";
 import type { MarketingScope } from "./marketing-authority.js";
@@ -54,6 +54,23 @@ beforeEach(async () => {
     return { query, release: vi.fn() };
   });
   vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("A read-only source plan must not call a provider"); }));
+});
+
+describe("prompt repair pipeline capability", () => {
+  it("exposes the capability only for marketing projects", () => {
+    expect(promptRepairCapabilityForKind("marketing")).toEqual({
+      supported: true,
+      pipelineKind: "marketing",
+      supportedPipelines: ["marketing"],
+    });
+    for (const kind of ["narrative", null] as const) {
+      expect(promptRepairCapabilityForKind(kind)).toEqual({
+        supported: false,
+        pipelineKind: kind,
+        supportedPipelines: ["marketing"],
+      });
+    }
+  });
 });
 afterEach(async () => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); await rm(workDir, { recursive: true, force: true }); });
 
