@@ -8,7 +8,6 @@ import test from "node:test";
 import { continueNativeFilm, readFilmContinuation, verifyStudioHandoff } from "./codex-video-film.mjs";
 import { admitFilmBudget } from "./codex-video-film-admission.mjs";
 import { startProviderBudgetGateway } from "./provider-budget-gateway.ts";
-import { WORKFLOW_TASK_CAPS } from "./provider-budget-policy.ts";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const put = (file, value) => writeFileSync(file, JSON.stringify(value));
@@ -179,17 +178,17 @@ test("actual task budget relay verifies allowed cap, task, model and complete sh
     fetchImpl: async () => { upstreamCalls++; throw new Error("test prohibits external calls"); },
   });
   t.after(() => gateway.close());
-  const bound = WORKFLOW_TASK_CAPS.mediaMicroCny + WORKFLOW_TASK_CAPS.llmEstimatedMaxMicroCny;
   const args = { env: { LLM_BASE_URL: gateway.baseUrl, ARK_BASE_URL: gateway.baseUrl + "/api/v3",
-    WORKLOOM_BUDGET_GATEWAY_TOKEN: clientToken, WORKLOOM_BUDGET_TASK_ID: "fixture-budget",
-    WORKLOOM_BUDGET_APPROVED_MICRO_CNY: String(bound) }, shotDurations: [12, 12], aspect: "9:16", resolution: "1080p" };
+    WORKLOOM_BUDGET_GATEWAY_TOKEN: clientToken, WORKLOOM_BUDGET_TASK_ID: "fixture-budget" },
+  shotDurations: [12, 12], aspect: "9:16", resolution: "1080p" };
   const result = await admitFilmBudget(args);
-  assert.equal(result.evidence.estimateCapMicroCny, bound);
+  assert.equal(result.evidence.estimateCapMicroCny, null);
+  assert.equal(result.evidence.approvedMicroCny, null);
   assert.equal(result.environment.ARK_BASE_URL, gateway.baseUrl + "/api/v3");
   assert.ok(!JSON.stringify(result.evidence).includes(clientToken));
   await assert.rejects(admitFilmBudget({ ...args, shotDurations: [10, 14] }), /FILM_BUDGET_SCOPE_INSUFFICIENT/u);
-  await assert.rejects(admitFilmBudget({ ...args, env: { ...args.env, WORKLOOM_BUDGET_APPROVED_MICRO_CNY: String(bound - 1) } }),
-    /FILM_BUDGET_APPROVED_CAP_INSUFFICIENT/u);
+  await assert.rejects(admitFilmBudget({ ...args, env: { ...args.env, WORKLOOM_BUDGET_APPROVED_MICRO_CNY: "invalid" } }),
+    /FILM_BUDGET_AUTHORIZATION_REQUIRED/u);
   await assert.rejects(admitFilmBudget({ ...args, env: { ...args.env, WORKLOOM_BUDGET_TASK_ID: "other-job" } }),
     /FILM_BUDGET_RECEIPT_INVALID/u);
   assert.equal(upstreamCalls, 0);

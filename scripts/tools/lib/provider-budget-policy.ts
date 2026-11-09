@@ -13,16 +13,44 @@ export const DEEPSEEK_MODEL = EDIT_CANONICAL_CASE_BUDGET.modelId;
 export const SEEDREAM_MODEL = "doubao-seedream-5-0-pro-260628";
 export const SEEDANCE_MODEL = "doubao-seedance-2-5-260628";
 
-export const TASK_CAPS = Object.freeze({
-  llmCalls: 40,
-  llmGrossTokens: EDIT_CANONICAL_CASE_BUDGET.maxLlmTokens,
-  imageCalls: 8,
-  videoCalls: 3,
-  minVideoSeconds: 10,
-  maxVideoSeconds: 15,
-  totalVideoSeconds: 45,
-  microCny: 120_000_000,
-  windowMs: 45 * 60_000,
+export type TaskCaps = {
+  llmCalls: number | null;
+  llmGrossTokens: number | null;
+  imageCalls: number | null;
+  videoCalls: number | null;
+  minVideoSeconds: number;
+  maxVideoSeconds: number;
+  totalVideoSeconds: number | null;
+  microCny: number | null;
+  windowMs: number | null;
+};
+
+export type WorkflowTaskCaps = TaskCaps & {
+  llmEstimatedMaxMicroCny: number | null;
+  mediaMicroCny: number | null;
+};
+
+/**
+ * Request-shape limits belong to the provider contract. Spend, call, task and
+ * time-window caps are intentionally absent by default; the journal still
+ * records every reservation and settled gross usage so callers can observe
+ * real spend without rejecting a task at a product-owned threshold.
+ *
+ * A caller that explicitly needs a cap must enforce it outside this default
+ * gateway profile. This keeps unknown receipts frozen while removing the
+ * former 40/64-call, ¥120/¥285, 8-image, 3-video, 45-second and 45-minute
+ * defaults.
+ */
+export const TASK_CAPS: Readonly<TaskCaps> = Object.freeze({
+  llmCalls: null,
+  llmGrossTokens: null,
+  imageCalls: null,
+  videoCalls: null,
+  minVideoSeconds: 4,
+  maxVideoSeconds: 30,
+  totalVideoSeconds: null,
+  microCny: null,
+  windowMs: null,
 });
 
 export const ARK_VIDEO_PATH = "/api/v3/contents/generations/tasks";
@@ -117,22 +145,18 @@ function imageReference(value: unknown, scope: BudgetScope, known: FindImage): I
 // Peak cache-miss input ¥2/M and output ¥8/M. Estimate all input at the cache-miss rate.
 export const llmMicroCny = (input: number, output: number): number => input * 2 + output * 8;
 
-const { microCny: mediaMicroCny, ...caseResourceCaps } = TASK_CAPS;
-const nativeInputAtMaxOutput = EDIT_CANONICAL_CASE_BUDGET.maxLlmTokens - EDIT_CANONICAL_CASE_BUDGET.maxLlmOutputTokens;
-function workflowTaskCaps(llmCalls: number) {
+function workflowTaskCaps(): WorkflowTaskCaps {
   return Object.freeze({
-    ...caseResourceCaps,
-    llmCalls,
-    llmGrossTokens: llmCalls * EDIT_CANONICAL_CASE_BUDGET.maxLlmTokens,
-    llmEstimatedMaxMicroCny: llmCalls * llmMicroCny(nativeInputAtMaxOutput, EDIT_CANONICAL_CASE_BUDGET.maxLlmOutputTokens),
-    mediaMicroCny,
+    ...TASK_CAPS,
+    llmEstimatedMaxMicroCny: null,
+    mediaMicroCny: null,
   });
 }
 
-export const WORKFLOW_TASK_CAPS = workflowTaskCaps(TASK_CAPS.llmCalls);
+export const WORKFLOW_TASK_CAPS = workflowTaskCaps();
 export const WORKFLOW_TASK_CAPS_BY_PROFILE = Object.freeze({
   workflow: WORKFLOW_TASK_CAPS,
-  "workflow-v2": workflowTaskCaps(64),
+  "workflow-v2": WORKFLOW_TASK_CAPS,
 });
 
 export function normalizeBudgetProfile(value: unknown = "case"): BudgetProfile {
@@ -281,7 +305,7 @@ function checkFrozenSceneScope(schema: unknown, scope: BudgetScope): void {
   check(Array.isArray(declared) && required.every((name) => declared.includes(name)));
   const middle = props.scenes, seconds = scope.video.seconds;
   check(seconds !== null && record(middle) && middle.type === "array"
-    && safeInteger(middle.minItems) && middle.minItems + 2 <= TASK_CAPS.videoCalls && middle.maxItems === middle.minItems);
+    && safeInteger(middle.minItems) && middle.maxItems === middle.minItems);
   const count = middle.minItems + 2;
   check(fixedSceneNumber(props.sceneCount, count) && fixedSceneNumber(props.totalDuration, count * seconds)
     && [props.opening, middle.items, props.ending].every((node) => record(node) && node.type === "object"

@@ -237,7 +237,8 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
     store.reserve(hash, wireSha256, claim);
     try {
       const maxDuration = claim.kind === "video" ? VIDEO_ACK_TIMEOUT_MS : SYNCHRONOUS_TIMEOUT_MS;
-      const upstream = await forward("POST", path, Math.min(maxDuration, store.deadline - now()), bytes);
+      const remaining = store.deadline === null ? maxDuration : Math.min(maxDuration, store.deadline - now());
+      const upstream = await forward("POST", path, remaining, bytes);
       if (claim.kind === "video") {
         check(safeTaskId(upstream.value.id), "BUDGET_UPSTREAM_TASK_UNVERIFIED", 502);
         store.accept(hash, upstream.value.id);

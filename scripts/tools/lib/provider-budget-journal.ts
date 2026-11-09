@@ -2,15 +2,16 @@ import { closeSync, constants, fstatSync, fsyncSync, openSync, readFileSync, wri
 import { dirname } from "node:path";
 import {
   BudgetError, check, llmMicroCny, record, safeHash, safeInteger, safeTaskId, TASK_CAPS, WORKFLOW_TASK_CAPS_BY_PROFILE,
-  type BudgetProfile, type BudgetScope, type Claim, type ImageProof, type Settlement, type WorkflowBudgetProfile,
+  type BudgetProfile, type BudgetScope, type Claim, type ImageProof, type Settlement, type TaskCaps,
+  type WorkflowBudgetProfile, type WorkflowTaskCaps,
 } from "./provider-budget-policy.js";
 
 const JOURNAL_SCHEMA = "workloom.provider-budget-wal/v1";
 const MAX_JOURNAL_BYTES = 512 * 1024;
 const ERROR_CODE = /^[A-Z][A-Z0-9_]{0,95}$/;
 
-type BudgetLimits = { profile?: never; caps: typeof TASK_CAPS }
-  | { profile: WorkflowBudgetProfile; caps: typeof WORKFLOW_TASK_CAPS_BY_PROFILE[WorkflowBudgetProfile] };
+type BudgetLimits = { profile?: never; caps: TaskCaps }
+  | { profile: WorkflowBudgetProfile; caps: WorkflowTaskCaps };
 type Header = { schema: typeof JOURNAL_SCHEMA; type: "open"; task: string; port: number; at: number;
   scope: BudgetScope } & BudgetLimits;
 type Reserve = { type: "reserve"; hash: string; wireSha256: string; at: number; claim: Claim };
@@ -43,6 +44,24 @@ function validateSettlement(usage: unknown): usage is Settlement {
   if (usage.kind === "image") return record(usage.image) && safeHash(usage.image.urlHash)
     && safeInteger(usage.image.width, 1) && safeInteger(usage.image.height, 1);
   return usage.kind === "video" && typeof usage.status === "string" && ["succeeded", "failed", "cancelled", "expired"].includes(usage.status);
+}
+
+function validCap(value: unknown): value is number | null {
+  return value === null || safeInteger(value);
+}
+
+function existingCaps(value: unknown, profile: BudgetProfile | undefined): TaskCaps | WorkflowTaskCaps {
+  check(record(value)
+    && validCap(value.llmCalls) && validCap(value.llmGrossTokens)
+    && validCap(value.imageCalls) && validCap(value.videoCalls)
+    && safeInteger(value.minVideoSeconds, 1) && safeInteger(value.maxVideoSeconds, Number(value.minVideoSeconds))
+    && validCap(value.totalVideoSeconds) && validCap(value.microCny) && validCap(value.windowMs),
+  "BUDGET_JOURNAL_INVALID", 503);
+  if (profile !== undefined) {
+    check(validCap(value.llmEstimatedMaxMicroCny) && validCap(value.mediaMicroCny),
+      "BUDGET_JOURNAL_INVALID", 503);
+  }
+  return value as TaskCaps | WorkflowTaskCaps;
 }
 
 function parseEvent(raw: string): Event {
@@ -104,9 +123,13 @@ export class BudgetJournal {
       const header: unknown = JSON.parse(first ?? "");
       check(record(header) && header.schema === JOURNAL_SCHEMA && header.type === "open"
         && header.task === task && header.port === port && safeInteger(header.at, 1)
-        && header.profile === limits.profile && JSON.stringify(header.scope) === JSON.stringify(scope)
-        && JSON.stringify(header.caps) === JSON.stringify(limits.caps), "BUDGET_JOURNAL_SCOPE_MISMATCH", 503);
-      const journal = new BudgetJournal(fd, { schema: JOURNAL_SCHEMA, type: "open", task, port, at: header.at, scope, ...limits }, now);
+        && header.profile === limits.profile && JSON.stringify(header.scope) === JSON.stringify(scope),
+      "BUDGET_JOURNAL_SCOPE_MISMATCH", 503);
+      const caps = existingCaps(header.caps, header.profile as BudgetProfile | undefined);
+      const journal = new BudgetJournal(fd, {
+        schema: JOURNAL_SCHEMA, type: "open", task, port, at: header.at, scope,
+        ...(limits.profile === undefined ? { caps: caps as TaskCaps } : { profile: limits.profile, caps: caps as WorkflowTaskCaps }),
+      }, now);
       for (const line of rest) journal.apply(parseEvent(line));
       const uncertain = [...journal.byHash.values()].find((entry) => !entry.taskId && !entry.usage);
       if (uncertain) journal.freeze(uncertain.hash, "BUDGET_INTERRUPTED_WITHOUT_RECEIPT");
@@ -162,8 +185,13 @@ export class BudgetJournal {
     this.apply(event);
   }
 
-  get deadline(): number { return this.header.at + this.header.caps.windowMs; }
-  get expired(): boolean { return this.now() < this.header.at || this.now() >= this.deadline; }
+  get deadline(): number | null {
+    return this.header.caps.windowMs === null ? null : this.header.at + this.header.caps.windowMs;
+  }
+  get expired(): boolean {
+    const deadline = this.deadline;
+    return deadline !== null && (this.now() < this.header.at || this.now() >= deadline);
+  }
   get frozen(): string | null { return this.writeFailed ? "BUDGET_JOURNAL_WRITE_FAILED" : this.frozenReason; }
   find(hash: string): Reservation | undefined { return this.byHash.get(hash); }
   task(taskId: string): Reservation | undefined { return this.byTask.get(taskId); }
@@ -176,26 +204,28 @@ export class BudgetJournal {
     const { usage, estimatedCost } = this.counters();
     const { caps } = this.header;
     if (claim.kind === "llm") {
-      if (usage.llmCalls >= caps.llmCalls) {
+      if (caps.llmCalls !== null && usage.llmCalls >= caps.llmCalls) {
         throw new BudgetError("BUDGET_LLM_CALLS_EXCEEDED", 429, this.header.profile === "workflow-v2"
           ? { profile: this.header.profile, resource: "llmCalls", used: usage.llmCalls, cap: caps.llmCalls }
           : undefined);
       }
       // In workflow mode each exact native request already proves its own
       // window. The call limit bounds the cumulative usage without clipping.
-      if (!this.header.profile) {
+      if (!this.header.profile && caps.llmGrossTokens !== null) {
         check(usage.llmGrossTokens + claim.inputTokens + claim.maxOutputTokens <= caps.llmGrossTokens, "BUDGET_LLM_TOKENS_EXCEEDED", 429);
       }
     } else if (claim.kind === "image") {
-      check(usage.imageCalls + 1 <= caps.imageCalls, "BUDGET_IMAGE_COUNT_EXCEEDED", 429);
+      check(caps.imageCalls === null || usage.imageCalls + 1 <= caps.imageCalls, "BUDGET_IMAGE_COUNT_EXCEEDED", 429);
     } else {
-      check(usage.videoCalls + 1 <= caps.videoCalls && usage.videoSeconds + claim.seconds <= caps.totalVideoSeconds, "BUDGET_VIDEO_LIMIT_EXCEEDED", 429);
+      check((caps.videoCalls === null || usage.videoCalls + 1 <= caps.videoCalls)
+        && (caps.totalVideoSeconds === null || usage.videoSeconds + claim.seconds <= caps.totalVideoSeconds),
+      "BUDGET_VIDEO_LIMIT_EXCEEDED", 429);
     }
     if (this.header.profile) {
       const { media } = estimatedCost;
-      if (claim.kind !== "llm") check(media.settledMicroCny + media.reservedMicroCny + claim.microCny <= this.header.caps.mediaMicroCny,
+      if (claim.kind !== "llm" && this.header.caps.mediaMicroCny !== null) check(media.settledMicroCny + media.reservedMicroCny + claim.microCny <= this.header.caps.mediaMicroCny,
         "BUDGET_MEDIA_CNY_EXCEEDED", 429);
-    } else {
+    } else if (this.header.caps.microCny !== null) {
       check(usage.microCny + claim.microCny <= this.header.caps.microCny, "BUDGET_CNY_EXCEEDED", 429);
     }
     this.write({ type: "reserve", hash, wireSha256, at: this.now(), claim });

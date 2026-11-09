@@ -260,7 +260,7 @@ async function doctor(env, root) {
   return envelope('edit.agent.doctor', 'inspected', { discovery, configuration: { ready: config && sharedStudioRoot,
     code: !config ? 'EDIT_JOBS_ROOT_REQUIRED' : !sharedStudioRoot ? studioCode : null,
     jobsRoot: { ready: config, code: config ? null : 'EDIT_JOBS_ROOT_REQUIRED' }, sharedStudioRoot: { ready: sharedStudioRoot, code: studioCode } }, connection, auth,
-    production: { ready: false, code: 'EDIT_PRODUCTION_AUTHORIZATION_NOT_EVALUATED', existingMediaScope: 'Native workflow budget currently requires uniform shot duration and existing per-task caps; no scene planning changes are made.' },
+    production: { ready: false, code: 'EDIT_PRODUCTION_AUTHORIZATION_NOT_EVALUATED', existingMediaScope: 'Native workflow requires current source, approval, exact media scope and a provider usage ledger; product-owned call, amount and task-window caps are not imposed by default.' },
     paidCalls: 0, writeOperations: 0, next: ['Configure the named missing setup/auth items, then plan using the original intent and complete brief.', 'Production requires native current source, approvals and task budget admission.'] });
 }
 export async function invokeEditWorkflow(id, input = {}, { env = process.env, root = ROOT } = {}) {

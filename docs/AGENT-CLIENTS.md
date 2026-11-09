@@ -99,7 +99,7 @@ node scripts/tools/edit-agent-setup.mjs --client codex \
 # --client qoder ... --install --config /abs/path/to/project/.qoder/settings.local.json
 ```
 
-配置只包含非秘密地址和目录。Codex 使用 `env_vars` 按名称转发 `WORKLOOM_ACCESS_TOKEN` 或 `WORKLOOM_DESKTOP_LOGIN_KEY`，并保留既有媒体预算接续所需的名称 `WORKLOOM_BUDGET_GATEWAY_TOKEN`、`WORKLOOM_BUDGET_TASK_ID`、`WORKLOOM_BUDGET_APPROVED_MICRO_CNY`、`LLM_BASE_URL` 和 `ARK_BASE_URL`。这些变量的实际值必须由受控启动环境提供。工具不接受 token/key 参数，也不把上游 key 填进配置。
+配置只包含非秘密地址和目录。Codex 使用 `env_vars` 按名称转发 `WORKLOOM_ACCESS_TOKEN` 或 `WORKLOOM_DESKTOP_LOGIN_KEY`，并保留媒体用量接续所需的名称 `WORKLOOM_BUDGET_GATEWAY_TOKEN`、`WORKLOOM_BUDGET_TASK_ID`、`LLM_BASE_URL` 和 `ARK_BASE_URL`。可选名称 `WORKLOOM_BUDGET_APPROVED_MICRO_CNY` 只在调用方另有显式消费合同时提供；系统默认不设金额上限。这些变量的实际值必须由受控启动环境提供。工具不接受 token/key 参数，也不把上游 key 填进配置。
 
 Qoder 官方 JSON 文档列出 `env`，没有约定 Codex 的 `env_vars` 或 `${VAR}` 插值。生成器因此只写非秘密 `env`，不会生成未经文档支持的秘密占位符。把所需变量提供给实际启动 Qoder/MCP 的受控进程，再调用 `edit.agent.doctor` 检查实际认证。已运行的图形客户端可能需要从正确环境重新启动；配置文件里出现变量名称不能证明客户端已收到变量。连接成功、成员认证成功和生产授权分别核验。
 

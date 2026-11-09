@@ -39,22 +39,25 @@ export async function admitFilmBudget({ env, shotDurations, aspect, resolution, 
   const token = env.WORKLOOM_BUDGET_GATEWAY_TOKEN;
   const task = env.WORKLOOM_BUDGET_TASK_ID;
   const approved = env.WORKLOOM_BUDGET_APPROVED_MICRO_CNY;
-  const approvedMicroCny = /^\d+$/u.test(approved ?? "") ? Number(approved) : NaN;
+  const hasApprovedCap = approved !== undefined && approved !== "";
+  const approvedMicroCny = hasApprovedCap && /^\d+$/u.test(approved) ? Number(approved) : NaN;
   check(/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/u.test(origin ?? "")
     && Number(origin.split(":").at(-1)) >= 1024 && Number(origin.split(":").at(-1)) <= 65535
     && env.ARK_BASE_URL === origin + "/api/v3" && /^[A-Za-z0-9_-]{32,256}$/u.test(token ?? "")
-    && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(task ?? "") && Number.isSafeInteger(approvedMicroCny)
-    && approvedMicroCny > 0, "FILM_BUDGET_AUTHORIZATION_REQUIRED");
+    && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(task ?? "")
+    && (!hasApprovedCap || Number.isSafeInteger(approvedMicroCny) && approvedMicroCny > 0),
+  "FILM_BUDGET_AUTHORIZATION_REQUIRED");
   const readback = await status(origin, token);
   check(readback?.schema === "workloom.provider-budget-wal/v1" && readback.task === task
     && readback.profile === "workflow" && readback.state === "live" && readback.live === true
-    && readback.frozen === null && readback.held === false && readback.deadlineAt > Date.now(),
+    && readback.frozen === null && readback.held === false
+    && (readback.deadlineAt === null || readback.deadlineAt > Date.now()),
   "FILM_BUDGET_RECEIPT_INVALID");
   const { ARK_IMAGE_PATH, ARK_VIDEO_PATH, DEEPSEEK_CHAT_PATH, DEEPSEEK_MODEL,
     SEEDANCE_MODEL, SEEDREAM_MODEL, WORKFLOW_TASK_CAPS: caps } = await import("./provider-budget-policy.ts");
-  const bound = caps.mediaMicroCny + caps.llmEstimatedMaxMicroCny;
   check(Object.entries(caps).every(([key, value]) => readback.caps?.[key] === value)
-    && approvedMicroCny >= bound, "FILM_BUDGET_APPROVED_CAP_INSUFFICIENT");
+    && (!hasApprovedCap || readback.usage?.microCny <= approvedMicroCny),
+  "FILM_BUDGET_APPROVED_CAP_INSUFFICIENT");
   for (const [phase, model, path] of [
     ["llm", DEEPSEEK_MODEL, DEEPSEEK_CHAT_PATH], ["image", SEEDREAM_MODEL, ARK_IMAGE_PATH], ["video", SEEDANCE_MODEL, ARK_VIDEO_PATH],
   ]) {
@@ -65,14 +68,20 @@ export async function admitFilmBudget({ env, shotDurations, aspect, resolution, 
   const used = readback.usage;
   check(videoScope?.ratio === aspect && videoScope.resolution === (resolution === "2160p" ? "1080p" : resolution)
     && Number.isSafeInteger(videoScope.seconds) && shotDurations.every((duration) => duration === videoScope.seconds)
-    && Number.isSafeInteger(used?.videoCalls) && used.videoCalls >= 0 && used.videoCalls + shotDurations.length <= caps.videoCalls
+    && Number.isSafeInteger(used?.videoCalls) && used.videoCalls >= 0
+    && (caps.videoCalls === null || used.videoCalls + shotDurations.length <= caps.videoCalls)
     && Number.isSafeInteger(used.videoSeconds) && used.videoSeconds >= 0
-    && used.videoSeconds + shotDurations.length * videoScope.seconds <= caps.totalVideoSeconds
-    && Number.isSafeInteger(used.imageCalls) && used.imageCalls >= 0 && used.imageCalls < caps.imageCalls
-    && Number.isSafeInteger(used.llmCalls) && used.llmCalls >= 0 && used.llmCalls < caps.llmCalls, "FILM_BUDGET_SCOPE_INSUFFICIENT");
+    && (caps.totalVideoSeconds === null || used.videoSeconds + shotDurations.length * videoScope.seconds <= caps.totalVideoSeconds)
+    && Number.isSafeInteger(used.imageCalls) && used.imageCalls >= 0
+    && (caps.imageCalls === null || used.imageCalls < caps.imageCalls)
+    && Number.isSafeInteger(used.llmCalls) && used.llmCalls >= 0
+    && (caps.llmCalls === null || used.llmCalls < caps.llmCalls), "FILM_BUDGET_SCOPE_INSUFFICIENT");
   return {
-    evidence: { task, profile: "workflow", deadlineAt: readback.deadlineAt, estimateCapMicroCny: bound,
-      approvedMicroCny, videoScope: { seconds: videoScope.seconds, ratio: videoScope.ratio, resolution: videoScope.resolution } },
+    evidence: { task, profile: "workflow", deadlineAt: readback.deadlineAt,
+      estimateCapMicroCny: hasApprovedCap ? approvedMicroCny : null,
+      approvedMicroCny: hasApprovedCap ? approvedMicroCny : null,
+      observedMicroCny: used.microCny,
+      videoScope: { seconds: videoScope.seconds, ratio: videoScope.ratio, resolution: videoScope.resolution } },
     environment: { WORKLOOM_FILM_BUDGET_RELAY: "1", LLM_PROVIDER: "deepseek", LLM_MODEL: DEEPSEEK_MODEL,
       LLM_BASE_URL: origin, LLM_API_KEY: token, ARK_BASE_URL: env.ARK_BASE_URL,
       VOLCENGINE_ARK_API_KEY: token, SEEDREAM_MODEL, SEEDANCE_MODEL },
