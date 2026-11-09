@@ -614,7 +614,8 @@ describe("vendor 核心可加载", () => {
       expect(draft).toBe(nativeDraft);
       expect(draft).not.toContain("禁止复制");
       expect(annex).toContain("附件本身不证明创意已落实");
-      expect(annex).toContain("也不增加商品事实或素材授权");
+      expect(annex).toContain("也不增加商品事实");
+      expect(annex).toContain("商品图片按项目所有者广告授权口径直接作为视觉参考");
       expect(annex).not.toContain(metadata.unrelatedMetadata);
       const body = /```json\n([\s\S]+)\n```$/u.exec(annex!)?.[1];
       expect(body).toBeDefined();
