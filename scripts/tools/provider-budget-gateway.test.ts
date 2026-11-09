@@ -13,7 +13,7 @@ import { startProviderBudgetGateway } from "./lib/provider-budget-gateway.js";
 import { BudgetJournal } from "./lib/provider-budget-journal.js";
 import {
   ARK_IMAGE_PATH, ARK_VIDEO_PATH, DEEPSEEK_CHAT_PATH, DEEPSEEK_MODEL, digest, llmMicroCny, normalizeBudgetScope,
-  SEEDANCE_MODEL, SEEDREAM_MODEL, TASK_CAPS,
+  SEEDANCE_MODEL, SEEDREAM_MODEL, TASK_CAPS, WORKFLOW_TASK_CAPS,
 } from "./lib/provider-budget-policy.js";
 
 const CLIENT = "local_fixture_0123456789012345678901234567890123456789";
@@ -202,7 +202,7 @@ describe("task-local provider budget gateway", () => {
       phaseRelays: { llm: { model: DEEPSEEK_MODEL }, image: { model: SEEDREAM_MODEL }, video: { model: SEEDANCE_MODEL } } });
   });
 
-  it("fsyncs a reservation before the unchanged POST, denies concurrent overspend, and settles actual gross usage", async () => {
+  it("fsyncs a reservation before the unchanged POST, admits concurrent work without a call cap, and settles actual gross usage", async () => {
     const first = deferred();
     const second = deferred();
     const release = deferred();
@@ -234,27 +234,28 @@ describe("task-local provider budget gateway", () => {
         reserved: { calls: 1 }, usage: { llmCalls: 1 } });
       pending.push(call(server, DEEPSEEK_CHAT_PATH, llm("second native full-window request")));
       await second.promise;
-      expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("third concurrent spending")))).toBe("BUDGET_LLM_TOKENS_EXCEEDED");
+      pending.push(call(server, DEEPSEEK_CHAT_PATH, llm("third concurrent spending")));
+      expect((await pending[2]!).status).toBe(200);
       expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("arbitrary stage trim", 300_000)))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
       expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("out-of-contract output maximum", 393_217)))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
-      expect(upstream).toHaveBeenCalledTimes(2);
+      expect(upstream).toHaveBeenCalledTimes(3);
     } finally {
       release.release();
-      expect((await Promise.all(pending)).map((reply) => reply.status)).toEqual([200, 200]);
+      expect((await Promise.all(pending)).map((reply) => reply.status)).toEqual([200, 200, 200]);
     }
     expect((await call(server, DEEPSEEK_CHAT_PATH, llm("same remaining budget after settlement"))).status).toBe(200);
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, wire))).toBe("BUDGET_DUPLICATE_REQUEST");
     expect((await call(server, "/budget/status")).data).toMatchObject({ state: "live", held: false,
-      consumed: { llmGrossTokens: 60, microCny: llmMicroCny(12, 8) * 3 }, reserved: { calls: 0, llmGrossTokens: 0 } });
+      consumed: { llmGrossTokens: 80, microCny: llmMicroCny(12, 8) * 4 }, reserved: { calls: 0, llmGrossTokens: 0 } });
     expect(readFileSync(journalPath, "utf8")).not.toMatch(/private inbound|private completion|fixture-private|local_fixture/);
   });
 
-  it("limits the task to 40 model POST attempts even after tokens settle", async () => {
+  it("does not impose a fixed text-call cap after tokens settle", async () => {
     const upstream = vi.fn(async () => llmResponse());
     const { server } = await gate(upstream);
-    for (let i = 0; i < TASK_CAPS.llmCalls; i++) expect((await call(server, DEEPSEEK_CHAT_PATH, llm(`call ${i}`))).status).toBe(200);
-    expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("forty-first")))).toBe("BUDGET_LLM_CALLS_EXCEEDED");
-    expect(upstream).toHaveBeenCalledTimes(TASK_CAPS.llmCalls);
+    const callCount = 45;
+    for (let i = 0; i < callCount; i++) expect((await call(server, DEEPSEEK_CHAT_PATH, llm(`call ${i}`))).status).toBe(200);
+    expect(upstream).toHaveBeenCalledTimes(callCount);
   });
 
   it("charges one image per admitted POST and accepts only pre-authorized bytes or task-issued image URLs", async () => {
@@ -269,10 +270,9 @@ describe("task-local provider budget gateway", () => {
     expect((await call(server, ARK_IMAGE_PATH, { ...image("edit issued"), image: IMAGE_URL })).status).toBe(200);
     expect(code(await call(server, ARK_IMAGE_PATH, { ...image("unknown remote"), image: "https://unverified.volces.com/unissued" })))
       .toBe("BUDGET_UNPROVEN_IMAGE_REFERENCE");
-    for (let i = 2; i < TASK_CAPS.imageCalls; i++) expect((await call(server, ARK_IMAGE_PATH, image(`image ${i}`))).status).toBe(200);
-    expect(code(await call(server, ARK_IMAGE_PATH, image("ninth image")))).toBe("BUDGET_IMAGE_COUNT_EXCEEDED");
-    expect(upstream).toHaveBeenCalledTimes(TASK_CAPS.imageCalls);
-    expect((await call(server, "/budget/status")).data).toMatchObject({ consumed: { microCny: 2_400_000 }, usage: { imageCalls: 8 } });
+    for (let i = 2; i < 9; i++) expect((await call(server, ARK_IMAGE_PATH, image(`image ${i}`))).status).toBe(200);
+    expect(upstream).toHaveBeenCalledTimes(9);
+    expect((await call(server, "/budget/status")).data).toMatchObject({ consumed: { microCny: 2_700_000 }, usage: { imageCalls: 9 } });
     expect(readFileSync(journalPath, "utf8")).not.toContain("signed-fixture-only");
   });
 
@@ -282,7 +282,7 @@ describe("task-local provider budget gateway", () => {
     expect(code(await call(server, ARK_VIDEO_PATH, video("outside duration", 11)))).toBe("BUDGET_VIDEO_SCOPE_MISMATCH");
     expect(code(await call(server, ARK_VIDEO_PATH, { ...video(), ratio: "16:9" }))).toBe("BUDGET_VIDEO_SCOPE_MISMATCH");
     expect(code(await call(server, ARK_VIDEO_PATH, { ...video(), ratio: "adaptive" }))).toBe("BUDGET_UNSUPPORTED_REQUEST");
-    expect(code(await call(server, ARK_VIDEO_PATH, { ...video(), duration: 9 }))).toBe("BUDGET_UNSUPPORTED_REQUEST");
+    expect(code(await call(server, ARK_VIDEO_PATH, { ...video(), duration: 9 }))).toBe("BUDGET_VIDEO_SCOPE_MISMATCH");
     expect(upstream).not.toHaveBeenCalled();
     expect((await call(server, ARK_IMAGE_PATH, image())).status).toBe(200);
     const first = { ...video("first frame"), ratio: undefined, content: [...video().content,
@@ -291,7 +291,7 @@ describe("task-local provider budget gateway", () => {
     expect(upstream).toHaveBeenCalledTimes(2);
   });
 
-  it("reserves exact 3×10s at 1080p, recovers acknowledged tasks across restart, and never resubmits exact bytes", async () => {
+  it("reserves multiple 10s clips at 1080p, recovers acknowledged tasks across restart, and never resubmits exact bytes", async () => {
     let postCount = 0;
     const upstream = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const path = new URL(String(url)).pathname;
@@ -302,30 +302,30 @@ describe("task-local provider budget gateway", () => {
     });
     const first = await gate(upstream, { scope: videoScope });
     const one = video("A");
-    for (const prompt of ["A", "B", "C"]) expect((await call(first.server, ARK_VIDEO_PATH, video(prompt))).status).toBe(200);
-    expect(code(await call(first.server, ARK_VIDEO_PATH, video("D")))).toBe("BUDGET_VIDEO_LIMIT_EXCEEDED");
+    for (const prompt of ["A", "B", "C", "D"]) expect((await call(first.server, ARK_VIDEO_PATH, video(prompt))).status).toBe(200);
     expect((await call(first.server, "/budget/status")).data).toMatchObject({ state: "held",
-      reserved: { microCny: 112_266_000, calls: 3 }, usage: { videoCalls: 3, videoSeconds: 30 } });
+      reserved: { microCny: 149_688_000, calls: 4 }, usage: { videoCalls: 4, videoSeconds: 40 } });
     await first.server.close();
     const { server } = await gate(upstream, { scope: videoScope, journalPath: first.journalPath, port: first.server.port });
     expect((await call(server, ARK_VIDEO_PATH, one)).data).toEqual({ id: "ark-task-1" });
     expect((await call(server, `${ARK_VIDEO_PATH}/ark-task-1`)).status).toBe(200);
     expect((await call(server, `${ARK_VIDEO_PATH}/ark-task-1`)).status).toBe(200);
     expect((await call(server, "/budget/status")).data).toMatchObject({ state: "held", frozen: null,
-      consumed: { microCny: 37_422_000 }, reserved: { microCny: 74_844_000, calls: 2 },
-      tasks: [{ taskId: "ark-task-1", state: "succeeded" }, { taskId: "ark-task-2", state: "accepted" }, { taskId: "ark-task-3", state: "accepted" }] });
-    expect(postCount).toBe(3);
+      consumed: { microCny: 37_422_000 }, reserved: { microCny: 112_266_000, calls: 3 },
+      tasks: [{ taskId: "ark-task-1", state: "succeeded" }, { taskId: "ark-task-2", state: "accepted" },
+        { taskId: "ark-task-3", state: "accepted" }, { taskId: "ark-task-4", state: "accepted" }] });
+    expect(postCount).toBe(4);
     expect(readFileSync(first.journalPath, "utf8")).not.toContain("fixture-video");
   });
 
-  it("applies the shared ¥120 official estimate before starting a third 1080p video", async () => {
+  it("records media estimates without applying the former ¥120 task cap", async () => {
     let postCount = 0;
     const upstream = vi.fn(async () => Response.json({ id: `fixture-task-${++postCount}` }));
     const { server } = await gate(upstream);
     expect((await call(server, ARK_VIDEO_PATH, video("first", 15))).status).toBe(200);
     expect((await call(server, ARK_VIDEO_PATH, video("second", 15))).status).toBe(200);
-    expect(code(await call(server, ARK_VIDEO_PATH, video("third", 10)))).toBe("BUDGET_CNY_EXCEEDED");
-    expect(upstream).toHaveBeenCalledTimes(2);
+    expect((await call(server, ARK_VIDEO_PATH, video("third", 10))).status).toBe(200);
+    expect(upstream).toHaveBeenCalledTimes(3);
   });
 
   it("keeps a timed-out video reservation and still reconciles its original task after the deadline", async () => {
@@ -342,10 +342,10 @@ describe("task-local provider budget gateway", () => {
     expect(code(await call(server, `${ARK_VIDEO_PATH}/original-held-task`))).toBe("BUDGET_OUTCOME_UNKNOWN");
     expect((await call(server, "/budget/status")).data).toMatchObject({ frozen: "BUDGET_UPSTREAM_TRANSPORT_UNKNOWN", held: true,
       reserved: { microCny: 37_422_000 }, tasks: [{ taskId: "original-held-task", state: "accepted" }] });
-    now += TASK_CAPS.windowMs + 1;
+    now += 24 * 60 * 60_000;
     expect((await call(server, ARK_VIDEO_PATH, body)).data).toEqual({ id: "original-held-task" });
     expect((await call(server, `${ARK_VIDEO_PATH}/original-held-task`)).status).toBe(200);
-    expect((await call(server, "/budget/status")).data).toMatchObject({ frozen: "BUDGET_UPSTREAM_TRANSPORT_UNKNOWN", expired: true,
+    expect((await call(server, "/budget/status")).data).toMatchObject({ frozen: "BUDGET_UPSTREAM_TRANSPORT_UNKNOWN", expired: false,
       held: false, consumed: { microCny: 37_422_000 }, tasks: [{ taskId: "original-held-task", state: "succeeded" }] });
     expect(code(await call(server, ARK_VIDEO_PATH, video("no replacement for the original task")))).toBe("BUDGET_FROZEN");
     expect(upstream.mock.calls.map((call) => call[1]?.method)).toEqual(["POST", "GET", "GET"]);
@@ -380,21 +380,21 @@ describe("task-local provider budget gateway", () => {
     expect(upstream).toHaveBeenCalledTimes(1);
   });
 
-  it("cannot reuse a journal on another port or scope and enforces its original deadline after restart", async () => {
+  it("cannot reuse a journal on another port or scope and has no default task deadline", async () => {
     let now = 1_800_000_000_000;
     const upstream = vi.fn(async () => llmResponse());
     const first = await gate(upstream, { scope: videoScope, now: () => now });
     await expect(gate(upstream, { journalPath: first.journalPath, now: () => now, scope: videoScope })).rejects.toThrow("BUDGET_JOURNAL_SCOPE_MISMATCH");
     await first.server.close();
     await expect(gate(upstream, { journalPath: first.journalPath, port: first.server.port, now: () => now, scope: {} })).rejects.toThrow("BUDGET_JOURNAL_SCOPE_MISMATCH");
-    now += TASK_CAPS.windowMs;
+    now += 30 * 24 * 60 * 60_000;
     const { server } = await gate(upstream, { journalPath: first.journalPath, port: first.server.port, now: () => now, scope: videoScope });
-    expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm()))).toBe("BUDGET_DEADLINE_EXCEEDED");
-    expect((await call(server, "/budget/status")).data).toMatchObject({ expired: true, state: "expired", live: false, deadlineAt: now });
-    expect(upstream).not.toHaveBeenCalled();
+    expect((await call(server, DEEPSEEK_CHAT_PATH, llm())).status).toBe(200);
+    expect((await call(server, "/budget/status")).data).toMatchObject({ expired: false, state: "live", live: true, deadlineAt: null });
+    expect(upstream).toHaveBeenCalledTimes(1);
   });
 
-  it("admits a workflow beyond the legacy case and combined price caps while preserving every wire byte and the 40-call limit", async () => {
+  it("admits a workflow beyond the former call and price thresholds while preserving every wire byte", async () => {
     const wireBodies: string[] = [];
     const upstream = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       if (new URL(String(url)).pathname === ARK_VIDEO_PATH) return Response.json({ id: "workflow-media-held" });
@@ -403,27 +403,26 @@ describe("task-local provider budget gateway", () => {
     });
     const { server, journalPath } = await gate(upstream, { profile: "workflow", scope: videoScope });
     expect((await call(server, ARK_VIDEO_PATH, video())).status).toBe(200);
-    const sent = Array.from({ length: 40 }, (_, i) => JSON.stringify(llm(`full workflow request ${i}`)));
+    const sent = Array.from({ length: 41 }, (_, i) => JSON.stringify(llm(`full workflow request ${i}`)));
     for (const wire of sent) expect((await call(server, DEEPSEEK_CHAT_PATH, wire)).status).toBe(200);
     expect(wireBodies).toEqual(sent);
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, sent[0]))).toBe("BUDGET_DUPLICATE_REQUEST");
-    expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("forty-first workflow call")))).toBe("BUDGET_LLM_CALLS_EXCEEDED");
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("arbitrary clipping", 300_000)))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
     expect((await call(server, "/budget/status")).data).toMatchObject({
       profile: "workflow", live: true, held: true,
-      caps: { llmCalls: 40, llmGrossTokens: 41_943_040, llmEstimatedMaxMicroCny: 178_257_920, mediaMicroCny: 120_000_000 },
-      usage: { llmCalls: 40, settledLlmGrossTokens: (390_000 + 12) * 40, videoCalls: 1 },
-      settledLlmTokens: { input: 12 * 40, output: 390_000 * 40 },
+      caps: WORKFLOW_TASK_CAPS,
+      usage: { llmCalls: 41, settledLlmGrossTokens: (390_000 + 12) * 41, videoCalls: 1 },
+      settledLlmTokens: { input: 12 * 41, output: 390_000 * 41 },
       estimatedCost: {
-        llm: { settledMicroCny: llmMicroCny(12, 390_000) * 40, reservedMicroCny: 0 },
+        llm: { settledMicroCny: llmMicroCny(12, 390_000) * 41, reservedMicroCny: 0 },
         media: { settledMicroCny: 0, reservedMicroCny: 37_422_000 },
       },
     });
-    expect(upstream).toHaveBeenCalledTimes(41);
+    expect(upstream).toHaveBeenCalledTimes(42);
     expect(JSON.parse(readFileSync(journalPath, "utf8").split("\n")[0]!)).toMatchObject({ profile: "workflow" });
   });
 
-  it("opens an explicit v2 journal and admits exactly 64 original full-window requests across restart", async () => {
+  it("opens an explicit v2 journal and admits all original full-window requests across restart without a call cap", async () => {
     const wireBodies: string[] = [];
     const upstream = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       wireBodies.push(Buffer.from(init!.body as Uint8Array).toString());
@@ -449,29 +448,23 @@ describe("task-local provider budget gateway", () => {
     expect(readFileSync(first.journalPath, "utf8")).toBe(priorJournal);
     const { server } = await gate(upstream, restart);
     expect((await call(server, "/budget/status")).data).toMatchObject({
-      profile: "workflow-v2", openedAt: now, deadlineAt: now + TASK_CAPS.windowMs, usage: { llmCalls: 40 },
+      profile: "workflow-v2", openedAt: now, deadlineAt: null, usage: { llmCalls: 40 },
     });
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, sent[0]))).toBe("BUDGET_DUPLICATE_REQUEST");
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("arbitrary clipping", 300_000)))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("too much output", 393_217)))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
     expect((await call(server, responsesPath, sent[40])).status).toBe(200);
-    for (const wire of sent.slice(41, 64)) expect((await call(server, DEEPSEEK_CHAT_PATH, wire)).status).toBe(200);
+    for (const wire of sent.slice(41, 65)) expect((await call(server, DEEPSEEK_CHAT_PATH, wire)).status).toBe(200);
     const fullJournal = readFileSync(first.journalPath, "utf8");
-    expect(await call(server, DEEPSEEK_CHAT_PATH, sent[64])).toEqual({
-      status: 429, data: { error: { code: "BUDGET_LLM_CALLS_EXCEEDED", message: "BUDGET_LLM_CALLS_EXCEEDED",
-        limit: { profile: "workflow-v2", resource: "llmCalls", used: 64, cap: 64 } } },
-    });
     expect(readFileSync(first.journalPath, "utf8")).toBe(fullJournal);
-    expect(wireBodies).toEqual(sent.slice(0, 64));
-    const caps = { llmCalls: 64, llmGrossTokens: 67_108_864, llmEstimatedMaxMicroCny: 285_212_672,
-      mediaMicroCny: 120_000_000, imageCalls: 8, videoCalls: 3, minVideoSeconds: 10, maxVideoSeconds: 15,
-      totalVideoSeconds: 45, windowMs: TASK_CAPS.windowMs };
+    expect(wireBodies).toEqual(sent);
+    const caps = WORKFLOW_TASK_CAPS;
     expect(JSON.parse(fullJournal.split("\n")[0]!)).toMatchObject({ profile: "workflow-v2", caps });
     expect((await call(server, "/budget/status")).data).toMatchObject({
       profile: "workflow-v2", live: true, held: false, caps,
-      usage: { llmCalls: 64, settledLlmGrossTokens: 64 * 20, videoCalls: 0, imageCalls: 0 },
-      settledLlmTokens: { input: 64 * 12, output: 64 * 8 },
-      estimatedCost: { llm: { settledMicroCny: 64 * llmMicroCny(12, 8), reservedMicroCny: 0 },
+      usage: { llmCalls: 65, settledLlmGrossTokens: 65 * 20, videoCalls: 0, imageCalls: 0 },
+      settledLlmTokens: { input: 65 * 12, output: 65 * 8 },
+      estimatedCost: { llm: { settledMicroCny: 65 * llmMicroCny(12, 8), reservedMicroCny: 0 },
         media: { settledMicroCny: 0, reservedMicroCny: 0 } },
     });
   });
@@ -608,7 +601,7 @@ describe("task-local provider budget gateway", () => {
     expect(upstream).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["workflow", "workflow-v2"])("keeps the media price cap independent in %s mode", async (profile) => {
+  it.each(["workflow", "workflow-v2"])("records media usage without a default price cap in %s mode", async (profile) => {
     let mediaSubmissions = 0;
     const upstream = vi.fn(async (url: string | URL | Request) => {
       if (new URL(String(url)).pathname === ARK_VIDEO_PATH) return Response.json({ id: `media-${++mediaSubmissions}` });
@@ -619,9 +612,9 @@ describe("task-local provider budget gateway", () => {
     expect((await call(server, DEEPSEEK_CHAT_PATH, llm())).status).toBe(200);
     expect((await call(server, ARK_VIDEO_PATH, video("first media shot", 15))).status).toBe(200);
     expect((await call(server, ARK_VIDEO_PATH, video("second media shot", 15))).status).toBe(200);
-    expect(code(await call(server, ARK_VIDEO_PATH, video("third exceeds media funds", 15)))).toBe("BUDGET_MEDIA_CNY_EXCEEDED");
+    expect((await call(server, ARK_VIDEO_PATH, video("third media shot", 15))).status).toBe(200);
     expect(code(await call(server, ARK_VIDEO_PATH, video("off approved exact duration", 10)))).toBe("BUDGET_VIDEO_SCOPE_MISMATCH");
-    expect(upstream).toHaveBeenCalledTimes(3);
+    expect(upstream).toHaveBeenCalledTimes(4);
   });
 
   it("fails closed when a workflow profile is missing exact media scope or an unrecognized profile is selected", async () => {

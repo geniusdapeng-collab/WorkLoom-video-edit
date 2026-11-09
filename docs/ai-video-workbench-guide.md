@@ -245,11 +245,11 @@ NODE
 
 准备整链作业时，在私有 `EDIT_RUN_ROOT` 下创建 `studio` 目录，并从与 CLI 相同的干净 Git 提交启动本机 Edit 服务。
 服务使用 `HR_WORK_DIR="$EDIT_RUN_ROOT/studio"` 和 `HR_DEFER_RENDER=1`，让 Film 接手渲染。
-在已获得本轮渲染、供应商用量和素材外发授权后，按 [单作业供应商预算](edit-task-provider-budget.md)
-启动本轮 `--profile workflow` 预算网关。通过进程环境提供本轮的 `WORKLOOM_BUDGET_GATEWAY_TOKEN`、
-与网关 `--task` 一致的 `WORKLOOM_BUDGET_TASK_ID`、批准的估算费用上限 `WORKLOOM_BUDGET_APPROVED_MICRO_CNY`，
-以及同一回环网关的 `LLM_BASE_URL` 与 `ARK_BASE_URL`。两者分别以网关根地址和 `/api/v3` 结尾。
-网关规格、实际镜头秒数、剩余次数及批准额度均须匹配，才可用原回执运行：
+在已获得本轮渲染、供应商用量和素材外发授权后，按 [单作业供应商用量账本](edit-task-provider-budget.md)
+启动本轮 `--profile workflow` 用量网关。通过进程环境提供本轮的 `WORKLOOM_BUDGET_GATEWAY_TOKEN`、
+与网关 `--task` 一致的 `WORKLOOM_BUDGET_TASK_ID`，以及同一回环网关的 `LLM_BASE_URL` 与 `ARK_BASE_URL`。
+两者分别以网关根地址和 `/api/v3` 结尾。默认不设置产品自有金额上限；若上层另有明确消费合同，才提供
+`WORKLOOM_BUDGET_APPROVED_MICRO_CNY`。网关规格、实际镜头秒数、当前范围及（存在时的）显式额度均须匹配，才可用原回执运行：
 
 ```bash
 node --import tsx scripts/tools/codex-video-workflow.mjs --continue \
@@ -260,9 +260,9 @@ node --import tsx scripts/tools/codex-video-workflow.mjs --status \
 
 命令回读当前 Studio 运行和正式 `video.production.shots`，比较项目、尝试、提示词与原件摘要，随后将同轮原件交给本仓 Film。
 角色、分辨率、画幅、帧率、字幕和明确制作要求由当前片单的原生契约传入。Film 保留普通镜 G8、素材镜 G-MAT1 和肖像用途授权检查。
-`--continue` 会消费授权范围内的资源。Film 子进程只使用经核验的本轮预算网关。
-预算网关按本轮任务和批准范围逐请求入账，价格口径为估算，真实费用以账单为准。若本轮已有前期费用，
-还需核对前期的原预算台账。等待审批、来源变更、预算范围不符或服务目录不符时不会派发 Film。Film 启动回执先于执行落盘，退出或 ACK 丢失后使用原回执对账。
+`--continue` 会消费授权范围内的资源。Film 子进程只使用经核验的本轮用量网关。
+用量网关按本轮任务和范围逐请求记录预占并结算真实 usage，价格口径为估算，真实费用以账单为准。若本轮已有前期费用，
+还需核对前期的原用量台账。等待审批、来源变更、冻结账本或服务目录不符时不会派发 Film。Film 启动回执先于执行落盘，退出或 ACK 丢失后使用原回执对账。
 `finished` 表示当前交付文件经过技术质检，且清单绑定本轮镜头摘要、实测正片时长符合本轮合同。
 
 ### 3.4 读取并核验同一轮正式片单
