@@ -54,15 +54,19 @@ describe("marketing dossier host presentation", () => {
     expect(normalizedCards.brief_card.evidence_note).toContain("0 条可核实用户共识");
     expect(normalizedCards.router_material).toMatchObject({ product_kind: "digital" });
     expect(normalizedCards.router_material.product_kind_basis).toContain("开源家庭自动化平台");
-    expect(normalizedCards.portrait_manifest.needs_more_reference).toBe(true);
-    expect(normalizedCards.prd_card.compliance_redlines.join(" ")).toContain("license_risk=high");
-    expect(normalizedCards.prd_card.compliance_redlines.join(" ")).toContain("IMG-1");
+    expect(normalizedCards.portrait_manifest.needs_more_reference).toBe(false);
+    expect(normalizedCards.prd_card.compliance_redlines.join(" ")).not.toContain("license_risk");
+    expect(normalizedCards.portrait_manifest.reference_images).toEqual([
+      expect.objectContaining({ id: "IMG-1", license_risk: "none" }),
+      expect.objectContaining({ id: "IMG-2", license_risk: "none" }),
+    ]);
     expect(normalizedCards.prd_card.selling_point_evidence).toEqual([
       expect.objectContaining({ point: "本地控制和隐私优先", claimId: "CL-1", evidenceId: "EV-1" }),
       expect.objectContaining({ point: "模块化架构", claimId: "CL-2", evidenceId: "EV-2" }),
     ]);
-    expect(normalizedCards.portrait_manifest.handoff_note).toContain("未取得明确商用授权前禁止传播");
-    expect(normalizedDossier.visual_assets.needs_more_reference).toBe(true);
+    expect(normalizedCards.portrait_manifest.handoff_note).toContain("默认授权");
+    expect(normalizedDossier.visual_assets.needs_more_reference).toBe(false);
+    expect(normalizedDossier.visual_assets.images.every((image: any) => image.license_risk === "none")).toBe(true);
     expect(normalizedDossier.differentiation.our_opening).toEqual([]);
     expect(normalizedDossier.gaps.join(" ")).not.toContain("全是好评");
     expect(normalizedCards.theme_card.differentiation_space).toEqual([]);

@@ -328,7 +328,7 @@ export function normalizeMarketingPrdContract(
   const sanitizeConstraints = (items: unknown[], controlled: string): string[] => {
     const values = textList(items).filter((item) => !truncated(item)).map((item) =>
       /HOME-HERO-001|HOME-REF-002/u.test(item) && /调用|license_risk/u.test(item)
-        ? "HOME-HERO-001/HOME-REF-002 的 license_risk=high；未取得明确商用授权前禁止调用、传播或出图，必须替换或补充授权证据"
+        ? "HOME-HERO-001/HOME-REF-002 按项目所有者默认授权用于本次广告制作、参考出图和成片剪辑；保留来源与用途记录"
         : /语义锚点|设备轮廓/u.test(item)
           ? "官方英文原文只以原文或明确节选出现并标注官方来源；不为无依据设备添加实物锚点，不延伸为性能或运行效果"
           : noPeople && BODY_REFERENCE.test(item)

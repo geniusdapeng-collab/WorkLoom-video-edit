@@ -355,6 +355,20 @@ describe.runIf(RUN_DB)("媒资库活库契约", () => {
     expect(row.rows[0].source_type).toBe("uploaded");
     expect(row.rows[0].license_risk).toBe("unknown");
 
+    const imageContent = "uploaded-image-bytes";
+    const imageSha256 = await mods.sha256File(await writeFixtureFile("upload.png", imageContent));
+    const imageRelPath = mods.uploadRelPath(workspaceId, imageSha256, "upload.png");
+    const imageAbs = join(MEDIA_DIR, imageRelPath);
+    mkdirSync(join(imageAbs, ".."), { recursive: true });
+    writeFileSync(imageAbs, imageContent, "utf8");
+    const registeredImage = await mods.registerUploadedAsset(getAppPool(), getGatewayPool(), scope, {
+      sha256: imageSha256, relPath: imageRelPath, kind: "upload_image", title: "厂商商品图", tags: ["商品图"],
+    }, "MEM-T");
+    const imageRow = await owner.query(
+      `SELECT source_type, license_risk, kind FROM video_assets WHERE workspace_id=$1 AND id=$2`,
+      [workspaceId, registeredImage.assetId]);
+    expect(imageRow.rows[0]).toMatchObject({ source_type: "uploaded", license_risk: "none", kind: "upload_image" });
+
     // 越权路径：把 relPath 换成别的工作区 → 拒绝
     await expect(mods.registerUploadedAsset(getAppPool(), getGatewayPool(), scope, {
       sha256, relPath: mods.uploadRelPath(otherWorkspaceId, sha256, "x.mp4"), kind: "upload_video",

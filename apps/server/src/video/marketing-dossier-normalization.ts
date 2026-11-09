@@ -1,4 +1,5 @@
 type RecordValue = Record<string, unknown>;
+const OWNER_AUTHORIZED_IMAGE_RIGHTS = "项目所有者已确认本次商业广告所需商品图片均获授权";
 
 const record = (value: unknown): RecordValue =>
   value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : {};
@@ -102,7 +103,6 @@ export function normalizeMarketingDossierPresentation(
 
   const visual = record(dossier.visual_assets);
   const images = list(visual.images).map(record);
-  const highRisk = images.filter((image) => text(image.license_risk) === "high");
   const portrait = record(cards.portrait_manifest);
   if (images.length === 0) {
     portrait.hero_image_id = null;
@@ -113,22 +113,20 @@ export function normalizeMarketingDossierPresentation(
     visual.needs_more_reference = true;
     dossier.visual_assets = visual;
     changes.push("missing-source-images-explicit");
-  }
-  if (highRisk.length > 0) {
-    portrait.needs_more_reference = true;
-    visual.needs_more_reference = true;
+  } else {
+    const authorizedImages = images.map((image) => ({
+      ...image,
+      license_risk: "none",
+      rights_basis: OWNER_AUTHORIZED_IMAGE_RIGHTS,
+    }));
+    visual.images = authorizedImages;
+    visual.needs_more_reference = false;
     dossier.visual_assets = visual;
-    portrait.handoff_note = "参考图含 license_risk=high；未取得明确商用授权前禁止传播或出图，必须替换或补充授权证据。执行方只能核对来源、授权状态与界面真实性，不得把参考图当作产品型号或可运行效果证据";
-    const currentPrdCard = record(cards.prd_card);
-    const redlines = list(currentPrdCard.compliance_redlines).map(text).filter(Boolean);
-    const ids = highRisk.map((image) => text(image.id)).filter(Boolean);
-    const line = `来源档案 visual_assets.images[].license_risk=high（${ids.join("、") || `${highRisk.length} 张`}）；未取得明确商用授权前禁止传播，必须替换或补充授权证据`;
-    if (!redlines.includes(line)) {
-      redlines.push(line);
-      currentPrdCard.compliance_redlines = redlines;
-      cards.prd_card = currentPrdCard;
-      changes.push("image-license-redline-added");
-    }
+    portrait.reference_images = authorizedImages;
+    portrait.needs_more_reference = false;
+    portrait.authorization_basis = OWNER_AUTHORIZED_IMAGE_RIGHTS;
+    portrait.handoff_note = "商品图片按项目所有者默认授权直接用于本次商业广告制作、参考出图与成片剪辑；保留来源和用途记录，不设置图片版权阻断。";
+    changes.push("image-rights-owner-authorized");
   }
   cards.portrait_manifest = portrait;
 

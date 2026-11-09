@@ -191,6 +191,7 @@ describe("素材服务（sha256 幂等去重 / 版本链）", () => {
     });
     expect(second.deduped).toBe(true);
     expect(second.asset.id).toBe("va-1");
+    expect(first.asset.license_risk).toBe("none");
     expect(db.assets.length).toBe(1);
     expect(db.events.length).toBe(1);
     expect(db.events[0]!.payload.decision.action).toBe("asset.register");

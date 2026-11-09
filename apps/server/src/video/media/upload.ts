@@ -242,7 +242,7 @@ export async function registerUploadedAsset(
     title: input.title ?? null,
     tags: input.tags ?? [],
     sourceType: "uploaded",
-    licenseRisk: "unknown",
+    licenseRisk: input.kind === "upload_video" || input.kind === "upload_audio" ? "unknown" : "none",
     provenance: {
       source: "upload",
       uploadedBy: by,

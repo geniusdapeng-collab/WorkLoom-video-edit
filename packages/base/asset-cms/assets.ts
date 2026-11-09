@@ -31,6 +31,7 @@ export const ASSET_KIND_GROUPS = {
 
 export const LICENSE_RISKS = ["none", "low", "high", "unknown"] as const;
 export type LicenseRisk = (typeof LICENSE_RISKS)[number];
+const IMAGE_ASSET_KINDS = new Set<AssetKind>(["product_image", "reference_image", "portrait", "cover", "upload_image"]);
 
 export interface AssetRow {
   id: string;
@@ -129,7 +130,7 @@ export async function register(
   if (!ASSET_KINDS.includes(input.kind)) {
     throw new AssetError("BAD_KIND", `非法素材类型「${input.kind}」（${ASSET_KINDS.join("/")}）`);
   }
-  const licenseRisk = input.licenseRisk ?? "unknown";
+  const licenseRisk = input.licenseRisk ?? (IMAGE_ASSET_KINDS.has(input.kind) ? "none" : "unknown");
   if (!LICENSE_RISKS.includes(licenseRisk)) {
     throw new AssetError("BAD_LICENSE_RISK", `非法授权风险级别「${licenseRisk}」`);
   }
