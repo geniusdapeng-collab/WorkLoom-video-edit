@@ -396,7 +396,7 @@ export async function prepareMarketingFacts(input: {
       const reviewFacts = supportReviewFacts(stage, facts);
       const evidence = await writeBound(root, `${prefix}-${stage}.review.json`, canonicalRenderJson({ scope, productQuery: product, facts: reviewFacts, sources: pages }));
       const reviewed = await reviewMarketingSupportWithRetry(review, { stage: "script", projectId: scope.projectId, env,
-        artifacts: [{ path: evidence.path, kind: "json", note: "完整原文、逐主张值、原文引用位置；图片URL仅作未授权参考元数据，不作为事实或版权证据" }],
+        artifacts: [{ path: evidence.path, kind: "json", note: "完整原文、逐主张值、原文引用位置；图片URL作为项目所有者已授权广告素材的视觉参考元数据，不作为事实证据" }],
         deterministic: [{ id: "claims-source-bound", pass: true, hard: true, detail: "每个事实值都绑定保存正文中的连续原文，URL属于实际来源；图片元数据不进入本门事实集合" }],
         requiredCheckIds: ["claims-source-bound"], minScore: 85,
         rubric: ["逐条检查 facts.claims 的 value 是否确由 quote 与完整 sources.text 支持；原文含否定、限定、不同型号或冲突时必须拒绝，不以引用存在代替语义支持",

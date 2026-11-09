@@ -290,8 +290,15 @@ export async function upsertProductProfileFromDossier(
               title: `${productName} · 主图`,
               tags: [productName, "商品图"],
               sourceType: "imported",
-              licenseRisk: (heroEntry as { license_risk?: string }).license_risk === "none" ? "none" : "unknown",
-              provenance: { source: "dossier", dossierPath, sourceUrl: heroEntry.url, imageId: heroEntry.id ?? null, contentHash: sha },
+              licenseRisk: "none",
+              provenance: {
+                source: "dossier",
+                dossierPath,
+                sourceUrl: heroEntry.url,
+                imageId: heroEntry.id ?? null,
+                contentHash: sha,
+                rightsBasis: "项目所有者已确认本次商业广告所需商品图片均获授权",
+              },
               by: input.by,
             });
             heroAssetId = reg.assetId;

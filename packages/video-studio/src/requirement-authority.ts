@@ -47,7 +47,7 @@ export function requirementThemeApprovalPayload(authority: PrdAuthority, draft: 
   }, null, 2).replaceAll("`", "\\u0060");
   const sha256 = createHash("sha256").update(source).digest("hex");
   return `${draft}\n\n## G2 宿主冻结客户 Brief\n`
-    + "此附件是当前项目的审阅基线。应逐项核对前面的实际创意，遗漏或矛盾须独立裁决；附件本身不证明创意已落实，也不增加商品事实或素材授权。\n"
+    + "此附件是当前项目的审阅基线。应逐项核对前面的实际创意，遗漏或矛盾须独立裁决；附件本身不证明创意已落实，也不增加商品事实。商品图片按项目所有者广告授权口径直接作为视觉参考。\n"
     + `附件 JSON 原始字节 SHA256 ${sha256}\n\n`
     + ["```json", source, "```"].join("\n");
 }
@@ -152,9 +152,9 @@ export function requirementAuthorityPrompt(authority: PrdAuthority, theme?: Requ
   const usageBoundary = theme ? "" : requirementThemeUsageBoundary(authority);
   const wardrobeBoundary = builtinWardrobeBoundary(metadata);
   const themeSelfCheck = theme ? "" : "创意主题输出前，在同一调用内逐项对照完整客户 Brief 和当前 G1，自检实际主题、核心描述、视觉、台词和特别备注。"
-    + "将客户明确的开场、动作顺序、服装、产品名呈现位置、素材授权和交付约束落实在对应创作字段；附件中出现要求不代表方案已落实，客户未要求的内容不自行补充。"
+    + "将客户明确的开场、动作顺序、服装、产品名呈现位置、商品图片参考关系和交付约束落实在对应创作字段；附件中出现要求不代表方案已落实，客户未要求的内容不自行补充。"
     + "以人物的相对位置、动作、选择与感受建立张力。角色台词、内心独白、画外音和比喻均不得暗示 G1 未支持或 Brief 未准许使用的产品性能、性能余量或使用效果。"
-    + "仅按实际授权使用参考素材；不能用已检索、已见到或已审核商品事实替代素材授权。\n";
+    + "\n";
   return `\n\n## 本次宿主需求权威输入 ${key}（冲突时按本节层级处理）\n`
     + `一、完整客户 Brief 和其中本片制作细则决定本片的主张用途、受众与交付要求。G1 接受某条事实，不能覆盖客户选择的用途限制，不能把底账事实自动变成钩子、口播、屏幕卖点或结尾。\n`
     + `完整客户 Brief：\n${JSON.stringify(metadata.brief)}\n`
@@ -166,6 +166,7 @@ export function requirementAuthorityPrompt(authority: PrdAuthority, theme?: Requ
     + `二、下面本次真实非降级 G1 原件只支持已接受 claims 及其来源限定。完整遵守 restrictions，并阅读嵌套 A1/A2/A3 support review 的 issues、suggestions 和证据状态。`
     + `A1 来源主张不构成竞品证据；A2/A3 为 no_evidence 时不得补写口碑、评分、销量、共识、竞品弱点或市场领先。媒体事实保留媒体、日期和 reported 等来源限定，不升格为实测或厂家独立认证。`
     + `已核规格数字和宣传性来源用语仍保留在事实底账；本片是否可用及如何使用须服从完整客户 Brief。未知外观不因选入道具或动作就成为已核实配置。\n`
+    + `商品图片按项目所有者的广告业务前提视为已获本次使用授权；直接作为视觉参考使用，不新增图片版权审核、版权打回或补授权卡点。\n`
     + `G1 完整原始裁决（所有意见与建议保持原层级）：\n${JSON.stringify(authority.marketing.g1Proof)}\n`
     + (usageBoundary ? `${usageBoundary}\n` : "")
     + `G1 完整原件 ${authority.marketing.g1Artifact.path} / SHA256 ${authority.marketing.g1Artifact.sha256}：\n${authority.marketing.g1Artifact.content}\n`

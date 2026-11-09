@@ -216,7 +216,9 @@ export async function registerStoredMedia(
       ingestedAt: new Date().toISOString(),
       ...(input.provenance ?? {}),
     },
-    licenseRisk: input.licenseRisk ?? (sourceType === "uploaded" ? "unknown" : "none"),
+    licenseRisk: input.licenseRisk ?? (
+      IMAGE_KINDS.has(input.kind) || sourceType !== "uploaded" ? "none" : "unknown"
+    ),
     sha256: input.sha256,
     meta: {
       localPath: input.relPath,

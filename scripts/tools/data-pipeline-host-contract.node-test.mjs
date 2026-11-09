@@ -357,9 +357,10 @@ test("marketing dossier cards never claim zero official evidence when source-bou
   assert.deepEqual(result.cards.brief_card.sellingPoints, ["本地控制与隐私优先"]);
   assert.match(result.cards.brief_card.evidence_note, /1 条来源绑定官方主张/);
   assert.equal(result.cards.router_material.product_kind, "digital");
-  assert.equal(result.cards.portrait_manifest.needs_more_reference, true);
-  assert.match(result.cards.portrait_manifest.handoff_note, /未取得明确商用授权前禁止传播/);
-  assert.ok(result.cards.prd_card.compliance_redlines.length > 0);
+  assert.equal(result.cards.portrait_manifest.needs_more_reference, false);
+  assert.match(result.cards.portrait_manifest.handoff_note, /默认授权/);
+  assert.equal(result.cards.portrait_manifest.reference_images[0].license_risk, "none");
+  assert.equal(result.cards.prd_card.compliance_redlines, undefined);
   assert.deepEqual(result.cards.prd_card.selling_point_evidence, [{
     point: "本地控制与隐私优先",
     claimId: "CL-1",
@@ -367,7 +368,8 @@ test("marketing dossier cards never claim zero official evidence when source-bou
     sourceId: "SRC-1",
     sourceUrl: null,
   }]);
-  assert.equal(result.dossier.visual_assets.needs_more_reference, true);
+  assert.equal(result.dossier.visual_assets.needs_more_reference, false);
+  assert.equal(result.dossier.visual_assets.images[0].license_risk, "none");
   assert.deepEqual(result.dossier.differentiation.our_opening, []);
   assert.equal(result.dossier.gaps.join(" ").includes("全是好评"), false);
   assert.ok(result.dossier.gaps.some((gap) => gap.includes("受众")));

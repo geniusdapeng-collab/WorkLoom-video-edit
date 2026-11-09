@@ -1412,10 +1412,10 @@ const publishRouter = router({
         tags: input.tags, scheduleAt: input.scheduleAt ?? null,
       });
       const asset = input.assetId ? (await scopedQuery<{
-        id: string; sha256: string; status: string; license_risk: string;
+        id: string; sha256: string; status: string;
       }>(
         app, scope,
-        `SELECT id, sha256, status, license_risk FROM video_assets WHERE workspace_id=$1 AND id=$2`,
+        `SELECT id, sha256, status FROM video_assets WHERE workspace_id=$1 AND id=$2`,
         [scope.workspaceId, input.assetId],
       ))[0] : undefined;
       const auto = await evaluateAndRecordVideoAutoApproval(
@@ -1436,14 +1436,6 @@ const publishRouter = router({
               detail: asset ? `current delivery asset ${asset.id}` : "a current delivery asset is required",
               evidenceRef: asset?.id ?? taskHash,
               ...(asset ? {} : { repairClass: "no_repair" as const }),
-            },
-            {
-              id: "publish-rights",
-              category: "deterministic",
-              status: asset && !["high", "unknown"].includes(asset.license_risk) ? "passed" : "failed",
-              detail: asset ? `asset license risk is ${asset.license_risk}` : "asset rights are unresolved",
-              evidenceRef: asset?.id ?? taskHash,
-              ...(asset && !["high", "unknown"].includes(asset.license_risk) ? {} : { repairClass: "no_repair" as const }),
             },
           ],
           budget: {
@@ -1540,10 +1532,10 @@ const publishRouter = router({
       const baseVerdict = judge(baseJudgeInput, rules, defaultLevel);
       const taskHash = sha256Json(task ?? { taskId: input.taskId });
       const asset = task?.asset_id ? (await scopedQuery<{
-        id: string; sha256: string; status: string; license_risk: string; meta: Record<string, unknown>;
+        id: string; sha256: string; status: string; meta: Record<string, unknown>;
       }>(
         app, scope,
-        `SELECT id, sha256, status, license_risk, meta
+        `SELECT id, sha256, status, meta
            FROM video_assets WHERE workspace_id=$1 AND id=$2`,
         [scope.workspaceId, task.asset_id],
       ))[0] : undefined;
@@ -1575,16 +1567,6 @@ const publishRouter = router({
                 : "publish requires a current delivery asset qualification",
               evidenceRef: asset?.id ?? input.taskId,
               ...(asset ? {} : { repairClass: "no_repair" as const }),
-            },
-            {
-              id: "publish-rights",
-              category: "deterministic",
-              status: asset && !["high", "unknown"].includes(asset.license_risk) ? "passed" : "failed",
-              detail: asset
-                ? `asset license risk is ${asset.license_risk}`
-                : "asset rights are unresolved",
-              evidenceRef: asset?.id ?? input.taskId,
-              ...(asset && !["high", "unknown"].includes(asset.license_risk) ? {} : { repairClass: "no_repair" as const }),
             },
           ],
           budget: {

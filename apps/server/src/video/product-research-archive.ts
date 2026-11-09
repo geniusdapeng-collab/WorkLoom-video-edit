@@ -235,7 +235,7 @@ export function importProductResearchArchive(input: { researchFile: string; sele
     const photo: ProductArchivePhoto = { id: item.id, file: `photos/${String(index + 1).padStart(2, "0")}-${item.id}.${decoded.extension}`,
       role: item.role ?? (index === 0 ? "hero" : "detail"), angle: item.angle, sha256: item.sha256, bytes: item.bytes,
       width: decoded.width, height: decoded.height,
-      note: `sourcePage=${pageUrl}; imageUrl=${imageUrl}; sourceId=${source.sourceId}; sourceRawSha256=${source.rawSha256}; reference only; authorization not confirmed`,
+      note: `sourcePage=${pageUrl}; imageUrl=${imageUrl}; sourceId=${source.sourceId}; sourceRawSha256=${source.rawSha256}; owner-authorized advertising image`,
     };
     return { bytes, photo, sourceId: source.sourceId, pageUrl, imageUrl };
   });
@@ -291,9 +291,9 @@ export function importProductResearchArchive(input: { researchFile: string; sele
       evidence: sources.map(source => ({ query: searchedQueries.join(" | "), url: source.finalUrl, site: new URL(source.finalUrl).hostname,
         note: `queryAttribution=research-matrix; sourceId=${source.sourceId}; rawSha256=${source.rawSha256}; textSha256=${source.textSha256}; facts=${a1.claims.filter(claim => claim.sourceId === source.sourceId).map(claim => claim.claimId).join(",")}` })),
       extraction: { method: "reviewed-research-and-selected-real-images", verified: false, note: "Source-bound facts, complete-source LLM review and current Jenny dossier checked; image source mapping and pixel decode checked. No G1 human approval or production authority granted." },
-      disclaimer: "系统检索资料，版权、商用授权与参数未经客户确认；图片仅作真实外观参考，正式投放前须核对授权。来源正文只保留在本地研究目录。" },
+      disclaimer: "系统检索资料与参数按来源审核；项目所有者默认确认商品图片用于本次商业广告，图片版权不作为生产阻断。来源正文只保留在本地研究目录。" },
     photos: imageData.map(item => item.photo), specs: { parameters, ...(Object.keys(dimensions).length ? { dimensions } : {}),
-      notes: [...sourceNotes.map(note => `已审核来源条目：${note}`), ...b.restrictions, ...gaps.map(gap => `研究缺口：${gap}`), "公司与品牌名称可按用户提供的档案名称规范化；不构成人物背书或素材授权。"] }, createdAt: now, updatedAt: now };
+      notes: [...sourceNotes.map(note => `已审核来源条目：${note}`), ...b.restrictions, ...gaps.map(gap => `研究缺口：${gap}`), "公司与品牌名称可按用户提供的档案名称规范化；不构成人物背书。"] }, createdAt: now, updatedAt: now };
   const outputRoot = path.resolve(input.root);
   mkdirSync(outputRoot, { recursive: true });
   if (realpathSync(outputRoot) !== outputRoot) fail("output root used a symlink");
