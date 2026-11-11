@@ -1910,11 +1910,14 @@ let FIRST_PASS_ORDER: ShotCard[] = shots;
 /* ---------- ⓪-0.4 提示词红线门（G-RL1，T-2026-0929-0008：提高一次过率） ---------- */
 /**
  * 每一次"渲完才发现"的返修，都对应一条可以提前写死在卡片里的红线。这里在**花钱之前**统一清零：
- * 屏幕文字/图标/LOGO、证件字迹与号码、卡片类道具重复、timeline 定住而运镜没定住、卡片与管线帧率不一致。
+ * 屏幕文字/图标/LOGO、证件字迹与号码、卡片类道具重复、timeline 定住而运镜没定住、卡片与管线帧率不一致，
+ * 以及竖屏横向分组结构未锁定机位、可见边界和相对位置。
  * hard 项不清零就 fail-closed；soft 项进证据与日志（不阻断，但必须被看见）。
  */
 {
-  const redlines = auditFilmRedlines(preRenderShots as unknown as Array<Record<string, unknown>>, { fps: FPS, bulletTimeCapabilities: BULLET_TIME_CAPABILITIES });
+  const redlines = auditFilmRedlines(preRenderShots as unknown as Array<Record<string, unknown>>, {
+    fps: FPS, aspect: ASPECT, bulletTimeCapabilities: BULLET_TIME_CAPABILITIES,
+  });
   const shotIds = shots.map((shot) => String(shot.shotId));
   const redlineGate = recordGate({
     stepKey: "g-prompt-redlines",
@@ -2774,7 +2777,7 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     && /(?:双手|左手|右手).*(?:摘盔|提盔|解扣带|头盔)/.test(actionText)
     && !/下车站在车侧|左脚.*撑住|侧撑放下后，她已下车/.test(next)) {
     const supportClause = supportMode === "maintenance-stand"
-      ? "车辆由可见的后轮起车架稳固承托，前轮与后轮着地"
+      ? "车辆由可见的后轮起车架稳固承托，后轮离地约3至5厘米、前轮着地、侧撑收起"
       : "车辆由侧撑尖、前轮与后轮三点着地";
     next = next
       .replace(/肩背打开、上身直立坐在已完全停稳的车上/g, `肩背打开、上身直立站在已完成支撑的车辆侧面`)

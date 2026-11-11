@@ -388,7 +388,10 @@ function videoClaim(body: JsonObject, scope: BudgetScope, known: FindImage): Cla
     && body.duration <= TASK_CAPS.maxVideoSeconds && (body.resolution === "720p" || body.resolution === "1080p"));
   check(["generate_audio", "watermark", "return_last_frame"].every((key) => body[key] === undefined || typeof body[key] === "boolean"));
   check(body.output_format === undefined || body.output_format === "mp4");
-  check(Array.isArray(body.content) && body.content.length >= 1 && body.content.length <= 5);
+  // Seedance 2.5 accepts up to 30 reference images; the text prompt is the
+  // additional content item. Keep the gateway aligned with the model catalog
+  // instead of imposing the legacy four-image ceiling.
+  check(Array.isArray(body.content) && body.content.length >= 1 && body.content.length <= 31);
   const [prompt, ...images] = body.content as unknown[];
   fields(prompt, ["type", "text"]);
   check(prompt.type === "text" && someText(prompt.text));

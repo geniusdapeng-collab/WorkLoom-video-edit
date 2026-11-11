@@ -12,7 +12,7 @@
  */
 import { inspectBulletTimeMotion, type BulletTimeCapabilities } from "./bullet-time.js";
 
-export const PROMPT_REDLINE_POLICY_VERSION = "workloom.prompt-redlines/v1" as const;
+export const PROMPT_REDLINE_POLICY_VERSION = "workloom.prompt-redlines/v2" as const;
 
 export interface RedlineIssue { id: string; detail: string; why: string; hard: boolean }
 
@@ -39,7 +39,9 @@ function positiveOnly(value: string): string {
 const text = (value: unknown): string => String(value ?? "");
 const allText = (shot: RedlineShotLike, keys: string[]): string => keys.map((key) => text(shot[key])).join("；");
 
-export function auditShotRedlines(shot: RedlineShotLike, options: { fps?: number; bulletTimeCapabilities?: BulletTimeCapabilities } = {}): RedlineIssue[] {
+export function auditShotRedlines(shot: RedlineShotLike, options: {
+  fps?: number; aspect?: string; bulletTimeCapabilities?: BulletTimeCapabilities;
+} = {}): RedlineIssue[] {
   const issues: RedlineIssue[] = [];
   const add = (id: string, detail: string, why: string, hard = true): void => { issues.push({ id, detail, why, hard }); };
   const visual = positiveOnly(allText(shot, ["scene", "sceneDescription", "composition", "action", "props"]));
@@ -96,11 +98,33 @@ export function auditShotRedlines(shot: RedlineShotLike, options: { fps?: number
   if (/手|待提交|放置|取出|捏住/.test(visual) && !/无多余手指|无六指/.test(negative)) {
     add("hands-negative", `${shot.shotId}：含手部动作，但负面清单缺「无多余手指/六指」`, "手部畸变是最常见的返修项", false);
   }
+  // ⑧ 竖屏横向结构：领奖台、舞台、联排台阶等横向分组结构若只用“三层/左右/两侧”
+  // 一笔带过，模型常优先保住人物中近景而裁掉侧翼。这里要求把几何关系写成可执行约束。
+  const declaredAspect = text((shot as Record<string, unknown>).constraint).match(/(\d+)\s*:\s*(\d+)\s*画幅/);
+  const fallbackAspect = String(options.aspect ?? "").match(/^(\d+)\s*:\s*(\d+)$/);
+  const aspect = declaredAspect ?? fallbackAspect;
+  const portrait = aspect && Number(aspect[1]) < Number(aspect[2]);
+  const horizontalStructure = /领奖台|舞台|展台|台体|台阶|阶梯|主背板|背景墙|门架|龙门架|横梁|长廊|连廊|环形灯|灯光矩阵/.test(visual);
+  const groupedStructure = /三层|多层|左右|两侧|左中右|联排|并列|横向|一整排/.test(visual);
+  if (portrait && horizontalStructure && groupedStructure) {
+    const lockedCamera = /(?:领奖台|舞台|展台|台体|结构)[^；。\n]{0,60}(?:三分之四|3\s*\/\s*4|斜侧|近侧斜侧|偏侧)[^；。\n]{0,30}(?:机位|视角|构图)|(?:三分之四|3\s*\/\s*4|斜侧|近侧斜侧|偏侧)[^；。\n]{0,30}(?:机位|视角|构图)[^；。\n]{0,60}(?:领奖台|舞台|展台|台体|结构)/.test(visual);
+    const lockedBoundary = /(?:左右|两侧|左中右)[^；。\n]{0,60}(?:完整入画|可见边界|边缘完整|不被裁切|不裁切|不被遮挡|均清晰可辨|全部在画内)|(?:每块|三个|三块)[^；。\n]{0,30}(?:台体|台面)[^；。\n]{0,30}(?:可见|边界|不重叠)/.test(visual);
+    const lockedRelativePosition = /(?:左|右|两侧)[^；。\n]{0,50}(?:低于|低台|矮台|次高)|(?:中央|中间)[^；。\n]{0,40}(?:最高|高台)/.test(visual);
+    if (!(lockedCamera && lockedBoundary && lockedRelativePosition)) {
+      add(
+        "vertical-horizontal-structure-framing",
+        `${shot.shotId}：${aspect[1]}:${aspect[2]} 竖屏含横向分组结构，但未同时锁定近侧三分之四机位、左右可见边界和子结构相对高度`,
+        "竖屏会优先保留人物中近景并裁掉横向侧翼；仅写“三层/左右”无法保证模型把结构完整、按比例生成，必须把机位、可见边界和左中右相对位置写成同一组可执行约束",
+      );
+    }
+  }
   return issues;
 }
 
 /** 整片红线汇总：hard 项必须清零才允许进入花钱阶段（fail-closed） */
-export function auditFilmRedlines(shots: readonly RedlineShotLike[], options: { fps?: number; bulletTimeCapabilities?: BulletTimeCapabilities } = {}): {
+export function auditFilmRedlines(shots: readonly RedlineShotLike[], options: {
+  fps?: number; aspect?: string; bulletTimeCapabilities?: BulletTimeCapabilities;
+} = {}): {
   policy: typeof PROMPT_REDLINE_POLICY_VERSION;
   hard: RedlineIssue[]; soft: RedlineIssue[]; perShot: Array<{ shotId: string; issues: RedlineIssue[] }>;
 } {

@@ -181,6 +181,23 @@ describe("task-local provider budget gateway", () => {
     expect(upstream).toHaveBeenCalledTimes(1);
   });
 
+  it("admits the complete Seedance 2.5 reference-image budget and rejects a thirty-first image", async () => {
+    const upstream = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => Response.json({ id: "many-reference-task" }));
+    const { server } = await gate(upstream, {
+      scope: { ...videoScope, inlineImageSha256: [digest(IMAGE_BYTES)] },
+    });
+    const reference = { type: "image_url", role: "reference_image", image_url: { url: IMAGE_DATA } };
+    const complete = {
+      ...video("complete reference budget"),
+      omni_reference_task_type: "reference",
+      content: [...video("complete reference budget").content, ...Array.from({ length: 30 }, () => reference)],
+    };
+    expect((await call(server, ARK_VIDEO_PATH, complete)).status).toBe(200);
+    const overflow = { ...complete, content: [...complete.content, reference] };
+    expect(code(await call(server, ARK_VIDEO_PATH, overflow))).toBe("BUDGET_UNSUPPORTED_REQUEST");
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
   it("authenticates and denies off-contract routes, methods, models, media and noncanonical JSON before any upstream call", async () => {
     const upstream = vi.fn(async () => llmResponse());
     const { server } = await gate(upstream);
