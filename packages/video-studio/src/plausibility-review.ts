@@ -369,6 +369,14 @@ export async function reviewPlausibility(
         log(`[plausibility][${input.stage}] 将非物理性的重复动作措辞降为 warning：${finding.id}`);
         return { ...finding, severity: "warning" as const };
       }
+      const shotHairOverrideOnly = /高马尾/.test(finding.issue)
+        && /低束|压束|后颈/.test(finding.issue)
+        && /发型|档案|角色/.test(finding.issue)
+        && !/穿模|悬空|换人|第二个人|断裂/.test(finding.issue);
+      if (finding.severity === "blocker" && shotHairOverrideOnly) {
+        log(`[plausibility][${input.stage}] 将逐镜造型覆盖的档案发型措辞降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
       return finding;
     });
     const blockers = findings.filter((finding) => finding.severity === "blocker");
