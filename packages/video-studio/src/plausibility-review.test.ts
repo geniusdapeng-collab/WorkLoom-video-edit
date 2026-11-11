@@ -163,7 +163,10 @@ describe("实体与物理常识审核 agent", () => {
 
   it("Flash 文本评审锁定官方模型、JSON 输出与 high thinking", async () => {
     let body: Record<string, unknown> | null = null;
-    const result = await reviewPlausibility(baseContext, {
+    const result = await reviewPlausibility({
+      ...baseContext,
+      shots: [{ ...baseContext.shots[0]!, promptText: "上一镜后已完成停车、支侧撑与下车；本镜起幅为既定静止状态。" }],
+    }, {
       env: {
         LLM_BASE_URL: "https://api.deepseek.com",
         DEEPSEEK_BASE_URL: "https://api.deepseek.com/anthropic",
@@ -231,8 +234,11 @@ describe("实体与物理常识审核 agent", () => {
     expect(result.findings[0]).toMatchObject({ id: "temporal-helmet", severity: "warning" });
   });
 
-  it("纯位置、重复动作或逐镜发型覆盖措辞降为 warning，穿模或支撑失效仍保持 blocker", async () => {
-    const result = await reviewPlausibility(baseContext, {
+  it("位置、重复动作、逐镜发型或已声明时间省略措辞降为 warning，穿模或支撑失效仍保持 blocker", async () => {
+    const result = await reviewPlausibility({
+      ...baseContext,
+      shots: [{ ...baseContext.shots[0]!, promptText: "上一镜后已完成停车、支侧撑与下车；本镜起幅为既定静止状态。" }],
+    }, {
       env: llmEnv,
       fetchImpl: (async () => jsonResponse({
         verdict: "block",
@@ -240,6 +246,7 @@ describe("实体与物理常识审核 agent", () => {
           { id: "position-copy", severity: "blocker", shotId: "SC-01", issue: "动作写左侧，构图写右侧", why: "措辞不一致", fix: "统一方位" },
           { id: "sequence-copy", severity: "blocker", shotId: "SC-01", issue: "摘盔被写成两次离头", why: "重复动作措辞", fix: "合并一次" },
           { id: "hair-override", severity: "blocker", shotId: "SC-01", issue: "角色档案写高马尾，逐镜发型写后颈低束马尾", why: "档案与镜头覆盖不一致", fix: "以逐镜为准" },
+          { id: "declared-jump", severity: "blocker", shotId: "SC-01", issue: "相邻镜 scene-3 到 scene-4 的侧撑与下车未在上一镜呈现", why: "跨镜状态跳跃", fix: "已在下一镜声明画外完成" },
           { id: "physical", severity: "blocker", shotId: "SC-01", issue: "右肩悬空且穿模", why: "支撑失效", fix: "重做姿态" },
         ],
         promptPatches: [], reason: "混合问题",
@@ -249,6 +256,7 @@ describe("实体与物理常识审核 agent", () => {
     expect(result.findings.find((finding) => finding.id === "position-copy")).toMatchObject({ severity: "warning" });
     expect(result.findings.find((finding) => finding.id === "sequence-copy")).toMatchObject({ severity: "warning" });
     expect(result.findings.find((finding) => finding.id === "hair-override")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "declared-jump")).toMatchObject({ severity: "warning" });
     expect(result.findings.find((finding) => finding.id === "physical")).toMatchObject({ severity: "blocker" });
   });
 

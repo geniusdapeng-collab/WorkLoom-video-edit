@@ -350,6 +350,7 @@ export async function reviewPlausibility(
     const parsed = parsePlausibilityAnswer(result.text);
     const promptText = input.shots.map((shot) => shot.promptText ?? "").join("\n");
     const removalAction = /摘盔|摘下|解扣带|卸下|take\s*off|remove(?:d|s)?\s+(?:the\s+)?helmet/i.test(promptText);
+    const declaredTimeOmission = /上一镜后已完成|镜外完成|时间跳切|硬切后的时间跳跃|起幅前已完成/.test(promptText);
     const findings = parsed.findings.map((finding) => {
       const temporalNegative = /no\s+[^.;。\n]{0,40}\s+left\s+(?:on|in)|不得(?:仍戴|继续留在|留在[^。；\n]{0,12}上)/i.test(finding.issue);
       if (finding.severity === "blocker" && removalAction && temporalNegative) {
@@ -375,6 +376,14 @@ export async function reviewPlausibility(
         && !/穿模|悬空|换人|第二个人|断裂/.test(finding.issue);
       if (finding.severity === "blocker" && shotHairOverrideOnly) {
         log(`[plausibility][${input.stage}] 将逐镜造型覆盖的档案发型措辞降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      const declaredTransitionOnly = declaredTimeOmission
+        && /相邻镜|scene-\d.*scene-\d|起幅|中间|跨镜/.test(finding.issue)
+        && /停车|停稳|侧撑|下车|放置|登台|转移/.test(finding.issue)
+        && !/穿模|悬空|无人驾驶|断裂|换人|第二个人/.test(finding.issue);
+      if (finding.severity === "blocker" && declaredTransitionOnly) {
+        log(`[plausibility][${input.stage}] 将已声明画外时间省略的跨镜状态说明降为 warning：${finding.id}`);
         return { ...finding, severity: "warning" as const };
       }
       return finding;
