@@ -77,6 +77,8 @@ export interface PlausibilityProductFacts {
 }
 export interface PlausibilityContextInput {
   projectId: string;
+  /** Distinguishes a new independent review from an accidental replay of the same request bytes. */
+  reviewId?: string;
   platform?: string;
   locale?: string;
   aspect?: string;
@@ -136,7 +138,8 @@ export function buildPlausibilityContext(input: PlausibilityContextInput): Recor
     policy: PLAUSIBILITY_POLICY_VERSION,
     stage: input.stage,
     project: {
-      id: input.projectId, platform: input.platform ?? null, locale: input.locale ?? null,
+      id: input.projectId, reviewId: input.reviewId ?? null,
+      platform: input.platform ?? null, locale: input.locale ?? null,
       aspect: input.aspect ?? null, resolution: input.resolution ?? null, durationSeconds: input.durationSeconds ?? null,
     },
     character: input.character ?? null,

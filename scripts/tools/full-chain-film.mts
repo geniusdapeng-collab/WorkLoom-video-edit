@@ -3668,6 +3668,7 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
     : [];
   return {
     projectId: PROJECT,
+    reviewId: `${PROJECT}:${stage}:${RUN_ID}:${Date.now()}`,
     platform: String((shotlist as Record<string, unknown>).platform ?? arg("--platform", "")),
     locale: FILM_SPEECH_LANGUAGE,
     aspect: ASPECT,
@@ -3727,7 +3728,19 @@ async function runPlausibilityGate(stage: "pre-render" | "pre-submit", reviewSho
   }
   const result = await reviewPlausibility(reviewContext, { env: ENV, log });
   const scopeIds = new Set(reviewShots.map((shot) => String(shot.shotId)));
-  if (result.promptPatches.some((patch) => !scopeIds.has(String(patch.shotId)))) throw new Error("PLAUSIBILITY_PATCH_SCOPE_INVALID");
+  const outOfScopePatches = result.promptPatches.filter((patch) => !scopeIds.has(String(patch.shotId)));
+  const plausibilityResultFile = join(WORK_DIR, `plausibility-${stage}-${Date.now()}.json`);
+  writeFileSync(plausibilityResultFile, `${JSON.stringify({
+    schemaVersion: "workloom.plausibility-result/v1",
+    stage,
+    scopeShotIds: [...scopeIds],
+    outOfScopePatchShotIds: [...new Set(outOfScopePatches.map((patch) => String(patch.shotId)))],
+    result,
+  }, null, 2)}\n`, "utf8");
+  if (outOfScopePatches.length) {
+    log(`实体与物理常识审核返回 ${outOfScopePatches.length} 条范围外补丁；${result.verdict === "pass" ? "通过结论不允许应用" : "当前结论为拦截，补丁不应用"}`);
+  }
+  if (result.verdict === "pass" && outOfScopePatches.length) throw new Error("PLAUSIBILITY_PATCH_SCOPE_INVALID");
   if (result.verdict === "pass" && result.promptPatches.length > 0) {
     const prompts = new Map(reviewShots.filter((shot) => existsSync(join(PROMPT_DIR, `${shot.shotId}.txt`))).map((shot) => [String(shot.shotId), readFileSync(join(PROMPT_DIR, `${shot.shotId}.txt`), "utf8")]));
     const patched = applyPromptPatches(result.promptPatches, prompts);
@@ -3771,13 +3784,13 @@ async function runPlausibilityGate(stage: "pre-render" | "pre-submit", reviewSho
     checks: [{ id: "plausibility-ok", pass: result.verdict === "pass", hard: true, detail }],
     shotIds: reviewShots.map((shot) => String(shot.shotId)),
     inputPaths: reviewPaths, exactInputPaths: true,
-    evidence: { stage, verdict: result.verdict, scopeShotIds: [...scopeIds], reviewedImagePaths: (reviewContext.images ?? []).map((item) => item.path), finalPromptHashes: reviewShots.filter((shot) => existsSync(join(PROMPT_DIR, `${shot.shotId}.txt`))).map((shot) => ({ shotId: shot.shotId, sha256: sha256FileSync(join(PROMPT_DIR, `${shot.shotId}.txt`)) })), findings: result.findings, promptPatches: result.promptPatches, model: result.model, ms: result.ms, policy: PLAUSIBILITY_POLICY_VERSION },
+    evidence: { stage, verdict: result.verdict, resultFile: plausibilityResultFile, scopeShotIds: [...scopeIds], outOfScopePatchShotIds: [...new Set(outOfScopePatches.map((patch) => String(patch.shotId)))], reviewedImagePaths: (reviewContext.images ?? []).map((item) => item.path), finalPromptHashes: reviewShots.filter((shot) => existsSync(join(PROMPT_DIR, `${shot.shotId}.txt`))).map((shot) => ({ shotId: shot.shotId, sha256: sha256FileSync(join(PROMPT_DIR, `${shot.shotId}.txt`)) })), findings: result.findings, promptPatches: result.promptPatches, model: result.model, ms: result.ms, policy: PLAUSIBILITY_POLICY_VERSION },
     reason: result.verdict === "pass" ? "实体与物理常识审核通过" : result.verdict === "block" ? "实体与物理常识存在 blocker" : `审核未验证：${result.reason}`,
   });
   record({
     stage: `plausibility-${stage}`, shotId: scopeShotId, invoked: true, ok: result.verdict === "pass", cached: false, degraded: false,
-    attempt: 1, ms: Date.now() - started, artifact: null,
-    evidence: { verdict: result.verdict, findings: result.findings, promptPatches: result.promptPatches, model: result.model, policy: PLAUSIBILITY_POLICY_VERSION },
+    attempt: 1, ms: Date.now() - started, artifact: plausibilityResultFile,
+    evidence: { verdict: result.verdict, resultFile: plausibilityResultFile, outOfScopeShotIds: [...new Set(outOfScopePatches.map((patch) => String(patch.shotId)))], findings: result.findings, promptPatches: result.promptPatches, model: result.model, policy: PLAUSIBILITY_POLICY_VERSION },
     verdict: null, note: `实体与物理常识审核（${stage}）：${result.reason}`,
   });
   for (const finding of result.findings) {
