@@ -13,6 +13,18 @@ type JsonRecord = Record<string, unknown>;
 const hashPattern = /^[a-f0-9]{64}$/u;
 const newFieldSchemaExample = "从完整已审来源新创作本字段的非空文本";
 const FINAL_LENGTH_EDITABLE_FIELDS = ["lighting", "composition", "color_palette", "depth_of_field", "mood"] as const;
+// G6 semantic checks may also use upper-case HARD_* failure codes. Only the
+// compiler's exact vocabulary can describe a replayed compiler error.
+const PROMPT_COMPILER_ERROR_CODES: ReadonlySet<string> = new Set([
+  "HARD_DURATION_INVALID", "HARD_DURATION_UNSUPPORTED", "HARD_ASPECT_UNSUPPORTED",
+  "HARD_RESOLUTION_UNSUPPORTED", "HARD_REFERENCE_LIMIT", "HARD_FIRST_FRAME_UNSUPPORTED",
+  "HARD_REFERENCE_UNSUPPORTED", "HARD_TEXT_MODE_UNSUPPORTED", "HARD_FPS_INVALID",
+  "HARD_TIMELINE_EXCEEDS_DURATION", "HARD_DIALOGUE_WITHOUT_AUDIO",
+  "HARD_CONSTRAINT_ASPECT_CONFLICT", "HARD_CONSTRAINT_RESOLUTION_CONFLICT",
+  "HARD_CONSTRAINT_FPS_CONFLICT", "HARD_DIALOGUE_AUDIO_CONFLICT",
+  "HARD_FIELD_VALUE_MISSING", "HARD_FIELD_VALUE_UNREADABLE", "HARD_ASSET_FIELD_UNKNOWN",
+  "HARD_ASSET_MISSING", "HARD_ASSET_NOTA_AMBIGUOUS", "HARD_PROMPT_TOO_LONG",
+]);
 const hashBytes = (value: Uint8Array | string): string => createHash("sha256").update(value).digest("hex");
 function fail(code: string): never { throw new Error(`APPROVED_SOURCE_FIELDS_${code}`); }
 function record(value: unknown): JsonRecord {
@@ -125,7 +137,8 @@ function sourceMissingDiagnoses(evidence: readonly VerifiedFieldArtifact[], shot
       const finding = record(raw);
       if (finding.shotId === shotId && finding.blocking === true && typeof finding.code === "string"
         && !["HARD_FINAL_PROMPT_TOO_LONG", "HARD_FIELD_UNKNOWN"].includes(finding.code)
-        && (finding.code.startsWith("HARD_") || ["deterministic", "local_patch"].includes(String(finding.repairClass)))) {
+        && (PROMPT_COMPILER_ERROR_CODES.has(finding.code)
+          || ["deterministic", "local_patch"].includes(String(finding.repairClass)))) {
         allowedHardErrors.add(`${finding.code}:${typeof finding.field === "string" ? finding.field : "stage"}`);
         hardErrorUsed = true;
       }

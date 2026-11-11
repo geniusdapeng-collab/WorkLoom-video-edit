@@ -100,6 +100,14 @@ describe("canonical source-contract recovery", () => {
     ] });
     expect(recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [report] }).fields).toEqual(fields);
   });
+  it("does not treat a semantic HARD_* failure code as a replayed compiler error", () => {
+    const { fields, bytes } = fixture();
+    const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [
+      { shotId: "scene-a", field: "transition", code: "HARD_CUT_WITH_DURATION",
+        detail: "硬切字段含正时长", blocking: true, repairClass: "semantic" },
+    ] });
+    expect(recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [report] }).fields).toEqual(fields);
+  });
   it("reconstructs all fields, arrays and UTF-16 spans with exact full compiler identity", () => {
     const { recovered, fields, compiled } = fixture();
     expect(recovered.fields).toEqual(fields);
