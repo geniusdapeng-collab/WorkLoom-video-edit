@@ -219,8 +219,10 @@ export const videoMicroCny = (resolution: Resolution, providerTokens: number): n
 function videoEstimate(resolution: Resolution, ratio: string, seconds: number): number {
   const dimensions = Object.hasOwn(ARK_DIMENSIONS[resolution], ratio) ? ARK_DIMENSIONS[resolution][ratio] : undefined;
   check(dimensions);
-  // Official no-video-input estimate at 24 fps. Terminal usage is reconciled separately.
-  return videoMicroCny(resolution, Math.ceil(seconds * dimensions[0] * dimensions[1] * 24 / 1024));
+  // Official no-video-input estimate at 24 fps, with a bounded 2% reservation
+  // buffer for provider token rounding. Terminal usage is still reconciled to
+  // exact reported tokens; a larger real overrun remains fail-closed.
+  return Math.ceil(videoMicroCny(resolution, Math.ceil(seconds * dimensions[0] * dimensions[1] * 24 / 1024)) * 1.02);
 }
 
 async function llmClaim(body: JsonObject, scope: BudgetScope, known: FindImage): Promise<Claim> {

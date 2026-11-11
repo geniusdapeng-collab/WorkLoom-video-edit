@@ -327,18 +327,35 @@ describe("task-local provider budget gateway", () => {
     const one = video("A");
     for (const prompt of ["A", "B", "C", "D"]) expect((await call(first.server, ARK_VIDEO_PATH, video(prompt))).status).toBe(200);
     expect((await call(first.server, "/budget/status")).data).toMatchObject({ state: "held",
-      reserved: { microCny: 149_688_000, calls: 4 }, usage: { videoCalls: 4, videoSeconds: 40 } });
+      reserved: { microCny: 152_681_760, calls: 4 }, usage: { videoCalls: 4, videoSeconds: 40 } });
     await first.server.close();
     const { server } = await gate(upstream, { scope: videoScope, journalPath: first.journalPath, port: first.server.port });
     expect((await call(server, ARK_VIDEO_PATH, one)).data).toEqual({ id: "ark-task-1" });
     expect((await call(server, `${ARK_VIDEO_PATH}/ark-task-1`)).status).toBe(200);
     expect((await call(server, `${ARK_VIDEO_PATH}/ark-task-1`)).status).toBe(200);
     expect((await call(server, "/budget/status")).data).toMatchObject({ state: "held", frozen: null,
-      consumed: { microCny: 37_422_000 }, reserved: { microCny: 112_266_000, calls: 3 },
+      consumed: { microCny: 37_422_000 }, reserved: { microCny: 114_511_320, calls: 3 },
       tasks: [{ taskId: "ark-task-1", state: "succeeded" }, { taskId: "ark-task-2", state: "accepted" },
         { taskId: "ark-task-3", state: "accepted" }, { taskId: "ark-task-4", state: "accepted" }] });
     expect(postCount).toBe(4);
     expect(readFileSync(first.journalPath, "utf8")).not.toContain("fixture-video");
+  });
+
+  it("absorbs 1% provider video token rounding inside the bounded reservation buffer without freezing", async () => {
+    const upstream = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      if (path === ARK_VIDEO_PATH && init?.method === "POST") return Response.json({ id: "rounded-video-task" });
+      return videoResponse("rounded-video-task", 10, "1080p", 490_860);
+    });
+    const { server } = await gate(upstream, { scope: videoScope });
+    expect((await call(server, ARK_VIDEO_PATH, video("rounded"))).status).toBe(200);
+    expect((await call(server, `${ARK_VIDEO_PATH}/rounded-video-task`)).status).toBe(200);
+    expect((await call(server, "/budget/status")).data).toMatchObject({
+      frozen: null,
+      held: false,
+      consumed: { microCny: 37_796_220 },
+      tasks: [{ taskId: "rounded-video-task", state: "succeeded" }],
+    });
   });
 
   it("records media estimates without applying the former ¥120 task cap", async () => {
@@ -364,7 +381,7 @@ describe("task-local provider budget gateway", () => {
     expect((await call(server, ARK_VIDEO_PATH, body)).status).toBe(200);
     expect(code(await call(server, `${ARK_VIDEO_PATH}/original-held-task`))).toBe("BUDGET_OUTCOME_UNKNOWN");
     expect((await call(server, "/budget/status")).data).toMatchObject({ frozen: "BUDGET_UPSTREAM_TRANSPORT_UNKNOWN", held: true,
-      reserved: { microCny: 37_422_000 }, tasks: [{ taskId: "original-held-task", state: "accepted" }] });
+      reserved: { microCny: 38_170_440 }, tasks: [{ taskId: "original-held-task", state: "accepted" }] });
     now += 24 * 60 * 60_000;
     expect((await call(server, ARK_VIDEO_PATH, body)).data).toEqual({ id: "original-held-task" });
     expect((await call(server, `${ARK_VIDEO_PATH}/original-held-task`)).status).toBe(200);
@@ -506,7 +523,7 @@ describe("task-local provider budget gateway", () => {
       settledLlmTokens: { input: 12 * 41, output: 390_000 * 41 },
       estimatedCost: {
         llm: { settledMicroCny: llmMicroCny(12, 390_000) * 41, reservedMicroCny: 0 },
-        media: { settledMicroCny: 0, reservedMicroCny: 37_422_000 },
+        media: { settledMicroCny: 0, reservedMicroCny: 38_170_440 },
       },
     });
     expect(upstream).toHaveBeenCalledTimes(42);
