@@ -423,7 +423,14 @@ export function resolvePromptAssets(input: ResolvePromptAssetInput): PromptCompi
     const raw = explicit === undefined || explicit === null || (typeof explicit === "string" && !explicit.trim())
       ? promptReferences
       : explicit;
-    return resolveCurrentArchivePromptAssets(input, input.archiveCopies, raw);
+    const resolved = resolveCurrentArchivePromptAssets(input, input.archiveCopies, raw);
+    // Native field normalization can retain a stale sibling value while the
+    // same frozen shot prompt already carries exact canonical archive URIs.
+    // Only consult those complete, versioned URIs after the authored field has
+    // failed to resolve; role-only text and unknown identities still fail.
+    return resolved.length > 0 || raw === promptReferences
+      ? resolved
+      : resolveCurrentArchivePromptAssets(input, input.archiveCopies, promptReferences);
   }
   const raw = input.source.portraits ?? field;
   const values = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];

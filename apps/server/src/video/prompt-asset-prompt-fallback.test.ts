@@ -47,6 +47,28 @@ describe("G6 archive assets from a compiled prompt", () => {
     }]);
   });
 
+  it("falls back to the frozen prompt URI when a stale sibling portrait value cannot resolve", () => {
+    const uri = "image://characters/lead/portraits/v2/closeup.png";
+    const assets = resolvePromptAssets({
+      source: {
+        portraits: "/characters/character/portrait_v1.png",
+        fields: { portraits: null },
+        prompt: `17.【定妆照】${uri}`,
+      },
+      workDir: "/synthetic/workspace",
+      charactersDir,
+      archiveCopies,
+    });
+    expect(assets).toEqual([{
+      field: "portraits",
+      role: "reference_image",
+      sha256: archiveCopies.outputs[2]!.sha256,
+      bytes: archiveCopies.outputs[2]!.bytes,
+      mediaType: "image/png",
+      sourceRef: "characters/P1/lead-archive-v2-closeup.png",
+    }]);
+  });
+
   it("does not infer an asset from a role-only or no-person prompt", () => {
     for (const prompt of ["12.【角色】林夏走入画面。", "12.【角色】无角色出场。\n17.【定妆照】无角色出场，无定妆照。"]) {
       expect(resolvePromptAssets({
