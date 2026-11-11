@@ -351,6 +351,9 @@ const MARKETING_FINAL_MUTABLE_FIELDS = new Set([
   "director_instruction", "scene", "lighting", "camera_movement", "character", "action", "composition",
   "color_palette", "depth_of_field", "timeline", "mood", "costume", "props", "pacing", "makeup",
 ]);
+const MARKETING_FINAL_RIVAL_FIELDS = [
+  "director_instruction", "scene", "character", "action", "composition", "timeline", "props", "pacing",
+] as const;
 
 /**
  * Turn the current shot-level marketing rejection into exact, hash-bound field
@@ -419,7 +422,7 @@ export function marketingFinalFactFieldArtifact(input: {
     for (const shot of input.shots) {
       add(shot, "director_instruction", "MARKETING_FINAL_FICTIONAL_RIVAL_CONTEXT",
         "明确本片需要出现的前方车辆均为无品牌、非商品化运动陪体，不对应任何真实竞品或车型；连续超车与位次变化仅为广告创意演绎，不比较或贬低任何竞品，也不主张市场领先、车辆性能或竞品劣势。");
-      for (const field of MARKETING_FINAL_MUTABLE_FIELDS) {
+      for (const field of MARKETING_FINAL_RIVAL_FIELDS) {
         const value = shot.fields[field];
         if (typeof value === "string" && rivalContext.test(value)) add(shot, field,
           "MARKETING_FINAL_FICTIONAL_RIVAL_CONTEXT",
