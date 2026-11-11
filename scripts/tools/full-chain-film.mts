@@ -2728,6 +2728,14 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
       corrections.push("helmet-shell-negative");
     }
   }
+  const lowTiedPonytail = next
+    .replace(/黑色高马尾/g, "黑色低束马尾")
+    .replace(/高马尾/g, "低束马尾")
+    .replace(/后颈压平于内衬/g, "后颈低束并压平于内衬");
+  if (lowTiedPonytail !== next) {
+    next = lowTiedPonytail;
+    corrections.push("low-nape-ponytail-under-helmet");
+  }
   const duration = Number(shot.duration ?? 0);
   if (duration > 0 && /四秒内不换场地/.test(next) && duration !== 4) {
     next = next.replace(/四秒内不换场地/g, `${duration}秒内不换场地`);
@@ -2766,7 +2774,7 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   if (sceneIdentity === "scene-4") {
     const helmetRemoval = next.replace(
       /她左手先压住盔沿，右手绕到下巴下方解开扣带，扣带松开的瞬间头盔微微上抬离眉/g,
-      "她先完全解开下巴扣带并可见扣带松开，左手压住盔沿、右手托住盔底；双手把盔口两侧向外轻撑，由后向前上提使盔体越过鼻梁与耳廓，护耳衬垫不穿模、发束不被盔体夹住",
+      "她先完全解开下巴扣带并可见扣带松开；双手抓住盔口下缘与下巴处，向前下方轻拉使颊垫越过颧骨，再向上提离头顶，壳体保持刚性不变形，护耳衬垫不穿模、发束不被盔体夹住",
     );
     if (helmetRemoval !== next) {
       next = helmetRemoval;

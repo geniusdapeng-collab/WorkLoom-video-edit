@@ -684,6 +684,7 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
   });
   it("opening最终提示词移除盔壳后下方开口并补写盔壳完整负面约束", () => {
     const source = [
+      "08.【角色】李英子戴全盔，黑色高马尾压束在头盔内。",
       "11.【负面约束】禁止主角分身。",
       "21.【道具】哑光全盔面罩闭合，后下方开口只露马尾发尾与同一黑色发圈。",
       "24.【化妆】后下方开口处可见黑色发圈扎紧的马尾。",
@@ -704,6 +705,8 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
     expect(corrected.prompt).not.toContain("后下方开口");
     expect(corrected.prompt.match(/全盔后缘与骑行服领口之间/g)).toHaveLength(2);
     expect(corrected.prompt).toContain("禁止盔壳开孔");
+    expect(corrected.prompt).toContain("黑色低束马尾");
+    expect(corrected.prompt).not.toContain("高马尾");
     expect(corrected.corrections).toEqual(expect.arrayContaining(["helmet-seam-without-shell-hole", "helmet-shell-negative"]));
   });
   it("商品人物镜实际material分支提交两张原图+商品reference，补丁最终prompt与G-MAT1摘要一致", async () => {
