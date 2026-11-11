@@ -263,6 +263,25 @@ function workerModelFixture({ rejectDuplicates = false } = {}) {
 }
 
 describe("G6 同次修复的真实模型路由", () => {
+  it("keeps independent G6 attempts distinct while preserving identical contract semantics", async () => {
+    const fixture = workerModelFixture({ rejectDuplicates: true });
+    const first = await evaluatePromptPackage(fixture.evaluation);
+    const second = await evaluatePromptPackage({ ...fixture.evaluation, stageRunId: "SR2", revision: 2 });
+    expect(first).toMatchObject({ status: "passed", g6Eligible: true });
+    expect(second, JSON.stringify({ calls: fixture.calls, reports: second.semanticReports,
+      findings: second.findings, repairReason: second.repairAttempt?.reason })).toMatchObject({ status: "passed", g6Eligible: true });
+    expect(fixture.requests).toHaveLength(8);
+    const firstOpening = JSON.parse(fixture.requests[0]!), secondOpening = JSON.parse(fixture.requests[4]!);
+    const content = secondOpening.messages.at(-1).content;
+    expect(content).toMatch(/"stageRunId": "SR2"/u);
+    expect(content).not.toBe(firstOpening.messages.at(-1).content);
+    const start = content.indexOf("\n{\n") + 1, end = content.indexOf("\n\n【硬性输出要求】");
+    expect(JSON.parse(content.slice(start, end))).toMatchObject({
+      reviewScope: { projectId: "P1", runId: "R1", stageRunId: "SR2", attempt: 1 },
+      shotId: "S01",
+    });
+  });
+
   it("isolates a failed repair to its own shot while another failed shot is repaired", async () => {
     const repairedLighting = "左前方柔和主光，右侧水面反射补光。";
     const review = vi.fn<SemanticQualityReviewer["review"]>(async ({ contract, shot }) => {

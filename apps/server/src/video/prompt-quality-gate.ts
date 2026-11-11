@@ -817,6 +817,7 @@ function semanticPrompt(
   contract: PromptContract,
   source: Record<string, unknown>,
   upstreamContext?: Record<string, unknown>,
+  reviewScope?: Pick<SemanticReviewContext, "projectId" | "runId" | "stageRunId" | "attempt">,
 ): string {
   const fields = contract.bindings.map((binding) => {
     const value = fieldValueFromSource(source, binding.field);
@@ -842,7 +843,7 @@ function semanticPrompt(
       ] : []),
       "用本镜真实字段片段作证据；缺项时摘录跳过该动作、只呈现完成状态或明确遮挡的原文，不得用 G4 文字冒充本镜证据。",
     ] : []),
-    JSON.stringify({ shotId: contract.shotId, fieldSchema: contract.fieldSchema, fields, upstreamContext: upstreamContext ?? null,
+    JSON.stringify({ ...(reviewScope ? { reviewScope } : {}), shotId: contract.shotId, fieldSchema: contract.fieldSchema, fields, upstreamContext: upstreamContext ?? null,
       questions: semanticQuestions(upstreamContext, contract.shotId) }, null, 2),
   ].join("\n");
 }
@@ -880,6 +881,7 @@ function repairPrompt(
   finalPromptFieldBudget?: FinalPromptFieldBudget,
   helmetCustodyFields?: SemanticRepairContext["helmetCustodyFields"],
   helmetCustodyArm?: SemanticRepairContext["helmetCustodyArm"],
+  reviewScope?: Pick<SemanticReviewContext, "projectId" | "runId" | "stageRunId" | "attempt">,
 ): string {
   const fields = contract.bindings.map(({ field }) => ({ field, value: fieldValueFromSource(source, field) }));
   const writable = new Set(allowedFields);
@@ -910,7 +912,7 @@ function repairPrompt(
       "eventWitness 是宿主从当前已审计划及同版字段提取的有限事件见证。逐项落实对应演员、身体侧别、对手身份、事件顺序与时间窗，不得删除原事件或借用另一对手的完成状态来消除诊断。",
     ] : []),
     "只输出 JSON：changes[]，每项必须有 field、value、reason；至少产生一个变化。",
-    `镜头：${JSON.stringify({ shotId: contract.shotId, durationSec: contract.request.parameters.duration_sec,
+    `镜头：${JSON.stringify({ ...(reviewScope ? { reviewScope } : {}), shotId: contract.shotId, durationSec: contract.request.parameters.duration_sec,
       allowedFields: fields.filter(({ field }) => writable.has(field)),
       readOnlyFields: fields.filter(({ field }) => !writable.has(field)),
       findings, ...(finalPromptLength ? { finalPromptLength } : {}), ...(finalPromptFieldBudget ? { finalPromptFieldBudget } : {}),
@@ -920,7 +922,9 @@ function repairPrompt(
 
 function semanticReviewRequest(context: SemanticReviewContext) {
   const options: LLMReasonOptions = { scene: "preproduction", maxTokens: 2200, temperature: 0 };
-  return [semanticPrompt(context.contract, context.shot, context.upstreamContext), semanticSchema(context.contract.shotId), options] as const;
+  return [semanticPrompt(context.contract, context.shot, context.upstreamContext,
+    { projectId: context.projectId, runId: context.runId, stageRunId: context.stageRunId, attempt: context.attempt }),
+  semanticSchema(context.contract.shotId), options] as const;
 }
 
 function correctedSemanticReviewRequest(request: ReturnType<typeof semanticReviewRequest>, failure: SemanticReviewCorrection) {
@@ -966,7 +970,8 @@ export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine, verifyC
     async repair(context) {
       const result = await withCurrentSource(verifyCurrent, () => llm.reasonStructured(
         repairPrompt(context.contract, context.shot, context.findings, context.allowedFields, context.upstreamContext,
-          context.finalPromptLength, context.finalPromptFieldBudget, context.helmetCustodyFields, context.helmetCustodyArm),
+          context.finalPromptLength, context.finalPromptFieldBudget, context.helmetCustodyFields, context.helmetCustodyArm,
+          { projectId: context.projectId, runId: context.runId, stageRunId: context.stageRunId, attempt: context.attempt }),
         repairSchema(context),
         { scene: "preproduction", maxTokens: 1200, temperature: 0 },
       ), value => observeSemanticDispatch(llm, context.contract.shotId, "repair", value, observeDispatch));
