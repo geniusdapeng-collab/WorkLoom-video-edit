@@ -415,6 +415,13 @@ export async function reviewPlausibility(
         log(`[plausibility][${input.stage}] 将代词附着造成的头盔状态误读降为 warning：${finding.id}`);
         return { ...finding, severity: "warning" as const };
       }
+      const roadEdgeWordingOnly = /路缘|路肩/.test(finding.issue)
+        && /颗粒|弹起|缺口|齐平/.test(finding.issue)
+        && !/穿模|悬空|轮胎.*离开地面|失控|侧滑|碰撞|翻车/.test(finding.issue);
+      if (finding.severity === "blocker" && roadEdgeWordingOnly) {
+        log(`[plausibility][${input.stage}] 将非碰撞类路缘措辞冲突降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
       return finding;
     });
     const blockers = findings.filter((finding) => finding.severity === "blocker");
