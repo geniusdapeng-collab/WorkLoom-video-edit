@@ -21,6 +21,7 @@ const validationFacts = new WeakMap<RequirementContractError, Readonly<Requireme
 const riskValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const discoveryValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const prdCharacterShapePaths = new WeakMap<RequirementContractError, string>();
+const prdSceneRequiredPaths = new WeakMap<RequirementContractError, string>();
 const prdAudioReferencesPath = "/audioSpecification/audioReferences";
 const prdAudioReferencesOverflows = new WeakMap<RequirementContractError, Readonly<{
   path: typeof prdAudioReferencesPath;
@@ -29,6 +30,11 @@ const prdAudioReferencesOverflows = new WeakMap<RequirementContractError, Readon
   limit: number;
 }>>();
 const prdCharacterPath = /^PRD production response(\/characterSystem(?:\/characters\/(?:0|[1-9]\d{0,5}))?)$/;
+const PRD_SCENE_REQUIRED_FIELDS = new Set([
+  "sceneId", "sequence", "purpose", "duration", "emotionalBeat", "setting", "timeOfDay",
+  "keyProps", "visualRequirements", "audioRequirements", "dialogue",
+]);
+const prdSceneRequiredPath = /^PRD production response(\/scenePlan\/scenes\/(?:0|[1-9]\d{0,5}))\/([A-Za-z][A-Za-z0-9_]{0,63})$/;
 const finiteNumber = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
 const schemaPath = /^SceneArchitect response(?:\/(?:opening|scenes|ending|duration|purpose|keyElements|index|emotionalBeat|productionContract|props|actions|name|description|actorId|noPropsReason|totalDuration|sceneCount|narrativeArc|\d{1,6}))*$/;
 const riskArrayPath = /^RiskAssessor response\/(?:technicalRisks|businessConstraints|mitigationSuggestions)$/;
@@ -85,6 +91,11 @@ export function structuredDiscoveryFeedback(error: unknown): string {
 /** Only the validator can attest this exact closed character-object violation. */
 export function prdCharacterShapePath(error: unknown): string | undefined {
   return error instanceof RequirementContractError ? prdCharacterShapePaths.get(error) : undefined;
+}
+
+/** Only a fixed scene-item required-field miss may open one bounded structural retry. */
+export function prdSceneRequiredPathForError(error: unknown): string | undefined {
+  return error instanceof RequirementContractError ? prdSceneRequiredPaths.get(error) : undefined;
 }
 
 /** Only this validator's fixed PRD path and numeric overflow may enter structural correction. */
@@ -205,6 +216,12 @@ export function validateRequirementSchema(value: unknown, schemaValue: unknown, 
       if (keyword === "additionalProperties") {
         const prdPath = prdCharacterPath.exec(location)?.[1];
         if (prdPath) prdCharacterShapePaths.set(error, prdPath);
+      }
+      if (keyword === "required" && !discovery) {
+        const scenePath = prdSceneRequiredPath.exec(field);
+        if (scenePath && PRD_SCENE_REQUIRED_FIELDS.has(scenePath[2]!)) {
+          prdSceneRequiredPaths.set(error, `${scenePath[1]}/${scenePath[2]}`);
+        }
       }
       if (keyword === "maxItems" && location === "PRD production response" + prdAudioReferencesPath
         && typeof observed === "number" && Number.isSafeInteger(observed)

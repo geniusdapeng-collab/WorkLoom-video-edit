@@ -1748,6 +1748,47 @@ describe("PRD failures remain fatal through native catches", () => {
     expect(first.characterSystem).toHaveProperty("privateUnexpectedKey");
   });
 
+  it("uses one measured native Agent3 retry for a missing required scene field without filling it", async () => {
+    vi.useRealTimers();
+    const value = fixture("PRD-SCENE-FIELD-RETRY"), h = harness(), run = h.make(value);
+    const first = structuredClone(value.production), corrected = structuredClone(value.production);
+    delete (first.scenePlan.scenes[0] as RequirementRecord).dialogue;
+    corrected.scenePlan.scenes[0]!.dialogue = "";
+    const baseUrl = "https://prd-scene-field.invalid/v1";
+    const requests: Array<{ url: string; messages: ChatMessage[]; options: RequirementRecord }> = [];
+    const fetchImpl: typeof fetch = async (url, init) => {
+      const { messages, ...options } = JSON.parse(String(init?.body));
+      requests.push({ url: String(url), messages, options });
+      return Response.json({
+        id: `native-prd-scene-${requests.length}`,
+        model: "deepseek-flash",
+        choices: [{ finish_reason: "stop", message: { content: JSON.stringify(requests.length === 1 ? first : corrected) } }],
+        usage: { prompt_tokens: 300, completion_tokens: 100, total_tokens: 400, completion_tokens_details: { reasoning_tokens: 1 } },
+      });
+    };
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl, apiKey: "test-only", fetchImpl });
+    requirementRecord(run.generator.agent3, "agent3")._llmEngine = new WorkloomLLMEngine({
+      baseUrl, apiKey: "test-only", model: "deepseek-flash", scene: "preproduction",
+      router: { providers: new Map([[provider.modelId, provider]]), sink: {
+        recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
+      } },
+    });
+    await expect(withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run);
+      await h.review(run, prd);
+      return h.success(prd);
+    })).resolves.toMatchObject({ success: true });
+    expect(requests).toHaveLength(2);
+    expect(requests[1]!.url).toBe(requests[0]!.url);
+    expect(requests[1]!.options).toEqual(requests[0]!.options);
+    const feedback = requests[1]!.messages.find(message => message.role === "user")!.content as string;
+    expect(feedback).toContain('"path":"/scenePlan/scenes/0/dialogue"');
+    expect(feedback).toContain('"keyword":"required"');
+    expect(feedback).toContain('"dialogue"');
+    expect(first.scenePlan.scenes[0]).not.toHaveProperty("dialogue");
+    expect(run.system.minimalCalls).toBe(0);
+  });
+
   it.each([
     "corrected", "at-limit", "still-invalid", "unmeasured-first", "same-response-id", "wrong-item-type",
     "late-first", "late-before-retry", "late-retry", "nonfrozen", "transport-error", "duplicate-first",

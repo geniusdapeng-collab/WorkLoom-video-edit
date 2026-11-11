@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import {
-  frozenSegmentContract, prdAudioReferencesOverflow, prdCharacterShapePath, requirementHash, requirementRecord, verifiedRequirementContract,
+  frozenSegmentContract, prdAudioReferencesOverflow, prdCharacterShapePath, prdSceneRequiredPathForError,
+  requirementHash, requirementRecord, verifiedRequirementContract,
   type RequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import {
@@ -507,6 +508,27 @@ function prdCharacterShapeFeedback(error: unknown, schema: RequirementRecord): s
   return `\n\n## 上一次原生制作规格结构校验反馈\n${JSON.stringify(facts)}\n依据完整原始任务和同一 schema，重新生成完整四模块 JSON。此对象仅允许列出的键，保留冻结人物、场景、时长和制作约束。不得引用上次回复。`;
 }
 
+function prdSceneRequiredFeedback(error: unknown, schema: RequirementRecord): string | undefined {
+  const path = prdSceneRequiredPathForError(error);
+  if (!path) return undefined;
+  const properties = requirementRecord(schema.properties, "制作规格 schema 字段");
+  const scenePlan = requirementRecord(requirementRecord(properties.scenePlan, "场景计划 schema").properties, "场景计划 schema 字段");
+  const sceneSchema = requirementRecord(requirementRecord(scenePlan.scenes, "场景数组 schema").items, "场景项 schema");
+  const requiredProperties = arrayOfText(sceneSchema.required, "场景项 schema.required");
+  const allowedProperties = Object.keys(requirementRecord(sceneSchema.properties, "场景项 schema 字段"));
+  const facts = { path, keyword: "required", requiredProperties, allowedProperties };
+  return `\n\n## 上一次原生制作规格结构校验反馈\n${JSON.stringify(facts)}\n`
+    + "依据完整原始任务和同一 schema，重新生成完整四模块 JSON。所有场景必须逐项包含 requiredProperties 中的全部字段；"
+    + "缺失字段按本次原始材料补全为真实制作内容，空台词场景仍要保留明确空字符串。保留冻结人物、场景顺序、时长和制作约束，不得引用或补填上次回复。";
+}
+
+function arrayOfText(value: unknown, label: string): string[] {
+  if (!Array.isArray(value) || value.some(item => typeof item !== "string" || !item.trim())) {
+    prdFail("PRD_VENDOR_UNAVAILABLE", `${label} 必须是明确文本数组`);
+  }
+  return [...value] as string[];
+}
+
 function prdAudioReferenceBounds(schema: RequirementRecord): { min: number; max: number } {
   const properties = requirementRecord(schema.properties, "制作规格 schema 字段");
   const audio = requirementRecord(requirementRecord(properties.audioSpecification, "音频规格 schema").properties, "音频规格字段");
@@ -814,7 +836,7 @@ export function installPrdAuthorityBridge(
           let nativeCallActive = false;
           let correction: { prompt: string; argsHash: string; dispatched: boolean;
             creative?: { first: LLMReasonResult; inTime: () => boolean; kind: "syntax" | "facts" };
-            productionShape?: { first: LLMReasonResult; inTime: () => boolean; subject: "角色对象" | "音频参考" } } | undefined;
+            productionShape?: { first: LLMReasonResult; inTime: () => boolean; subject: "角色对象" | "场景对象" | "音频参考" } } | undefined;
           agentView._getLLMEngine = function (this: RequirementRecord, ...args: unknown[]) {
             return guard(scope, () => {
               check(scope);
@@ -967,12 +989,15 @@ export function installPrdAuthorityBridge(
                   if (completed && response.success && attempt === 1 && modelAttempts === 1 && nativeAttemptLimit >= 2) {
                     try { validatePrdModelPayload(response.data, kind, schema, contract, scope.authority.profile); }
                     catch (error) {
-                      const feedback = prdCharacterShapeFeedback(error, effectiveSchema);
+                      const characterFeedback = prdCharacterShapeFeedback(error, effectiveSchema);
+                      const sceneFeedback = characterFeedback ? undefined : prdSceneRequiredFeedback(error, effectiveSchema);
+                      const feedback = characterFeedback ?? sceneFeedback;
                       const strictCompletion = scopedProduction && nativeEngine && withinNativeTimeout()
                         && nativeChatJsonObjectRouteCurrent(nativeEngine, response);
                       if (feedback && (!scopedProduction || strictCompletion)) {
                         correction = { prompt: complete + feedback, argsHash: requirementHash(callArgs), dispatched: false,
-                          ...(scopedProduction ? { productionShape: { first: response, inTime: withinNativeTimeout, subject: "角色对象" } } : {}) };
+                          ...(scopedProduction ? { productionShape: { first: response, inTime: withinNativeTimeout,
+                            subject: characterFeedback ? "角色对象" : "场景对象" } } : {}) };
                         // The pinned BaseAgent routes JSON failures through its
                         // existing second attempt and unchanged timeout budget.
                         throw new Error("Agent3 JSON 结构校验失败，进入一次原生结构修正");
