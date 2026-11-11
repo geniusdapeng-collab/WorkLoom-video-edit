@@ -22,10 +22,13 @@ export async function approvedSourceFixture(input: {
   compileDelivery?: PromptCompileOptions["delivery"];
   /** Only for missing-field boundary tests: persist the real partial compiler contract. */
   omitField?: string;
+  /** Only for the source-to-current-asset repair boundary: this shot's original contract had no asset bytes. */
+  emptyContractAssetsShot?: string;
   /** Only for source-selection boundary negatives. */
   castState?: "missing" | "profile-mismatch";
   platformState?: "missing" | "conflict";
   dualProfile?: boolean;
+  sameHashProfileAlias?: boolean;
   reverseContractAssets?: boolean;
   mutatePortraitWitness?: (planning: Json) => void | Promise<void>;
 }) {
@@ -74,6 +77,8 @@ export async function approvedSourceFixture(input: {
       via: "owner-acceptance", sourceStage: "owner-acceptance", approved: true, evidence: { basis: owner.basis,
         characterId: actorId, version: 2, ownerAcceptance: "reviews/fixture-owner-acceptance.json", ownerAcceptanceSha256: ownerReceipt.sha256,
         authorization: owner } }) + "\n");
+  } else if (input.sameHashProfileAlias) {
+    catalogProfile = await put(path.join(workDir, "fixtures", "catalog", "profile.json"), await readFile(profile.path));
   }
   const outputs: Record<string, Awaited<ReturnType<typeof put>>> = {}, receipts: Record<string, Json> = {}, files: Record<string, string> = {};
   for (const angle of angles) {
@@ -178,14 +183,25 @@ export async function approvedSourceFixture(input: {
       action: "合成人物先观察商品，再轻轻点头。", timeline: "T00:00至T00:10，合成人物只观察商品。",
       constraint: `${options.delivery.aspectRatio}画幅，${options.delivery.resolution}分辨率，${options.delivery.fps}fps，MP4格式` });
     if (input.omitField && scene.id === "opening") delete fields[input.omitField];
-    const compiled = compilePromptShot({ shotId: scene.id, duration: 10, fields }, options);
-    if (compiled.hardErrors.some(error => error.code !== "HARD_FIELD_VALUE_MISSING" || error.field !== input.omitField)) throw new Error(JSON.stringify(compiled.hardErrors));
+    const sceneOptions = input.emptyContractAssetsShot === scene.id ? { ...options, assets: [] } : options;
+    const compiled = compilePromptShot({ shotId: scene.id, duration: 10, fields }, sceneOptions);
+    if (compiled.hardErrors.some(error =>
+      !(error.code === "HARD_FIELD_VALUE_MISSING" && error.field === input.omitField)
+      && !(error.code === "HARD_ASSET_MISSING" && error.field === "portraits" && input.emptyContractAssetsShot === scene.id))) {
+      throw new Error(JSON.stringify(compiled.hardErrors));
+    }
     const saved = await putJson(path.join(qualityDir, `prompt-contract-${scene.id}.json`), compiled.contract);
     contractFiles.push({ shotId: scene.id, path: saved.path, sha256: saved.sha256, contract: compiled.contract });
   }
   const report = await putJson(path.join(qualityDir, "semantic-quality-report.json"), { schemaVersion: "workloom.video-prompt-quality/v2",
-    findings: input.omitField ? [{ shotId: "opening", field: input.omitField, blocking: true, repairClass: "deterministic", code: "HARD_FIELD_VALUE_MISSING", detail: "原始完整编译器报告此字段缺失，没有原值摘要" }]
-      : [{ shotId: "opening", field: "timeline", blocking: true, repairClass: "semantic", code: "TIMELINE_MISSING_ACTION_ONSET", detail: "时间轴缺少已审点头动作" }] });
+    findings: [
+      ...(input.omitField
+        ? [{ shotId: "opening", field: input.omitField, blocking: true, repairClass: "deterministic", code: "HARD_FIELD_VALUE_MISSING", detail: "原始完整编译器报告此字段缺失，没有原值摘要" }]
+        : [{ shotId: "opening", field: "timeline", blocking: true, repairClass: "semantic", code: "TIMELINE_MISSING_ACTION_ONSET", detail: "时间轴缺少已审点头动作" }]),
+      ...(input.emptyContractAssetsShot
+        ? [{ shotId: input.emptyContractAssetsShot, field: "portraits", blocking: true, repairClass: "deterministic", code: "HARD_ASSET_MISSING", detail: "原始合同只有规范定妆照引用，没有当前资产字节" }]
+        : []),
+    ] });
   const quality = { schemaVersion: "workloom.video-prompt-quality/v2", mode: "enforce", status: "blocked", contracts: contractFiles,
     semanticReportPath: report.path, sha256: { semanticReport: report.sha256 } };
   gates.push({ gate: "G6_PROMPT", approved: false, status: "blocked", via: "llm", degraded: false, model: "offline-synthetic-reviewed-model",

@@ -521,7 +521,7 @@ export function g6EventWitnessChecks(input: CheckInput): SemanticQualityCheck[] 
     const clock = typeof input.timeline === "string" && completeLocalClock(localWindows(input.timeline), input.duration);
     if (required.length && (absent.length || !clock)) findings.push(finding(input, scope, "timeline", "action-onsets", ONSET_MISSING,
       `同版 action 的起点事件未按序落实在完整时间轴中：${(absent.length ? absent : required).map(event => `${event.kind}@action[${event.source.start},${event.source.end})`).join("、")}。`,
-      "在原时长的连续时间窗内，按 action 原顺序补齐这些动作起点与过程，保留同一演员、身体侧别及已有超车、道具和切点。action 不得删去原事件来规避时间轴义务。", { required }));
+      "用 T00:00–T00:xx 等显式区间从头到尾无缝覆盖本镜总时长，并按 action 原顺序补齐这些动作起点与过程；保留同一演员、身体侧别及已有超车、道具和切点。孤立时点、缺口、重叠或越界时间都不能替代时间轴。action 不得删去原事件来规避时间轴义务。", { required }));
     for (const field of ["action", "timeline"] as const) {
       const problems = rivalProblems(input[field], field, input.duration, scope.rivals, scope.retainedRivals, scope.leadLabels);
       if ((scope.rivals.length || scope.retainedRivals.length) && problems.length) findings.push(finding(input, scope, field, "rival-chain", RIVAL_CHAIN_MISSING,

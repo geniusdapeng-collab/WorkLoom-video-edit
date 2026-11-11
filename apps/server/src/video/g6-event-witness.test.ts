@@ -114,6 +114,9 @@ describe("current G4 finite event witnesses through the native G6 entry", () => 
     const original = compilePromptPackage(fixture.input)[0]!.contract;
     const result = await evaluatePromptPackage({ ...fixture.input, reviewer: native.reviewer });
     expect(native.calls.map(call => call.kind)).toEqual(["review", "repair", "review"]);
+    expect(native.calls[0]!.context.questions.SQ2_SCENE_PROPS.question).toContain("显式连续区间");
+    expect(native.calls[0]!.context.questions.SQ4_LIGHT_COLOR.question).toContain("不等于所有护具必须同框");
+    expect(native.calls[0]!.context.questions.SQ5_PURPOSE.question).toContain("不得把自然微动改写成冻结或定格");
     const repair = native.calls.find(call => call.kind === "repair")!.context;
     expect(repair.allowedFields.map((row: { field: string }) => row.field)).toEqual(["timeline"]);
     expect(repair.findings).toEqual(expect.arrayContaining([
@@ -497,6 +500,7 @@ describe("finite event identity, polarity and original source locations", () => 
     const fixture = scenario({ action: "右手拧动油门；" + firstAction, timeline });
     const checks = g6EventWitnessChecks(witnessInput(fixture));
     expect(checks).toEqual(expect.arrayContaining([expect.objectContaining({ failureCode: "APPROVED_ACTION_EVENT_ONSET_MISSING" })]));
+    expect(checks.find(check => check.failureCode === "APPROVED_ACTION_EVENT_ONSET_MISSING")!.repair).toContain("无缝覆盖本镜总时长");
     expect(g6EventWitnessRepairDrift(witnessInput(fixture), checks.flatMap(check => check.eventWitness ? [check.eventWitness] : []))).toBe(true);
   });
 

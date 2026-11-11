@@ -57,6 +57,13 @@ export function resolvePlatformForIntent(
 }
 
 /** 把平台制作口径写进供应商与生成端都能看到的需求正文（元数据可能被旧 vendor 忽略）。 */
-export function appendPlatformGuidance(intent: string, decision: PlatformIntentDecision): string {
-  return `${intent}${platformDeliveryGuidance(decision)}`;
+export function appendPlatformGuidance(
+  intent: string,
+  decision: PlatformIntentDecision,
+  metadata?: Record<string, unknown> | null,
+): string {
+  const production = record(record(metadata?.brief)?.productionRequirements);
+  return `${intent}${platformDeliveryGuidance(decision, {
+    ...(production?.speechPolicy === "none" ? { speechPolicy: "none" as const } : {}),
+  })}`;
 }

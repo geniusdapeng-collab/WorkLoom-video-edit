@@ -6,7 +6,7 @@ import {
 } from "@hyperreality/video-studio";
 import { DEFAULT_MODEL_POLICY, OpenAiCompatibleProvider, resetCircuit } from "@workloom/base/model-router";
 import {
-  authorRepairFields, planFieldAuthoring, recoverContractFields,
+  authorRepairFields, marketingFinalFactFieldArtifact, planFieldAuthoring, recoverContractFields,
   type FieldAuthoringArchiveInput, type FieldAuthoringBudgetEvent, type FieldAuthoringSourceContext,
 } from "./approved-source-fields.js";
 
@@ -43,6 +43,13 @@ function fieldPlan(recovered = fixture().recovered, fields = ["action"]) {
       blocking: true, repairClass: "semantic",
     })) })] });
 }
+function reviewedFieldPlan(recovered: ReturnType<typeof fixture>["recovered"], maxFinalPromptChars: number) {
+  return planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext), maxFinalPromptChars,
+    diagnosedFindings: [verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [{
+      code: "FIXTURE_APPROVED_ACTION_MISSING", field: "action", shotId: recovered.shotId,
+      detail: "必须呈现已审动作的完整过程。", blocking: true, repairClass: "semantic",
+    }] })] });
+}
 function missingFixture(missing: string[] = ["action"], otherFields: Record<string, unknown> = {}) {
   const fields = { ...fixture().fields, ...otherFields };
   for (const key of missing) delete fields[key];
@@ -55,12 +62,13 @@ function missingFixture(missing: string[] = ["action"], otherFields: Record<stri
   const recover = () => recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [evidence] });
   return { fields, compiled, bytes, report, evidence, recover };
 }
-function nativeEngine(reply: string, patch: Record<string, unknown> = {}) {
+function nativeEngine(reply: string | readonly string[], patch: Record<string, unknown> = {}) {
   const requests: Array<Record<string, unknown>> = [];
   const fetchImpl: typeof fetch = async (_url, init) => {
     requests.push(JSON.parse(String(init?.body)));
+    const content = typeof reply === "string" ? reply : reply[Math.min(requests.length - 1, reply.length - 1)]!;
     return Response.json({ id: `offline-fixture-${requests.length}`, object: "chat.completion", created: 1,
-      model: "deepseek-flash", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: reply } }],
+      model: "deepseek-flash", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }],
       usage: { prompt_tokens: 500, completion_tokens: 100, total_tokens: 600 }, ...patch });
   };
   const config = { baseUrl: "http://approved-source-fields.invalid/v1", apiKey: "offline-fixture-only", fetchImpl };
@@ -72,9 +80,9 @@ function nativeEngine(reply: string, patch: Record<string, unknown> = {}) {
   engine.attachRouter(router);
   return { engine, requests, policy, router };
 }
-function authorInput(reply: string, patch: Record<string, unknown> = {}) {
+function authorInput(reply: string | readonly string[], patch: Record<string, unknown> = {}, plan = fieldPlan()) {
   const native = nativeEngine(reply, patch), archives: FieldAuthoringArchiveInput[] = [], events: FieldAuthoringBudgetEvent[] = [];
-  const input = { plan: fieldPlan(), sourceContext: structuredClone(sourceContext), engine: native.engine,
+  const input = { plan, sourceContext: structuredClone(sourceContext), engine: native.engine,
     verifyCurrent: vi.fn(async () => undefined), budgetHook: vi.fn(async (event: FieldAuthoringBudgetEvent) => { events.push(event); }),
     archive: vi.fn(async (item: FieldAuthoringArchiveInput) => { archives.push(item); return { ref: `attempt-new/${item.shotId}/${item.kind}`, sha256: digest(item.bytes) }; }) };
   return { ...native, input, archives, events };
@@ -82,6 +90,24 @@ function authorInput(reply: string, patch: Record<string, unknown> = {}) {
 afterEach(() => { resetCircuit("preproduction"); vi.restoreAllMocks(); });
 
 describe("canonical source-contract recovery", () => {
+  it("does not treat downstream-only hard findings as replayed compiler errors", () => {
+    const { fields, bytes } = fixture();
+    const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [
+      { shotId: "scene-a", field: null, code: "HARD_FINAL_PROMPT_TOO_LONG", detail: "下游最终长度门",
+        blocking: true, repairClass: "deterministic" },
+      { shotId: "scene-a", field: "director_intent", code: "HARD_FIELD_UNKNOWN", detail: "非规范字段由重建丢弃",
+        blocking: true, repairClass: "deterministic" },
+    ] });
+    expect(recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [report] }).fields).toEqual(fields);
+  });
+  it("does not treat a semantic HARD_* failure code as a replayed compiler error", () => {
+    const { fields, bytes } = fixture();
+    const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [
+      { shotId: "scene-a", field: "transition", code: "HARD_CUT_WITH_DURATION",
+        detail: "硬切字段含正时长", blocking: true, repairClass: "semantic" },
+    ] });
+    expect(recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [report] }).fields).toEqual(fields);
+  });
   it("reconstructs all fields, arrays and UTF-16 spans with exact full compiler identity", () => {
     const { recovered, fields, compiled } = fixture();
     expect(recovered.fields).toEqual(fields);
@@ -177,6 +203,96 @@ describe("canonical source-contract recovery", () => {
 });
 
 describe("host diagnostic field authoring plan", () => {
+  it("uses one exact-length correction and refuses a repeated overlong rewrite", async () => {
+    const shot = fixture({ color_palette: "色".repeat(3200) }).recovered;
+    expect(shot.prompt.length).toBeGreaterThan(3000);
+    const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [{
+      shotId: shot.shotId, field: null, code: "HARD_FINAL_PROMPT_TOO_LONG",
+      detail: `完整提示词 ${shot.prompt.length} 字符超过最终上限 3000`, blocking: true, repairClass: "deterministic",
+    }] });
+    const plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+      maxFinalPromptChars: 3000, diagnosedFindings: [report] });
+    expect(plan.fieldsByShot[shot.shotId]).toEqual(["lighting", "composition", "color_palette", "depth_of_field", "mood"]);
+    const fields = Object.fromEntries(plan.fieldsByShot[shot.shotId]!.map(field =>
+      [field, `${String(shot.fields[field])}新`]));
+    const authored = authorInput(JSON.stringify({ shotId: shot.shotId, fields }), {}, plan);
+    await expect(authorRepairFields(authored.input)).rejects.toThrow("AUTHORING_PROMPT_STILL_TOO_LONG");
+    expect(authored.requests).toHaveLength(2);
+    expect(JSON.stringify(authored.requests[1])).toContain("最终长度纠偏");
+  });
+  it("corrects a schema-valid overlong answer once and archives both byte sets", async () => {
+    const shot = fixture({ color_palette: "色".repeat(3200) }).recovered;
+    const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [{
+      shotId: shot.shotId, field: null, code: "HARD_FINAL_PROMPT_TOO_LONG",
+      detail: `完整提示词 ${shot.prompt.length} 字符超过最终上限 3000`, blocking: true, repairClass: "deterministic",
+    }] });
+    const plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+      maxFinalPromptChars: 3000, diagnosedFindings: [report] });
+    const rejectedFields = Object.fromEntries(plan.fieldsByShot[shot.shotId]!.map(field =>
+      [field, `${String(shot.fields[field])}过密`]));
+    const correctedFields = Object.fromEntries(plan.fieldsByShot[shot.shotId]!.map(field => [field, `${field}短版`]));
+    const authored = authorInput([
+      JSON.stringify({ shotId: shot.shotId, fields: rejectedFields }),
+      JSON.stringify({ shotId: shot.shotId, fields: correctedFields }),
+    ], {}, plan);
+    const result = await authorRepairFields(authored.input);
+    expect(authored.requests).toHaveLength(2);
+    expect(JSON.stringify(authored.requests[0])).toContain("hardFinalPromptBudget");
+    expect(JSON.stringify(authored.requests[1])).toContain("最终长度纠偏");
+    expect(result.shots[0]!.fields).toEqual(expect.objectContaining(correctedFields));
+    expect(result.shots[0]!.prompt.length).toBeLessThanOrEqual(3000);
+    expect(authored.archives.map(item => item.kind)).toEqual([
+      "request", "response", "correction-request", "correction-response", "snapshot",
+    ]);
+    expect(result.receipts[0]!.correction).toMatchObject({
+      reason: "final-prompt-length",
+      rejectedPromptChars: expect.any(Number),
+      acceptedPromptChars: expect.any(Number),
+      rejectedAllowedFieldChars: expect.any(Number),
+      acceptedAllowedFieldChars: expect.any(Number),
+    });
+    expect(result.receipts[0]!.correction!.rejectedPromptChars).toBeGreaterThan(3000);
+    expect(result.receipts[0]!.correction!.acceptedPromptChars).toBeLessThanOrEqual(3000);
+    expect(authored.events.map(event => event.phase)).toEqual([
+      "before", "dispatch", "after", "before", "dispatch", "after",
+    ]);
+  });
+  it("also bounds a semantic field repair that would push an otherwise legal prompt over the limit", async () => {
+    const shot = fixture().recovered, maxFinalPromptChars = shot.prompt.length + 10;
+    const plan = reviewedFieldPlan(shot, maxFinalPromptChars);
+    const first = authorInput([
+      JSON.stringify({ shotId: shot.shotId, fields: { action: "长".repeat(80) } }),
+      JSON.stringify({ shotId: shot.shotId, fields: { action: "完整的短动作。" } }),
+    ], {}, plan);
+    const result = await authorRepairFields(first.input);
+    expect(first.requests).toHaveLength(2);
+    expect(result.shots[0]!.prompt.length).toBeLessThanOrEqual(maxFinalPromptChars);
+    expect(result.receipts[0]!.correction).toMatchObject({
+      reason: "final-prompt-length",
+      maxFinalPromptChars,
+      rejectedPromptChars: expect.any(Number),
+      acceptedPromptChars: expect.any(Number),
+    });
+  });
+  it("defers the verified G5 portrait rebinding while authoring a shorter prompt", async () => {
+    const fields = { ...fixture().fields, color_palette: "色".repeat(3200) };
+    const compiled = compilePromptShot({ shotId: "scene-a", duration: 10, fields }, { ...options, assets: [] });
+    expect(compiled.hardErrors).toEqual([expect.objectContaining({ code: "HARD_ASSET_MISSING", field: "portraits" })]);
+    const bytes = Buffer.from(JSON.stringify(compiled.contract));
+    const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [
+      { shotId: "scene-a", field: "portraits", code: "HARD_ASSET_MISSING", detail: "G5 后重新绑定", blocking: true, repairClass: "deterministic" },
+      { shotId: "scene-a", field: null, code: "HARD_FINAL_PROMPT_TOO_LONG",
+        detail: `完整提示词 ${compiled.contract.prompt.length} 字符超过最终上限 3000`, blocking: true, repairClass: "deterministic" },
+    ] });
+    const recovered = recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [report] });
+    const plan = planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      maxFinalPromptChars: 3000, deferPortraitAssetBinding: true, diagnosedFindings: [report] });
+    const shortened = Object.fromEntries(plan.fieldsByShot[recovered.shotId]!.map(field => [field, `${field}短版`]));
+    const authored = authorInput(JSON.stringify({ shotId: recovered.shotId, fields: shortened }), {}, plan);
+    await expect(authorRepairFields(authored.input)).resolves.toMatchObject({
+      shots: [expect.objectContaining({ fields: expect.objectContaining(shortened) })],
+    });
+  });
   it("derives current fields from verified G6 findings and preserves every other field", () => {
     const recovered = fixture().recovered, plan = fieldPlan(recovered, ["action", "timeline"]);
     expect(plan.fieldsByShot).toEqual({ "scene-a": ["action", "timeline"] });
@@ -215,12 +331,132 @@ describe("host diagnostic field authoring plan", () => {
     if (kind === "field-proof") shot.fieldProofs[0]!.valueSha256 = "f".repeat(64);
     expect(() => fieldPlan(shot)).toThrow("APPROVED_SOURCE_FIELDS_");
   });
-  it.each(["baseline", "dialogue", "negative", "consistency", "bright_constraint", "audio"])("keeps the existing request channel for %s immutable", field => {
+  it.each(["baseline", "dialogue", "consistency", "bright_constraint"])("keeps the existing request channel for %s immutable", field => {
     expect(() => fieldPlan(fixture().recovered, [field])).toThrow("DIAGNOSIS_SCOPE_INVALID");
+  });
+  it("keeps audio immutable for ordinary diagnoses but locates the exact final BGM conflict", () => {
+    expect(() => fieldPlan(fixture().recovered, ["audio"])).toThrow("DIAGNOSIS_SCOPE_INVALID");
+    const recovered = fixture({ audio: "现场发动机声；BGM 连续铺底。" }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "音频BGM与编译纪律冲突",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    });
+    expect(artifact).toBeDefined();
+    expect(planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact!] }).fieldsByShot).toEqual({ "scene-a": ["audio"] });
+  });
+  it("keeps negative immutable for ordinary diagnoses but locates the exact post-text conflict", () => {
+    expect(() => fieldPlan(fixture().recovered, ["negative"])).toThrow("DIAGNOSIS_SCOPE_INVALID");
+    const recovered = fixture().recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "免责烧录与画面无任何文字负面约束冲突",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    });
+    expect(planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact!] }).fieldsByShot).toEqual({ "scene-a": ["negative"] });
+  });
+  it("locates final livery and performance wording only in fact-mutable fields", () => {
+    const recovered = fixture({
+      director_instruction: "高燃竞速广告。",
+      props: "主角赛车为无贴花示意整车。",
+      action: "主角车贴外线加速完成超越。",
+    }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "存在无贴花外观与来源涂装冲突，以及缺少来源支持的车辆性能暗示",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    });
+    const plan = planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact!] });
+    expect(plan.fieldsByShot["scene-a"]).toEqual(expect.arrayContaining(["director_instruction", "props", "action"]));
+  });
+  it("locates a truncated scene fragment without inventing missing historical text", () => {
+    const recovered = fixture({
+      scene: '{"scene_id":"opening","scene_n，封闭赛道，阴天午后。',
+    }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "场景字段值被截断，违反字段不得截断纪律",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    });
+    const plan = planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact!] });
+    expect(plan.fieldsByShot["scene-a"]).toContain("scene");
+    expect(plan.diagnoses.find(entry => entry.field === "scene")?.code).toBe("MARKETING_FINAL_SCENE_TRUNCATED");
+  });
+  it("limits overtaking to unbranded fictional rivals and separates post overlays from generated text", () => {
+    const recovered = fixture({ action: "主角车连续超越两辆无品牌示意对手车。" }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "没有竞品证据却演示超越与相对位次；免责烧录与画面无任何文字冲突",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    });
+    const plan = planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact!] });
+    expect(plan.fieldsByShot["scene-a"]).toEqual(expect.arrayContaining(["negative", "director_instruction", "action"]));
+  });
+  it("does not rewrite fields when the fact verdict explicitly passed with only production suggestions", () => {
+    const recovered = fixture().recovered;
+    expect(marketingFinalFactFieldArtifact({
+      failureMessage: "本镜无未支持或夸大主张，准予通过并附整改建议：8K与1080p、补光方位等技术建议不影响事实结论。",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    })).toBeUndefined();
+  });
+  it("repairs exact final production-consistency suggestions without weakening request channels", async () => {
+    const shot = fixture({
+      baseline: "8K级细节，电影级画质。",
+      bright_constraint: "面部无阴影明亮清晰。",
+      lighting: "主光来自上方，补光来自左前方。",
+      character_constraint: "唯一主角李英子与两名全盔对手骑手同框。",
+    }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "8K与1080p冲突；面部明亮与不露脸互斥；补光方位冲突；唯一主角与对手骑手同框互斥",
+      shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+    })!;
+    const plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact] });
+    expect(plan.fieldsByShot["scene-a"]).toEqual(expect.arrayContaining([
+      "baseline", "bright_constraint", "lighting", "character_constraint",
+    ]));
+    const fields = {
+      baseline: "高清电影级细节，1080p画质。",
+      bright_constraint: "全盔轮廓与车身明亮清晰，暗部保留层次。",
+      lighting: "主光来自上方，看台冷白补光统一来自右前方。",
+      character_constraint: "唯一命名主角李英子；另有两名无品牌匿名成年全盔运动陪体骑手，不构成第二主角或竞品身份。",
+    };
+    const { input } = authorInput(JSON.stringify({ shotId: shot.shotId, fields }), {}, plan);
+    const result = await authorRepairFields(input);
+    const prior = shot.sourceContract.request;
+    expect(result.shots[0]!.currentContract!.request.technical).toEqual({
+      ...prior.technical,
+      baseline: fields.baseline,
+      bright_constraint: fields.bright_constraint,
+      character_constraint: fields.character_constraint,
+    });
+    expect(result.receipts[0]!.mutableRequestTextPaths).toEqual([
+      "technical.baseline", "technical.bright_constraint", "technical.character_constraint",
+    ]);
   });
 });
 
 describe("normal native dispatcher authoring with complete controlled artifacts", () => {
+  it("scopes otherwise identical authoring prompts by the durable plan digest", async () => {
+    const shot = fixture().recovered;
+    const response = JSON.stringify({ shotId: shot.shotId, fields: { action: "完整呈现已审动作的前后过程。" } });
+    const first = authorInput(response, {}, reviewedFieldPlan(shot, 3000));
+    const second = authorInput(response, {}, reviewedFieldPlan(shot, 3001));
+    await authorRepairFields(first.input); await authorRepairFields(second.input);
+    const lastMessage = (request: Record<string, unknown>) =>
+      String((request.messages as Array<{ content: string }>).at(-1)!.content);
+    const firstPrompt = lastMessage(first.requests[0]!);
+    const secondPrompt = lastMessage(second.requests[0]!);
+    expect(firstPrompt).toContain(`\"authoringPlanSha256\":\"${first.input.plan.sha256}\"`);
+    expect(secondPrompt).toContain(`\"authoringPlanSha256\":\"${second.input.plan.sha256}\"`);
+    expect(secondPrompt).not.toBe(firstPrompt);
+  });
   const content = JSON.stringify({ shotId: "scene-a", fields: { action: "新写完整动作：先完成已审步骤，再保持原演员、道具与切点。" } });
   it("authors only diagnosed fields once and archives the full raw body and complete snapshot", async () => {
     const { input, requests, archives, events } = authorInput(content);
@@ -351,18 +587,48 @@ describe("normal native dispatcher authoring with complete controlled artifacts"
   });
   it("permits only the currently diagnosed timeline text channel", async () => {
     const timeline = "T00:00至T00:05，先落实已审动作；T00:05至T00:10，保留完整结尾。";
-    const { input } = authorInput(JSON.stringify({ shotId: "scene-a", fields: { timeline } }));
+    const { input, requests } = authorInput(JSON.stringify({ shotId: "scene-a", fields: { timeline } }));
     input.plan = fieldPlan(input.plan.shots[0], ["timeline"]);
     const result = await authorRepairFields(input);
+    expect(JSON.stringify(requests[0])).toContain("T00:00–T00:xx");
     const prior = input.plan.shots[0]!.sourceContract.request;
     expect(result.shots[0]!.currentContract!.request).toEqual({ ...prior, technical: { ...prior.technical, timeline } });
     expect(result.receipts[0]!.mutableRequestTextPaths).toEqual(["technical.timeline"]);
+  });
+  it("removes generated-layer BGM through the exact final marketing diagnosis", async () => {
+    const shot = fixture({ audio: "现场发动机声；高BPM器乐连续铺底。" }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({ failureMessage: "音频BGM与编译纪律冲突",
+      shots: [shot], sourceContextSha256: sha256Json(sourceContext) })!;
+    const plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact] });
+    const audio = "只保留现场发动机、换挡、胎噪与风切；无台词、无旁白、无可辨识人声；BGM 仅由正式后期音轨加入。";
+    const { input } = authorInput(JSON.stringify({ shotId: shot.shotId, fields: { audio } }), {}, plan);
+    const result = await authorRepairFields(input);
+    const prior = shot.sourceContract.request;
+    expect(result.shots[0]!.currentContract!.request).toEqual({ ...prior,
+      technical: { ...prior.technical, audio } });
+    expect(result.receipts[0]!.mutableRequestTextPaths).toEqual(["technical.audio"]);
+  });
+  it("separates generated text from post overlays through the exact final marketing diagnosis", async () => {
+    const shot = fixture({ negative: "no text anywhere in frame, no watermark。" }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({ failureMessage: "免责烧录与画面无任何文字负面约束冲突",
+      shots: [shot], sourceContextSha256: sha256Json(sourceContext) })!;
+    const plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact] });
+    const negative = "生成画面内 no generated text；安全字幕与片尾商品名仅由正式后期叠加，不属于生成画面。";
+    const { input } = authorInput(JSON.stringify({ shotId: shot.shotId, fields: { negative } }), {}, plan);
+    const result = await authorRepairFields(input);
+    const prior = shot.sourceContract.request;
+    expect(result.shots[0]!.currentContract!.request).toEqual({ ...prior,
+      parameters: { ...prior.parameters, negative_prompt: negative } });
+    expect(result.receipts[0]!.mutableRequestTextPaths).toEqual(["parameters.negative_prompt"]);
   });
   it("cannot change camera_fixed while correcting camera prose", async () => {
     const { input, requests } = authorInput(JSON.stringify({ shotId: "scene-a", fields: { camera_movement: "固定机位，保留原动作与时长。" } }));
     input.plan = fieldPlan(input.plan.shots[0], ["camera_movement"]);
     await expect(authorRepairFields(input)).rejects.toThrow("AUTHORING_REQUEST_DRIFT");
     expect(requests).toHaveLength(1);
+    expect(JSON.stringify(requests[0])).toContain("不得同时写固定m/s和加速/减速阶段");
   });
   it.each(["delivery", "audio-switch", "model", "asset-bytes", "asset-order"])("rejects a corrupt persisted plan changing %s before dispatch", async kind => {
     const { input, requests } = authorInput(content);

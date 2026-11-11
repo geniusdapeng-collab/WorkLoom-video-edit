@@ -807,7 +807,8 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
   const resolvedMetadata: Record<string, unknown> = applyBuiltinCharacters(audienceBound.metadata, selectedBuiltinCharacters);
   const runInput: RunInput = {
     projectId: input.projectId,
-    intent: appendBuiltinCharacterGuidance(appendPlatformGuidance(appendScenePolicyGuidance(input.intent, selectedScenePolicy.policy), selectedPlatform.decision), selectedBuiltinCharacters),
+    intent: appendBuiltinCharacterGuidance(appendPlatformGuidance(appendScenePolicyGuidance(input.intent, selectedScenePolicy.policy),
+      selectedPlatform.decision, resolvedMetadata), selectedBuiltinCharacters),
     metadata: resolvedMetadata,
     isMarketing: input.isMarketing,
   };
@@ -1013,7 +1014,8 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
       try {
         const reuse = acceptPortraitArchiveReuse({ workDir: runWorkDir, projectId: input.projectId,
           stage: completedVendorResult?.stages?.portraitStudio,
-          manifest: { path: portraitOptions.archivedCharacters.manifestPath, sha256: portraitOptions.archivedCharacters.manifestSha256 } });
+          manifest: { path: portraitOptions.archivedCharacters.manifestPath, sha256: portraitOptions.archivedCharacters.manifestSha256 },
+          allowAdditionalAngles: true, allowProductArchive: true });
         const evidence = portraitReuseEvidence(reuse);
         const proof = { gate, approved: true, status: "passed", via: "archive-reuse-acceptance", degraded: false,
           model: null, evidence, archiveReuse: reuse };
@@ -1068,7 +1070,8 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
       const archiveCopies = archive && (gate === "G6_PROMPT" || gate === "G7_FINAL")
         && promptContractMode !== "off" && structuredPromptPackage?.length
         ? readCurrentPortraitArchiveCopies({ workDir: runWorkDir, projectId: input.projectId,
-          manifest: { path: archive.manifestPath, sha256: archive.manifestSha256 } })
+          manifest: { path: archive.manifestPath, sha256: archive.manifestSha256 },
+          allowAdditionalAngles: true, allowProductArchive: true })
         : undefined;
       let promptQualityEvidence: ReturnType<typeof writePromptQualityEvidence> | null = null;
       let promptQualityEvidenceFiles: Array<{ path: string; sha256: string; scope: "complete-text" }> = [];

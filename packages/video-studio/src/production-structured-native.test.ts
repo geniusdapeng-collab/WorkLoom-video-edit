@@ -30,6 +30,14 @@ const { SceneDesignAgent } = require("../../../vendor/supermickey/hyperreality-s
     setDeadline(at: number): void;
   };
 };
+const { AudioDesignAgent } = require("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/audio-design-agent.js") as {
+  AudioDesignAgent: new (options?: RequirementRecord) => {
+    process(shots: RequirementRecord[], blueprint: RequirementRecord): Promise<{ shots: RequirementRecord[]; degraded: boolean }>;
+    enabled: boolean;
+    _llmEngineLoaded: boolean;
+    _llmEngine: WorkloomLLMEngine;
+  };
+};
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
@@ -126,12 +134,12 @@ function fixture(replies: Reply[], frozen = false, onDispatch?: (ordinal: number
   agent._llmEngine = engine;
   const alt = vi.fn(() => undefined); agent._getAltLLMEngine = alt;
   const fallback = vi.spyOn(agent, "_fallback");
-  return { run, value, wires, agent, alt, fallback };
+  return { run, value, wires, engine, agent, alt, fallback };
 }
 
 describe("host-bound Studio production with the native SceneDesignAgent", () => {
   it.each([
-    "corrected", "empty-string", "normal", "null", "unicode-space", "missing-usage", "finish-length",
+    "corrected", "empty-string", "normal", "measured-no-id", "null", "unicode-space", "missing-usage", "finish-length",
     "second-blank", "wrong-order", "duplicate-key", "same-id", "outside-exact-shot-contract", "late-first", "late-second",
   ] as const)("bounds frozen native SceneDesign blank JSON correction: %s", async mode => {
     const replies: Reply[] = [];
@@ -151,7 +159,11 @@ describe("host-bound Studio production with the native SceneDesignAgent", () => 
       choices: [{ index: 0, finish_reason: finish, message: { role: "assistant", content } }],
       ...(measured ? { usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 } } : {}),
     });
-    const first = mode === "normal" ? accepted : mode === "empty-string" ? "" : mode === "unicode-space" ? "\u3000"
+    const first = mode === "normal" ? accepted : mode === "measured-no-id"
+      ? Response.json({ object: "chat.completion", model: "deepseek-flash",
+          choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: accepted } }],
+          usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 } })
+      : mode === "empty-string" ? "" : mode === "unicode-space" ? "\u3000"
       : mode === "null" ? response(null, "synthetic-response-1") : mode === "missing-usage" ? response(" ", "synthetic-response-1", "stop", false)
         : mode === "finish-length" ? response(" ", "synthetic-response-1", "length") : "    ";
     const second = mode === "second-blank" ? " " : mode === "wrong-order" ? JSON.stringify({ shots: [...designs].reverse() })
@@ -162,12 +174,12 @@ describe("host-bound Studio production with the native SceneDesignAgent", () => 
       : nativeShots;
     const original = f.agent._buildPrompt(input, blueprint);
     const operation = f.run(() => f.agent.process(input, blueprint));
-    if (["corrected", "empty-string", "normal"].includes(mode)) {
+    if (["corrected", "empty-string", "normal", "measured-no-id", "null"].includes(mode)) {
       await expect(operation).resolves.toMatchObject({ degraded: false, shots: designs });
     } else {
       await expect(operation).rejects.toThrow(mode === "late-first" ? "PRD_PRODUCTION_MODEL_DEADLINE" : "PRD_PRODUCTION_MODEL_UNVERIFIED");
     }
-    expect(f.wires).toHaveLength(["corrected", "empty-string", "second-blank", "wrong-order", "duplicate-key", "same-id",
+    expect(f.wires).toHaveLength(["corrected", "empty-string", "null", "second-blank", "wrong-order", "duplicate-key", "same-id",
       "late-second"].includes(mode) ? 2 : 1);
     const [one, two] = f.wires;
     const originalWire = one!.messages.at(-1)!.content;
@@ -187,6 +199,33 @@ describe("host-bound Studio production with the native SceneDesignAgent", () => 
     }
     expect(f.fallback).not.toHaveBeenCalled();
     expect(f.alt).not.toHaveBeenCalled();
+  });
+
+  it("uses one measured same-route correction when AudioDesign returns a blank final JSON message", async () => {
+    const blank = Response.json({
+      id: "synthetic-audio-blank", object: "chat.completion", model: "deepseek-flash",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: null } }],
+      usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 },
+    });
+    const accepted = JSON.stringify({ shots: [{
+      shotId: "SC-01",
+      backgroundSound: {
+        environment: "封闭赛道", description: "前景胎噪、中景发动机与远景风切", intensity: "high",
+        spatialLayer: "full-spectrum", frequencySignature: "full-spectrum",
+      },
+      backgroundSoundString: "前景胎噪、中景发动机与远景风切随动作同步",
+    }] });
+    const f = fixture([blank, accepted], true);
+    const agent = new AudioDesignAgent({ llmTimeout: 15_000 });
+    agent._llmEngineLoaded = true;
+    agent._llmEngine = f.engine;
+    const result = await f.run(() => agent.process([{ shotId: "SC-01", scene: "封闭赛道" }], blueprint));
+    expect(result).toMatchObject({ degraded: false, shots: [{ shotId: "SC-01" }] });
+    expect(f.wires).toHaveLength(2);
+    const first = f.wires[0]!.messages.at(-1)!.content;
+    const second = f.wires[1]!.messages.at(-1)!.content;
+    expect(second).not.toBe(first);
+    expect(second).toContain("本次制作 JSON 最终交付");
   });
 
   it.each(["malformed", "wrong-shape"])("repairs a settled %s response using the complete original prompt and same schema", async kind => {

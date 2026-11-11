@@ -59,6 +59,11 @@ function fourKeys(value: unknown, label: string): Json {
   if (Object.keys(item).length !== 4 || ANGLES.some(angle => !Object.hasOwn(item, angle))) fail(`${label} 必须正好包含四个必需角度`);
   return item;
 }
+function requiredAngles(value: unknown, label: string): Json {
+  const item = object(value, label);
+  if (ANGLES.some(angle => !Object.hasOwn(item, angle))) fail(`${label} 缺少必需角度`);
+  return item;
+}
 
 /** 仅服务端受控环境变量选择此文件，用户 metadata 不能自行声明复用通过。 */
 export function loadPortraitReuseManifest(file: string, expectedSha256?: string): ArchivedPortraitCharacters {
@@ -86,6 +91,7 @@ export function loadPortraitReuseManifest(file: string, expectedSha256?: string)
 /** 当前项目复制图、来源、档案与选择快照逐字节核验；计数字段本身不能构成通过。 */
 export function acceptPortraitArchiveReuse(input: {
   workDir: string; projectId: string; stage: unknown; manifest: { path: string; sha256: string };
+  allowAdditionalAngles?: boolean; allowProductArchive?: boolean;
 }): PortraitArchiveReuseAcceptance {
   const stage = object(input.stage, "portrait stage");
   const expectedStage = { status: "completed", characters: 1, products: 0, completedPortraits: 4, pendingPortraits: 0, reusedPortraits: 4, generatedPortraits: 0 } as const;
@@ -97,6 +103,7 @@ export function acceptPortraitArchiveReuse(input: {
 /** Verify project copies before G6 without asserting a completed G5 stage. */
 export function readCurrentPortraitArchiveCopies(input: {
   workDir: string; projectId: string; manifest: { path: string; sha256: string };
+  allowAdditionalAngles?: boolean; allowProductArchive?: boolean;
 }): Omit<PortraitArchiveReuseAcceptance, "stage"> & { character: { id: string; name: string; angles: typeof ANGLES } } {
   const configured = loadPortraitReuseManifest(input.manifest.path, input.manifest.sha256);
   const source = configured.characters[0]!;
@@ -106,31 +113,61 @@ export function readCurrentPortraitArchiveCopies(input: {
   if (realpathSync(root) !== root) fail("本次角色目录经过符号链接");
   const indexFile = fileReceipt(path.join(root, "portrait-index.json"), 8_000_000);
   const index = object(JSON.parse(indexFile.bytes.toString("utf8")), "portrait index");
-  const characters = object(index.characters, "index.characters"), products = object(index.products, "index.products");
+  const characters = object(index.characters, "index.characters");
+  const products = object(index.products, "index.products");
+  const characterEntries = Object.entries(characters).map(([key, value]) => [key, object(value, "index.character")] as const);
+  const selectedIdentities = new Set([source.id, source.name, ...(source.aliases ?? [])]);
+  const canonical = characterEntries.filter(([key, value]) => selectedIdentities.has(key)
+    || selectedIdentities.has(String(value.id)) || value.name === source.name);
   if (index.schemaVersion !== "workloom.portrait-index/v1" || index.projectId !== input.projectId
-    || Object.keys(characters).length !== 1 || Object.keys(products).length !== 0) fail("本次角色索引归属或主体数量不符");
-  const item = object(Object.values(characters)[0], "index.character");
-  text(item.id, "index.character.id");
-  if (item.kind !== "character" || item.portraitVersion !== configured.approvedSelection.selectedVersion || item.pinnedVersion !== configured.approvedSelection.selectedVersion) fail("本次索引未锁定选定版本的合成角色");
-  const files = fourKeys(item.files, "本次四角度"), receipts = fourKeys(item.reuseReceipts, "复用回执"), artifacts = fourKeys(item.artifacts, "复制产物回执");
-  if (item.receipts !== undefined && Object.keys(object(item.receipts, "generation receipts")).length > 0) fail("复用分支混入生成回执");
-  const sources: ReuseFileReceipt[] = [], outputs: ReuseFileReceipt[] = [];
-  for (const angle of ANGLES) {
-    const receipt = object(receipts[angle], `复用回执 ${angle}`);
-    if (receipt.schemaVersion !== "workloom.portrait-reuse/v1" || receipt.projectId !== input.projectId || receipt.kind !== "character" || receipt.id !== item.id || receipt.angle !== angle
-      || receipt.archiveId !== source.id || receipt.archiveName !== source.name || receipt.version !== configured.approvedSelection.selectedVersion || receipt.generationCount !== 0
-      || typeof receipt.copiedAt !== "string" || !Number.isFinite(Date.parse(receipt.copiedAt))) fail(`${angle} 复用身份、版本或生成计数无效`);
-    if (!isDeepStrictEqual(receipt.manifest, input.manifest) || !isDeepStrictEqual(receipt.selectionReceipt, configured.approvedSelection)
-      || !isDeepStrictEqual(receipt.profile, source.profile) || !isDeepStrictEqual(receipt.source, source.files[angle])) fail(`${angle} 未绑定同一 manifest、选择、档案与源图`);
-    const original = verifyFile(receipt.source, `${angle} 源图`), output = verifyFile(receipt.output, `${angle} 本次图`);
-    if (!output.path.startsWith(`${root}${path.sep}`) || files[angle] !== output.path || original.path === output.path
-      || original.sha256 !== output.sha256 || original.bytes !== output.bytes || !isDeepStrictEqual(artifacts[angle], receipt.output)) fail(`${angle} 并非当前项目逐字节复制产物`);
-    sources.push(original); outputs.push(output);
+    || characterEntries.length === 0 || !input.allowProductArchive && Object.keys(products).length !== 0
+    || (!input.allowAdditionalAngles ? characterEntries.length !== 1 : canonical.length === 0
+      || characterEntries.some(([key, value]) => !selectedIdentities.has(key)
+        && !selectedIdentities.has(String(value.id)) && value.name !== source.name))) {
+    fail("本次角色索引归属或主体数量不符");
   }
-  if (new Set(outputs.map(item => item.path)).size !== 4 || new Set(sources.map(item => item.path)).size !== 4) fail("角度文件重复");
+  const evidenceFields = input.allowAdditionalAngles ? requiredAngles : fourKeys;
+  const verifyEntry = (item: Json, label: string): { sources: ReuseFileReceipt[]; outputs: ReuseFileReceipt[] } => {
+    text(item.id, `${label}.id`);
+    if (item.kind !== "character" || item.portraitVersion !== configured.approvedSelection.selectedVersion
+      || item.pinnedVersion !== configured.approvedSelection.selectedVersion) fail(`${label}未锁定选定版本的合成角色`);
+    const files = evidenceFields(item.files, `${label}角色角度`), receipts = evidenceFields(item.reuseReceipts, `${label}复用回执`),
+      artifacts = evidenceFields(item.artifacts, `${label}复制产物回执`);
+    if (item.receipts !== undefined && Object.keys(object(item.receipts, `${label}生成回执`)).length > 0) fail("复用分支混入生成回执");
+    const sources: ReuseFileReceipt[] = [], outputs: ReuseFileReceipt[] = [];
+    for (const angle of ANGLES) {
+      const receipt = object(receipts[angle], `${label}复用回执 ${angle}`);
+      if (receipt.schemaVersion !== "workloom.portrait-reuse/v1" || receipt.projectId !== input.projectId || receipt.kind !== "character" || receipt.id !== item.id || receipt.angle !== angle
+        || receipt.archiveId !== source.id || receipt.archiveName !== source.name || receipt.version !== configured.approvedSelection.selectedVersion || receipt.generationCount !== 0
+        || typeof receipt.copiedAt !== "string" || !Number.isFinite(Date.parse(receipt.copiedAt))) fail(`${label}${angle} 复用身份、版本或生成计数无效`);
+      if (!isDeepStrictEqual(receipt.manifest, input.manifest) || !isDeepStrictEqual(receipt.selectionReceipt, configured.approvedSelection)
+        || !isDeepStrictEqual(receipt.profile, source.profile) || !isDeepStrictEqual(receipt.source, source.files[angle])) fail(`${label}${angle} 未绑定同一 manifest、选择、档案与源图`);
+      const original = verifyFile(receipt.source, `${label}${angle} 源图`), output = verifyFile(receipt.output, `${label}${angle} 本次图`);
+      if (!output.path.startsWith(`${root}${path.sep}`) || files[angle] !== output.path || original.path === output.path
+        || original.sha256 !== output.sha256 || original.bytes !== output.bytes || !isDeepStrictEqual(artifacts[angle], receipt.output)) fail(`${label}${angle} 并非当前项目逐字节复制产物`);
+      sources.push(original); outputs.push(output);
+    }
+    if (new Set(outputs.map(item => item.path)).size !== 4 || new Set(sources.map(item => item.path)).size !== 4) fail(`${label}角度文件重复`);
+    return { sources, outputs };
+  };
+  const primary = input.allowAdditionalAngles
+    ? (canonical.find(([key, value]) => key === source.id || String(value.id) === source.id) ?? canonical[0]!)
+    : characterEntries[0]!;
+  const verified = verifyEntry(primary[1], "本次角色");
+  if (input.allowAdditionalAngles) {
+    for (const [key, item] of canonical) {
+      if (item === primary[1]) continue;
+      const alias = verifyEntry(item, `同位副本 ${key} `);
+      for (const angle of ANGLES) {
+        const expected = verified.outputs[ANGLES.indexOf(angle)]!;
+        const actual = alias.outputs[ANGLES.indexOf(angle)]!;
+        if (actual.sha256 !== expected.sha256 || actual.bytes !== expected.bytes) fail(`同位副本 ${key} 的 ${angle} 与本次角色字节不一致`);
+      }
+    }
+  }
   return { schemaVersion: "workloom.portrait-reuse-acceptance/v1", projectId: input.projectId,
     character: { id: source.id, name: source.name, angles: ANGLES }, manifest: input.manifest, selectionReceipt: configured.approvedSelection, index: indexFile.receipt,
-    profile: verifyFile(source.profile, "角色档案"), sources, outputs };
+    profile: verifyFile(source.profile, "角色档案"), sources: verified.sources, outputs: verified.outputs };
 }
 
 export function portraitReuseEvidence(proof: PortraitArchiveReuseAcceptance): Array<{ path: string; sha256: string; scope: string }> {
@@ -140,10 +177,14 @@ export function portraitReuseEvidence(proof: PortraitArchiveReuseAcceptance): Ar
 }
 
 /** 签发/提交资格时重新读取全部字节，不能只接受工作器写出的 passed 字符串。 */
-export function verifyPortraitArchiveReuseAcceptance(input: { workDir: string; projectId: string; proof: unknown; evidence: unknown }): void {
+export function verifyPortraitArchiveReuseAcceptance(input: {
+  workDir: string; projectId: string; proof: unknown; evidence: unknown;
+  allowAdditionalAngles?: boolean; allowProductArchive?: boolean;
+}): void {
   const proof = object(input.proof, "archive reuse acceptance");
   const manifest = object(proof.manifest, "archive reuse manifest");
   const actual = acceptPortraitArchiveReuse({ workDir: input.workDir, projectId: input.projectId, stage: proof.stage,
-    manifest: { path: text(manifest.path, "manifest.path"), sha256: text(manifest.sha256, "manifest.sha256") } });
+    manifest: { path: text(manifest.path, "manifest.path"), sha256: text(manifest.sha256, "manifest.sha256") },
+    allowAdditionalAngles: input.allowAdditionalAngles, allowProductArchive: input.allowProductArchive });
   if (!isDeepStrictEqual(actual, proof) || !isDeepStrictEqual(portraitReuseEvidence(actual), input.evidence)) fail("复用证据与本次实际文件不一致");
 }

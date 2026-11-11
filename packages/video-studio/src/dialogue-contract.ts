@@ -33,13 +33,16 @@ const text = (value: unknown): string => String(value ?? "");
 /** 兼容三种既有形态：字符串、字符串数组、`{ text }` 对象数组。 */
 export function dialogueLines(shot: DialogueShotLike): string[] {
   const value = shot.dialogue;
-  if (typeof value === "string") return value.trim() ? [value.trim()] : [];
+  if (typeof value === "string") {
+    const line = value.trim();
+    return line && !isNoSpeechDeclaration(line) ? [line] : [];
+  }
   if (!Array.isArray(value)) return [];
   return value
     .map((row) => (typeof row === "string" ? row : row && typeof row === "object" && !Array.isArray(row)
       ? text((row as Record<string, unknown>).text) : ""))
     .map((line) => line.trim())
-    .filter(Boolean);
+    .filter((line) => line && !isNoSpeechDeclaration(line));
 }
 
 /** A negative production note is not a script line. Match the whole field. */

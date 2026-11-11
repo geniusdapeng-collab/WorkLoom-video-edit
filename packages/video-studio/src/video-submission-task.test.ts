@@ -18,6 +18,22 @@ function fixture(): VideoSubmissionScope {
     inputArtifacts: [{ path, realpath: realpathSync(path), sha256: sha(readFileSync(path)), bytes: readFileSync(path).length }] };
 }
 function files(root: string): string[] { return existsSync(root) ? readdirSync(root, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? files(join(root, entry.name)) : [join(root, entry.name)]) : []; }
+function writeProviderReconciliation(scope: VideoSubmissionScope, overrides: Record<string, unknown> = {}): void {
+  const preparedFile = files(scope.directory).find((file) => file.endsWith("/prepared.json"))!;
+  const dispatchFile = files(scope.directory).find((file) => file.endsWith("/dispatch-started.json"))!;
+  const directory = preparedFile.slice(0, -"prepared.json".length);
+  writeFileSync(join(directory, "provider-reconciliation.json"), JSON.stringify({
+    schemaVersion: "workloom.video-provider-reconciliation/v1",
+    verdict: "no-task-created",
+    preparedSha256: sha(readFileSync(preparedFile)),
+    wireRequestSha256: scope.request.wireRequestSha256,
+    dispatchStartedSha256: sha(readFileSync(dispatchFile)),
+    observedAt: "2027-01-15T08:00:01.000Z",
+    providerTotal: 1,
+    providerTasks: [{ id: "task-before-unknown", model: scope.request.body.model, createdAt: 1_799_999_999 }],
+    ...overrides,
+  }, null, 2));
+}
 function options(fetcher: typeof fetch, timeout = 6) {
   let clock = 1_800_000_000_000;
   return { baseUrl: "https://test.invalid/api/v3", authorization: "Bearer isolated-test-secret", fetch: fetcher,
@@ -53,6 +69,37 @@ describe("persistent video task admission and cold recovery", () => {
     await expect(runVideoSubmission(scope, options(fetcher))).rejects.toThrow("OUTCOME_UNKNOWN");
     expect(() => readVideoSubmissionRecovery(recoveryScope(scope))).toThrow("OUTCOME_UNKNOWN"); expect(calls).toBe(1);
   });
+  it("provider task-list proof permits exactly one retry and archives the original unknown dispatch", async () => {
+    const scope = fixture(); let posts = 0;
+    await expect(runVideoSubmission(scope, options(fake((_url, init) => {
+      if (method(init) === "POST") { posts++; return response({ error: { code: "BUDGET_OUTCOME_UNKNOWN", message: "outcome unknown" } }, 502); }
+      throw new Error("no GET after rejected POST");
+    })))).rejects.toThrow("HTTP 502");
+    writeProviderReconciliation(scope);
+    expect(readVideoSubmissionRecovery(recoveryScope(scope))).toBeNull();
+    const recovered = fake((_url, init) => {
+      if (method(init) === "POST") { posts++; return response({ id: "task-after-provider-proof" }); }
+      return success();
+    });
+    expect((await runVideoSubmission(scope, options(recovered))).taskId).toBe("task-after-provider-proof");
+    expect(posts).toBe(2);
+    const archived = files(scope.directory).filter((file) => file.includes("/provider-reconciled-unknown/"));
+    expect(archived.some((file) => file.endsWith("/terminal.json"))).toBe(true);
+    expect(archived.some((file) => file.endsWith("/dispatch-started.json"))).toBe(true);
+    expect(archived.some((file) => file.endsWith("/provider-reconciliation.json"))).toBe(true);
+  });
+  it("rejects provider proof when a listed task could have originated from the unknown dispatch", async () => {
+    const scope = fixture(); let posts = 0;
+    await expect(runVideoSubmission(scope, options(fake((_url, init) => {
+      if (method(init) === "POST") { posts++; return response({ error: { code: "BUDGET_OUTCOME_UNKNOWN", message: "outcome unknown" } }, 502); }
+      throw new Error("no GET after rejected POST");
+    })))).rejects.toThrow("HTTP 502");
+    writeProviderReconciliation(scope, {
+      providerTasks: [{ id: "task-same-second", model: scope.request.body.model, createdAt: 1_800_000_000 }],
+    });
+    await expect(runVideoSubmission(scope, options(fake(() => { posts++; throw new Error("must not POST"); })))).rejects.toThrow("TERMINAL");
+    expect(posts).toBe(1);
+  });
   it.each(["{invalid-json", JSON.stringify({ accepted: true }), JSON.stringify({ id: "bad/id" })])("unusable POST response stays unknown: %s", async (body) => {
     const scope = fixture(); let calls = 0; const fetcher = fake(() => { calls++; return response(body); });
     await expect(runVideoSubmission(scope, options(fetcher))).rejects.toThrow("OUTCOME_UNKNOWN");
@@ -74,6 +121,23 @@ describe("persistent video task admission and cold recovery", () => {
     const scope = fixture(); let calls = 0; const fetcher = fake(() => { calls++; return response({ error: { code: "Rejected" } }, status); });
     await expect(runVideoSubmission(scope, options(fetcher))).rejects.toThrow(`HTTP ${status}`);
     await expect(runVideoSubmission(scope, options(fetcher))).rejects.toThrow("TERMINAL"); expect(() => readVideoSubmissionRecovery(recoveryScope(scope))).toThrow("TERMINAL"); expect(calls).toBe(1);
+  });
+  it("known BUDGET_FROZEN pre-dispatch rejection preserves evidence and permits one exact retry after recovery", async () => {
+    const scope = fixture(); let posts = 0;
+    const frozen = fake((_url, init) => {
+      if (method(init) === "POST") { posts++; return response({ error: { code: "BUDGET_FROZEN", message: "frozen" } }, 423); }
+      throw new Error("no GET after rejected POST");
+    });
+    await expect(runVideoSubmission(scope, options(frozen))).rejects.toThrow("HTTP 423");
+    expect(posts).toBe(1);
+    expect(readVideoSubmissionRecovery(recoveryScope(scope))).toBeNull();
+    const recovered = fake((_url, init) => {
+      if (method(init) === "POST") { posts++; return response({ id: "task-after-budget-recovery" }); }
+      return success();
+    });
+    expect((await runVideoSubmission(scope, options(recovered))).taskId).toBe("task-after-budget-recovery");
+    expect(posts).toBe(2);
+    expect(files(scope.directory).some((file) => file.includes("/pre-dispatch-rejections/") && file.endsWith("/terminal.json"))).toBe(true);
   });
   it.each([401, 403, 404])("query HTTP %s retains task for GET-only recovery", async (status) => {
     const scope = fixture(); let posts = 0;

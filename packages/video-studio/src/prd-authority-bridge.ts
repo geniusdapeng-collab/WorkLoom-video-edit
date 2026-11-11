@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import {
-  frozenSegmentContract, prdAudioReferencesOverflow, prdCharacterShapePath, requirementHash, requirementRecord, verifiedRequirementContract,
+  frozenSegmentContract, prdAudioReferencesOverflow, prdCharacterShapePath, prdSceneRequiredPathForError,
+  requirementHash, requirementRecord, verifiedRequirementContract,
   type RequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import {
@@ -149,10 +150,70 @@ async function awaited<T>(scope: Scope, operation: () => T | Promise<T>): Promis
     return result;
   } catch (error) { return fatal(scope, error); }
 }
+async function awaitedOptional<T>(scope: Scope, operation: () => T | Promise<T>): Promise<T> {
+  // The pinned semantic refinement pass owns an explicit fallback to the
+  // already rule-refined prompt. A provider failure in that optional layer is
+  // returned to its native consumer and recorded there; scope or authority
+  // failures raised by either guard remain sticky.
+  guard(scope, () => undefined);
+  try {
+    const result = await operation();
+    guard(scope, () => undefined);
+    return result;
+  } catch (error) {
+    if (scope.fatal !== undefined) throw scope.fatal.error;
+    throw error;
+  }
+}
 function current(): Scope | undefined {
   const scope = scopes.getStore();
   if (scope) guard(scope, () => undefined);
   return scope;
+}
+
+function isSemanticRefinementSchema(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const schema = value as RequirementRecord;
+  const properties = schema.properties;
+  return schema.type === "object"
+    && properties !== null && typeof properties === "object" && !Array.isArray(properties)
+    && Object.keys(properties).sort().join(",") === "actions,prompt"
+    && Array.isArray(schema.required)
+    && schema.required.slice().sort().join(",") === "actions,prompt";
+}
+
+/**
+ * AudioDesignAgent declares `{shots: [...]}`, but some OpenAI-compatible
+ * structured replies return the requested array directly or serialize the
+ * array into the property. Normalize only those exact equivalent shapes.
+ */
+export function normalizeProductionAgentData(name: string, value: unknown): unknown {
+  if (name !== "AudioDesignAgent") return value;
+  const asShots = (candidate: unknown): unknown[] | undefined => {
+    if (Array.isArray(candidate)) return candidate;
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)
+      && Object.hasOwn(candidate, "shotId")) return [candidate];
+    if (typeof candidate === "string") {
+      try {
+        const parsed: unknown = JSON.parse(candidate);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  };
+  const direct = asShots(value);
+  if (direct) return { shots: direct };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const record = value as RequirementRecord, shots = asShots(record.shots);
+  return shots ? { ...record, shots } : value;
+}
+
+export function productionAgentDataShape(value: unknown): string {
+  if (Array.isArray(value)) return `array[${value.length}]`;
+  if (!value || typeof value !== "object") return typeof value;
+  return `object{${Object.keys(value as RequirementRecord).sort().join(",")}}`;
 }
 
 function scopedReceiver(receiver: RequirementRecord, kind: "system" | "generator"): Scope | undefined {
@@ -437,10 +498,35 @@ function prdCharacterShapeFeedback(error: unknown, schema: RequirementRecord): s
   if (!path) return undefined;
   const root = requirementRecord(schema.properties, "制作规格 schema 字段");
   const characterSystem = requirementRecord(requirementRecord(root.characterSystem, "角色系统 schema").properties, "角色系统 schema 字段");
-  const character = requirementRecord(requirementRecord(characterSystem.characters, "角色数组 schema").items, "角色项 schema");
-  const allowedProperties = Object.keys(requirementRecord(character.properties, "角色项 schema 字段"));
+  const allowedProperties = path === "/characterSystem"
+    ? Object.keys(characterSystem)
+    : Object.keys(requirementRecord(requirementRecord(
+      requirementRecord(characterSystem.characters, "角色数组 schema").items,
+      "角色项 schema",
+    ).properties, "角色项 schema 字段"));
   const facts = { path, keyword: "additionalProperties", allowedProperties };
   return `\n\n## 上一次原生制作规格结构校验反馈\n${JSON.stringify(facts)}\n依据完整原始任务和同一 schema，重新生成完整四模块 JSON。此对象仅允许列出的键，保留冻结人物、场景、时长和制作约束。不得引用上次回复。`;
+}
+
+function prdSceneRequiredFeedback(error: unknown, schema: RequirementRecord): string | undefined {
+  const path = prdSceneRequiredPathForError(error);
+  if (!path) return undefined;
+  const properties = requirementRecord(schema.properties, "制作规格 schema 字段");
+  const scenePlan = requirementRecord(requirementRecord(properties.scenePlan, "场景计划 schema").properties, "场景计划 schema 字段");
+  const sceneSchema = requirementRecord(requirementRecord(scenePlan.scenes, "场景数组 schema").items, "场景项 schema");
+  const requiredProperties = arrayOfText(sceneSchema.required, "场景项 schema.required");
+  const allowedProperties = Object.keys(requirementRecord(sceneSchema.properties, "场景项 schema 字段"));
+  const facts = { path, keyword: "required", requiredProperties, allowedProperties };
+  return `\n\n## 上一次原生制作规格结构校验反馈\n${JSON.stringify(facts)}\n`
+    + "依据完整原始任务和同一 schema，重新生成完整四模块 JSON。所有场景必须逐项包含 requiredProperties 中的全部字段；"
+    + "缺失字段按本次原始材料补全为真实制作内容，空台词场景仍要保留明确空字符串。保留冻结人物、场景顺序、时长和制作约束，不得引用或补填上次回复。";
+}
+
+function arrayOfText(value: unknown, label: string): string[] {
+  if (!Array.isArray(value) || value.some(item => typeof item !== "string" || !item.trim())) {
+    prdFail("PRD_VENDOR_UNAVAILABLE", `${label} 必须是明确文本数组`);
+  }
+  return [...value] as string[];
 }
 
 function prdAudioReferenceBounds(schema: RequirementRecord): { min: number; max: number } {
@@ -750,7 +836,7 @@ export function installPrdAuthorityBridge(
           let nativeCallActive = false;
           let correction: { prompt: string; argsHash: string; dispatched: boolean;
             creative?: { first: LLMReasonResult; inTime: () => boolean; kind: "syntax" | "facts" };
-            productionShape?: { first: LLMReasonResult; inTime: () => boolean; subject: "角色对象" | "音频参考" } } | undefined;
+            productionShape?: { first: LLMReasonResult; inTime: () => boolean; subject: "角色对象" | "场景对象" | "音频参考" } } | undefined;
           agentView._getLLMEngine = function (this: RequirementRecord, ...args: unknown[]) {
             return guard(scope, () => {
               check(scope);
@@ -903,12 +989,15 @@ export function installPrdAuthorityBridge(
                   if (completed && response.success && attempt === 1 && modelAttempts === 1 && nativeAttemptLimit >= 2) {
                     try { validatePrdModelPayload(response.data, kind, schema, contract, scope.authority.profile); }
                     catch (error) {
-                      const feedback = prdCharacterShapeFeedback(error, effectiveSchema);
+                      const characterFeedback = prdCharacterShapeFeedback(error, effectiveSchema);
+                      const sceneFeedback = characterFeedback ? undefined : prdSceneRequiredFeedback(error, effectiveSchema);
+                      const feedback = characterFeedback ?? sceneFeedback;
                       const strictCompletion = scopedProduction && nativeEngine && withinNativeTimeout()
                         && nativeChatJsonObjectRouteCurrent(nativeEngine, response);
                       if (feedback && (!scopedProduction || strictCompletion)) {
                         correction = { prompt: complete + feedback, argsHash: requirementHash(callArgs), dispatched: false,
-                          ...(scopedProduction ? { productionShape: { first: response, inTime: withinNativeTimeout, subject: "角色对象" } } : {}) };
+                          ...(scopedProduction ? { productionShape: { first: response, inTime: withinNativeTimeout,
+                            subject: characterFeedback ? "角色对象" : "场景对象" } } : {}) };
                         // The pinned BaseAgent routes JSON failures through its
                         // existing second attempt and unchanged timeout budget.
                         throw new Error("Agent3 JSON 结构校验失败，进入一次原生结构修正");
@@ -1042,6 +1131,14 @@ export function installPrdAuthorityBridge(
       const scenes = requirementRecord(result.scenePlan, "G4 场景计划").scenes as RequirementRecord[];
       const portraitReferenceSelection = scope.authority.portraitReferenceSelection;
       const selectedPortraitSource = scope.authority.portraitSources?.find(source => source.characterId === portraitReferenceSelection?.characterId);
+      const selectedWardrobes = characters.flatMap(character => {
+        const source = character._workloomCharacterSource;
+        if (!source || typeof source !== "object" || Array.isArray(source)) return [];
+        const wardrobe = (source as RequirementRecord).wardrobe;
+        if (!Array.isArray(wardrobe)) return [];
+        return wardrobe.flatMap(value => value && typeof value === "object" && !Array.isArray(value)
+          && (value as RequirementRecord).id === "w2" ? [structuredClone(value)] : []);
+      });
       const planning = {
         status: "plan-only-not-executed",
         ...(frozenVisualPrdSegments(scope.authority)
@@ -1050,6 +1147,16 @@ export function installPrdAuthorityBridge(
         ...(portraitReferenceSelection && selectedPortraitSource ? {
           portraitReferenceSelection: { ...portraitReferenceSelection,
             originalSha256InOrder: portraitReferenceSelection.angles.map(angle => selectedPortraitSource.originals[angle]!.sha256) },
+          portraitExecutionPolicy: {
+            identityReference: "existing-synthetic-character-original-bytes",
+            identityOnly: true,
+            selectedWardrobe: selectedWardrobes[0] ?? null,
+            acceptance: [
+              "保持本次同一人物档案、肖像版本与原始 PNG 字节身份锚点",
+              "项目生成画面必须显示 w2 全覆保护赛车服，不得出现 w1 夹克、露胸腰或非防护服装",
+              "若身份或 w2 服装任一不一致，G5 拒收并重做；不得用公开商品图或猜测人脸补锚点",
+            ],
+          },
         } : {}),
         characterPlans: characters.map(character => ({ characterId: character.characterId, name: character.name,
           portraitPath: character.portraitPath, consistencyRequirements: character.consistencyRequirements,
@@ -1269,6 +1376,7 @@ function retiredTitleIssue(value: string): boolean {
 }
 
 const FUSION_BLANK_JSON_CORRECTION = "## 本镜头最终 JSON 交付\n完成必要推理后，把完整结果写入最终答复，只输出一个合法 JSON 对象。严格保留上文原始镜头、镜头编号、全部字段、时长、事实与制作约束。按同一结构正确转义字符串中的引号和换行。不要输出 Markdown、解释、占位符或省略号。";
+const PRODUCTION_BLANK_JSON_CORRECTION = "## 本次制作 JSON 最终交付\n完成必要推理后，把完整结果写入最终答复，只输出一个合法且非空的 JSON 对象。按原镜号和顺序返回全部要求字段，保留原事实、动作、声音、时长、人物与已审约束。不要输出 Markdown、解释、占位符或省略号。";
 const SCENE_DESIGN_JSON_PRESENTATION = "## 本次场景设计 JSON 自检\n最终答复只输出一个非空的完整 JSON 对象。按原镜号和顺序写满 shots 数组，核对引号、逗号、括号和全部必需字段。";
 const SCENE_DESIGN_BLANK_JSON_CORRECTION = "## 本次场景设计最终 JSON 交付\n完成必要推理后，把完整设计写入最终答复，只输出一个合法且非空的 JSON 对象。按原镜号和顺序逐镜返回全部字段，保留原动作、时长、人物、连续性与已审约束。不要输出 Markdown、解释、占位符或省略号。";
 
@@ -1347,10 +1455,46 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       || (Object.hasOwn(shot, "shotId") && Object.hasOwn(shot, "shot_id") && shot.shotId !== shot.shot_id)) return undefined;
     return scope.contract?.scenes.some(scene => scene.id === id && scene.duration === shot.duration) ? scope : undefined;
   };
-  const rivalIdentity = (scope: Scope, shot: RequirementRecord) => reviewedRivalIdentity({
-    contract: scope.contract!, cuts: frozenCuts(scope)!, reviewedPrd: scope.reviewedResult!,
-    shotId: String(shot.shotId ?? shot.shot_id), duration: shot.duration,
-  });
+  const negativeFieldScope = (receiver: RequirementRecord, shotValue: unknown): Scope | undefined => {
+    const scope = productionScope(receiver, false);
+    if (!scope || scope.g4Decision !== "approved" || scope.authority.profile.speechPolicy !== "none"
+      || !shotValue || typeof shotValue !== "object" || Array.isArray(shotValue)) return undefined;
+    const shot = shotValue as RequirementRecord;
+    const id = shot.shotId ?? shot.shot_id;
+    if (typeof id !== "string"
+      || (Object.hasOwn(shot, "shotId") && Object.hasOwn(shot, "shot_id") && shot.shotId !== shot.shot_id)) return undefined;
+    return scope.contract?.scenes.some(scene => scene.id === id && scene.duration === shot.duration) ? scope : undefined;
+  };
+  const criticalNegative = (value: unknown): value is string =>
+    typeof value === "string" && /\bno\s+text\b/iu.test(value) && /\bno\s+watermark\b/iu.test(value);
+  const restoreCriticalNegative = (value: unknown, baseline: string | undefined): unknown => {
+    if (!baseline || !value || typeof value !== "object" || Array.isArray(value)) return value;
+    const result = value as RequirementRecord;
+    if (!result.repaired || typeof result.repaired !== "object" || Array.isArray(result.repaired)) return value;
+    const repaired = result.repaired as RequirementRecord;
+    const fields = repaired.fields && typeof repaired.fields === "object" && !Array.isArray(repaired.fields)
+      ? repaired.fields as RequirementRecord : undefined;
+    if (criticalNegative(repaired.negative) && (!fields || !Object.hasOwn(fields, "negative") || criticalNegative(fields.negative))) {
+      return value;
+    }
+    repaired.negative = baseline;
+    if (fields) fields.negative = baseline;
+    if (Array.isArray(result.actions)) {
+      result.actions = result.actions.filter(action => {
+        if (!action || typeof action !== "object" || Array.isArray(action)) return true;
+        const row = action as RequirementRecord;
+        return row.fieldEn !== "negative" || criticalNegative(row.after);
+      });
+    }
+    return value;
+  };
+  const rivalIdentity = (scope: Scope, shot: RequirementRecord) => {
+    const cuts = frozenCuts(scope);
+    return cuts ? reviewedRivalIdentity({
+      contract: scope.contract!, cuts, reviewedPrd: scope.reviewedResult!,
+      shotId: String(shot.shotId ?? shot.shot_id), duration: shot.duration,
+    }) : undefined;
+  };
   if (deps.ruleCheckPrototype) add(deps.ruleCheckPrototype, "_checkFormat", original => function (shot, ...args) {
     const scope = frozenFieldScope(this, shot);
     const identity = scope && rivalIdentity(scope, shot as RequirementRecord);
@@ -1420,15 +1564,23 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   });
   const extractFieldRepairJson = deps.extractFieldRepairJson;
   if (deps.llmRepairPrototype && extractFieldRepairJson) add(deps.llmRepairPrototype, "_repairBatch", original => async function (shot, issues, requestedFields, ...args) {
-    const scope = frozenFieldScope(this, shot);
+    const frozenScope = frozenFieldScope(this, shot);
+    const negativeScope = !frozenScope && Array.isArray(requestedFields) && requestedFields.includes("negative")
+      ? negativeFieldScope(this, shot) : undefined;
+    const scope = frozenScope ?? negativeScope;
+    const negativeOnly = !frozenScope && negativeScope !== undefined;
     const identity = scope && Array.isArray(requestedFields) && requestedFields.includes("character_constraint")
       ? rivalIdentity(scope, shot as RequirementRecord) : undefined;
     if (!scope) return Reflect.apply(original, this, [shot, issues, requestedFields, ...args]);
     if (!Array.isArray(requestedFields)) prdFail("PRD_FIELD_REPAIR_SCOPE", "原生字段修复缺少本批字段列表");
     return awaited(scope, async () => {
       check(scope);
-      const synchronize = nativeFieldRepairSynchronizer(shot, requestedFields,
-        [...fieldGroups.p0, ...fieldGroups.p1, ...fieldGroups.p2, ...fieldGroups.p3]);
+      const source = shot as RequirementRecord;
+      const sourceFields = source.fields && typeof source.fields === "object" && !Array.isArray(source.fields)
+        ? source.fields as RequirementRecord : undefined;
+      const negativeBaseline = [source.negative, sourceFields?.negative].find(criticalNegative);
+      const synchronize = frozenScope ? nativeFieldRepairSynchronizer(shot, requestedFields,
+        [...fieldGroups.p0, ...fieldGroups.p1, ...fieldGroups.p2, ...fieldGroups.p3]) : undefined;
       const requestedCanonicalFields = new Set(requestedFields.map(field => authoredAliases.get(field)));
       const engine = requirementRecord(this.llm, "原生字段修复模型");
       const reason = method(engine, "reason"), truncate = method(this, "_smartTruncate");
@@ -1451,7 +1603,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         if (parsed.ok !== true || !parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) return reply;
         const data = (parsed.data as RequirementRecord).repaired_fields;
         if (!data || typeof data !== "object" || Array.isArray(data)) return reply;
-        guard(scope, () => synchronize.observeNativeFields(data));
+        if (synchronize) guard(scope, () => synchronize.observeNativeFields(data));
         const entries = Object.entries(data);
         for (const [field, text] of entries) {
           const canonical = authoredAliases.get(field);
@@ -1467,7 +1619,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       };
       const result = await Reflect.apply(original, receiver, [shot, issues, requestedFields, ...args]);
       check(scope);
-      return synchronize.finish(result);
+      return negativeOnly ? restoreCriticalNegative(result, negativeBaseline) : synchronize!.finish(result);
     });
   });
   if (deps.ruleRepairPrototype) {
@@ -1579,6 +1731,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   // semantic refinement share the receiver but cannot inherit another slot.
   const primaryFusion = new AsyncLocalStorage<{ scope: Scope; receiver: RequirementRecord; shotId: string; started: boolean }>();
   const blankCorrectionUsed = new WeakSet<Scope>(); // one blank correction per approved run
+  const productionBlankCorrectionUsed = new WeakMap<Scope, Set<string>>();
   const sceneDesignPrototype = deps.sceneDesignPrototype;
   const sceneDesignValidator = sceneDesignPrototype && Object.getOwnPropertyDescriptor(sceneDesignPrototype, "_validateSchema");
   const primarySceneDesign = new AsyncLocalStorage<{
@@ -1624,7 +1777,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     if (!scope || scope.g4Decision !== "approved") {
       return Reflect.apply(original, this, [prompt, schema, fallback, optionsValue]);
     }
-    return awaited(scope, async () => {
+    const operation = async () => {
       check(scope);
       const name = typeof this.name === "string" ? this.name : "ProductionAgent";
       if (!this.enabled) prdFail("PRD_PRODUCTION_MODEL_DISABLED", `${name} 在已审批的正式制作中停用`);
@@ -1648,6 +1801,16 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       const fusion = primaryFusion.getStore();
       const primary = fusion?.scope === scope && fusion.receiver === this && !fusion.started ? fusion : undefined;
       if (primary) primary.started = true;
+      const schemaRecord = schema && typeof schema === "object" && !Array.isArray(schema)
+        ? schema as RequirementRecord : undefined;
+      const schemaShots = schemaRecord && Array.isArray(schemaRecord.shots) ? schemaRecord.shots : [];
+      const schemaShot = schemaShots.length === 1 && schemaShots[0] && typeof schemaShots[0] === "object"
+        && !Array.isArray(schemaShots[0]) ? schemaShots[0] as RequirementRecord : undefined;
+      const primaryContract = Boolean(primary && schemaShot
+        && Object.keys(schemaShot.fields && typeof schemaShot.fields === "object" && !Array.isArray(schemaShot.fields)
+          ? schemaShot.fields as RequirementRecord : {}).length === 25);
+      const focusedFusionFill = fusion?.scope === scope && fusion.receiver === this && fusion.started
+        && options.critical === true && options.fieldFill === true;
       const now = Date.now();
       const configuredTimeout = Number(this.llmTimeout);
       const globalDeadline = typeof this._globalDeadline === "number" ? this._globalDeadline : now + configuredTimeout;
@@ -1689,13 +1852,36 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         checkEngine();
         return response;
       }, remaining(limit));
-      const valid = (value: unknown) => requirementRecord(Reflect.apply(validate, this, [value, schema]), "原生制作响应校验").valid === true;
+      const normalizedData = (value: unknown) => normalizeProductionAgentData(name, value);
+      const validation = (value: unknown) => requirementRecord(
+        Reflect.apply(validate, this, [normalizedData(value), schema]), "原生制作响应校验",
+      );
+      const valid = (value: unknown) => validation(value).valid === true;
+      const measured = (response: LLMReasonResult) => {
+        const promptTokens = response.usage?.promptTokens, completionTokens = response.usage?.completionTokens;
+        return Number.isSafeInteger(promptTokens) && Number(promptTokens) > 0
+          && Number.isSafeInteger(completionTokens) && Number(completionTokens) > 0;
+      };
       const first = await invoke(fullPrompt);
-      const completed = nativeReasonCompleted(first);
-      const blank = (primary || sceneDesign) && options.critical === true && !first.success && !completed && nativeReasonBlankJson(first);
+      // A fully measured successful production response remains complete even
+      // when an OpenAI-compatible provider omits its optional response id; the
+      // provider has already validated model identity, finish_reason and usage.
+      // A measured JSON-syntax failure remains independently correctable, while
+      // blank responses keep their stricter native blank-transport proof.
+      const measuredSuccess = measured(first) && first.success === true
+        && typeof first.content === "string" && Boolean(first.content.trim());
+      const completed = nativeReasonCompleted(first) || measuredSuccess || (measured(first)
+        && nativeReasonFailure(first) === "json-syntax" && typeof first.content === "string" && Boolean(first.content.trim()));
+      const blank = !first.success && !completed && Boolean(nativeReasonBlankJson(first))
+        && nativeBlankJsonRouteCurrent(engine, first)
+        // SceneDesign blank correction is legal only inside the exact frozen
+        // shot contract. A mismatched input never owns that async scope.
+        && (name !== "SceneDesignAgent" || Boolean(sceneDesign));
       const sceneBlank = blank ? sceneDesign : undefined;
       if (!completed && !blank) {
-        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 未取得已完成且有计量的原生模型回复`);
+        const failure = nativeReasonFailure(first) ?? (first.success ? "success-without-proof" : "unknown");
+        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED",
+          `${name} 未取得已完成且有计量的原生模型回复（failure=${failure}，usage=${measured(first) ? "metered" : "unmetered"}，content=${typeof first.content === "string" && first.content.trim() ? "present" : "blank"}，blankProof=${nativeReasonBlankJson(first) ? "present" : "missing"}）`);
       }
       const strictObject = (answer: LLMReasonResult) => {
         const parsed = typeof answer.content === "string" ? parseStrictSceneJsonObject(answer.content) : undefined;
@@ -1703,21 +1889,65 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       };
       if (first.success && valid(first.data)) {
         if (sceneDesign && !strictObject(first)) prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", "原生场景设计正文未通过严格 JSON 校验");
-        return { result: first.data, degraded: false, degradeReason: null, attempts: 1 };
+        // A schema-valid Fusion envelope with empty authored values is not a
+        // usable field response. Give that exact primary call one same-route
+        // structural correction instead of letting the vendor emit a degraded
+        // rule fallback.
+        const firstData = first.data && typeof first.data === "object" && !Array.isArray(first.data)
+          ? first.data as RequirementRecord : undefined;
+        const firstShots = firstData && Array.isArray(firstData.shots) ? firstData.shots : [];
+        const firstFields = firstShots.length === 1 && firstShots[0] && typeof firstShots[0] === "object"
+          && !Array.isArray(firstShots[0]) && (firstShots[0] as RequirementRecord).fields
+          && typeof (firstShots[0] as RequirementRecord).fields === "object"
+          && !Array.isArray((firstShots[0] as RequirementRecord).fields)
+          ? (firstShots[0] as RequirementRecord).fields as RequirementRecord : undefined;
+        const hasAuthoredValue = Boolean(firstFields
+          && Object.values(firstFields).some(value => value !== undefined && value !== null && String(value).trim()));
+        if (!primaryContract || hasAuthoredValue) {
+          return { result: first.data, degraded: false, degradeReason: null, attempts: 1 };
+        }
       }
       const used = sceneBlank ? sceneDesignBlankCorrectionUsed : blankCorrectionUsed;
-      if (maxAttempts < 2 || (blank ? used.has(scope) : !first.success && nativeReasonFailure(first) !== "json-syntax")) {
+      const otherBlankUsed = blank && !sceneBlank && !primary
+        ? productionBlankCorrectionUsed.get(scope)?.has(name) === true : false;
+      const blankUsed = sceneBlank ? sceneDesignBlankCorrectionUsed.has(scope)
+        : primary ? used.has(scope) : otherBlankUsed;
+      const fusionBlankIneligible = blank && name === "PromptFusionAgent" && !primaryContract && !focusedFusionFill;
+      if (maxAttempts < 2 || fusionBlankIneligible
+        || (blank ? blankUsed : !first.success && nativeReasonFailure(first) !== "json-syntax")) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 的原生制作响应未通过校验`);
       }
-      if (blank) used.add(scope);
+      if (blank) {
+        if (sceneBlank) sceneDesignBlankCorrectionUsed.add(scope);
+        else if (primary) blankCorrectionUsed.add(scope);
+        else {
+          const names = productionBlankCorrectionUsed.get(scope) ?? new Set<string>();
+          names.add(name);
+          productionBlankCorrectionUsed.set(scope, names);
+        }
+      }
       const correction = first.success ? "原回复缺失或不符合目标字段结构。" : "原回复不是合法 JSON。";
-      const instruction = sceneBlank ? SCENE_DESIGN_BLANK_JSON_CORRECTION : blank ? FUSION_BLANK_JSON_CORRECTION
+      const instruction = sceneBlank ? SCENE_DESIGN_BLANK_JSON_CORRECTION
+        : blank ? (primaryContract || focusedFusionFill ? FUSION_BLANK_JSON_CORRECTION : PRODUCTION_BLANK_JSON_CORRECTION)
         : `## 完整结构修正\n${correction}重新按上文完整任务和同一目标结构生成一次完整 JSON。保留每个镜头、事实与约束；不要引用原错误内容，不要缩减任务或字段。`;
       const second = await invoke(`${fullPrompt}\n\n${instruction}`, blank ? first : undefined, sceneBlank ? sceneDeadline : deadline);
-      if (!nativeReasonCompleted(second) || !second.success || !valid(second.data)
+      const secondValidation = validation(second.data);
+      const primaryCorrectionProven = !primaryContract || (blank
+        ? nativeBlankJsonCorrected(first, second)
+        // A successful structured envelope may omit an optional response id.
+        // Both calls use this same checked engine in `invoke`; prove two
+        // measured, distinct successful objects. The exact 25-field contract
+        // below still rejects unchanged, partial or empty content.
+        : measured(first) && first.success === true && measured(second) && second.success === true
+          && requirementHash(first.data) !== requirementHash(second.data));
+      const primaryExact = !primaryContract || exactFusionCorrection(second.data, schema, primary!.shotId);
+      if ((!nativeReasonCompleted(second) && !measured(second)) || !second.success || secondValidation.valid !== true
         || (sceneDesign && !sceneBlank && !strictObject(second))
-        || (blank && primary && (!nativeBlankJsonCorrected(first, second) || !exactFusionCorrection(second.data, schema, primary.shotId)))) {
-        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 的一次完整结构修正未通过校验`);
+        || (primaryContract && (!primaryCorrectionProven || !primaryExact))) {
+        const reason = typeof secondValidation.reason === "string" ? `：${secondValidation.reason}` : "";
+        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED",
+          `${name} 的一次完整结构修正未通过校验${reason}；第二次数据形状 ${productionAgentDataShape(second.data)}`
+          + (primaryContract ? `；nativeRoute=${String(primaryCorrectionProven)}；exact25=${String(primaryExact)}` : ""));
       }
       if (sceneBlank) {
         const correctedShots = (second.data as { shots: Array<{ shotId: string }> }).shots;
@@ -1726,8 +1956,9 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
           prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", "场景设计的原生空 JSON 修正未通过本次镜头合同");
         }
       }
-      return { result: second.data, degraded: false, degradeReason: null, attempts: 2 };
-    });
+      return { result: normalizedData(second.data), degraded: false, degradeReason: null, attempts: 2 };
+    };
+    return isSemanticRefinementSchema(schema) ? awaitedOptional(scope, operation) : awaited(scope, operation);
   });
   const inspect = (shotsValue: unknown, context: unknown, noTitle: boolean, bindLayer2Portraits = false) => {
     if (!Array.isArray(shotsValue) || shotsValue.length === 0) prdFail("PRD_PRODUCTION_INVALID", "制作镜头必须为非空数组");
@@ -2091,7 +2322,16 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       const bindLayer2Portraits = key === "normalizeAndValidate" && context === "Layer2-Production"
         && scope.authority.profile.speechPolicy === "none"
         && scope.authority.portraitReferenceSelection?.angles.length === 2 && frozenCuts(scope) !== undefined;
-      const result = inspect(shots, context, true, bindLayer2Portraits);
+      const normalizedShots = Array.isArray(shots) ? shots.map(value => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+        const shot = value as RequirementRecord;
+        const fields = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
+          ? shot.fields as RequirementRecord : undefined;
+        const baseline = [shot.negative, fields?.negative].find(criticalNegative);
+        if (!baseline || criticalNegative(shot.negative)) return shot;
+        return { ...shot, negative: baseline, ...(fields ? { fields: { ...fields, negative: baseline } } : {}) };
+      }) : shots;
+      const result = inspect(normalizedShots, context, true, bindLayer2Portraits);
       if (key !== "check" && !result.report.passed) {
         const error = new Error(`PRD_PRODUCTION_FIELDS_INVALID: ${result.report.errors.join("; ")}`);
         Object.assign(error, { report: result.report });

@@ -372,6 +372,30 @@ export function productPhotoPath(entry: LoadedProductArchive, photo: ProductArch
 }
 
 /**
+ * Multi-angle inputs for a product video reference. A single hero image is not
+ * enough for vehicles: the model must see the whole silhouette, the side
+ * profile and at least one structural detail before it can preserve identity
+ * across a moving shot.
+ */
+export function productReferencePhotos(archive: ProductArchive, limit = 4): ProductArchivePhoto[] {
+  if (!Number.isInteger(limit) || limit < 1) throw new Error("PRODUCT_REFERENCE_LIMIT_INVALID");
+  const photos = archive.photos ?? [];
+  const selected: ProductArchivePhoto[] = [];
+  const seen = new Set<string>();
+  const take = (photo: ProductArchivePhoto | null | undefined): void => {
+    if (!photo || selected.length >= limit || seen.has(photo.file)) return;
+    seen.add(photo.file);
+    selected.push(photo);
+  };
+  take(productHeroPhoto(archive));
+  for (const angle of ["three-quarter", "side", "front", "rear", "action", "detail", "top"] as const) {
+    take(photos.find((photo) => photo.angle === angle));
+  }
+  for (const photo of photos) take(photo);
+  return selected;
+}
+
+/**
  * 提示词口径（只写**画面语言**）：产品外观以参考照片为准，不得改结构、按键布局与品牌标识；
  * 参数事实只在有来源时登记（不把检索页的宣传语当已核实参数）。
  */

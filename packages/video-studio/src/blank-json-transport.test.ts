@@ -16,14 +16,19 @@ const blank = (content: unknown = "   ") => ({
     completion_tokens_details: { reasoning_tokens: 4740 } },
 });
 
-function setup(value: unknown, format: "json_object" | "text" = "json_object", origin = baseUrl) {
+function setup(
+  value: unknown,
+  format: "json_object" | "text" = "json_object",
+  origin = baseUrl,
+  thinking: { type: "enabled"; effort: "high" } | { type: "disabled" } = { type: "enabled", effort: "high" },
+) {
   const serialized = JSON.stringify(value);
   const fetchImpl = vi.fn<typeof fetch>(async () => new Response(serialized));
   const transport = { baseUrl: origin, apiKey: "test-only", fetchImpl };
   const provider = new OpenAiCompatibleProvider(model, transport);
   const providers = new Map([[model, provider]]);
   const policy = structuredClone(DEFAULT_MODEL_POLICY);
-  policy.scenes[scene] = { tier: "L2", responseFormat: format, thinking: { type: "enabled", effort: "high" } };
+  policy.scenes[scene] = { tier: "L2", responseFormat: format, thinking };
   const sink: EventSink = { recordModelTrace: vi.fn(async () => undefined), recordDegradation: vi.fn(async () => undefined),
     recordCircuitBreak: vi.fn(async () => undefined) };
   const adapter = new adapterApi.WorkloomLLMEngine({
@@ -43,7 +48,11 @@ const structured = (adapter: adapterApi.WorkloomLLMEngine) => adapter.reasonStru
 beforeEach(() => resetCircuit(scene));
 
 describe("native completed blank JSON is an exact failure receipt", () => {
-  it.each(["", "    "])("attests raw ASCII blank %j through one native Chat POST without a success", async content => {
+  it.each([
+    ["empty string", ""],
+    ["spaces", "    "],
+    ["null", null],
+  ])("attests %s through one native Chat POST without a success", async (_label, content) => {
     const sample = setup(blank(content));
     const result = await structured(sample.adapter);
     expect(result).toEqual({ success: false, error: "模型返回 content 为空", retryable: false });
@@ -65,14 +74,51 @@ describe("native completed blank JSON is an exact failure receipt", () => {
     expect(sample.sink.recordDegradation).toHaveBeenCalledTimes(1);
   });
 
+  it("accepts a measured blank native Chat envelope when the provider omits the optional response id", async () => {
+    const payload = { ...blank() };
+    delete (payload as { id?: unknown }).id;
+    const sample = setup(payload);
+    const result = await structured(sample.adapter);
+    expect(proof(result)).toMatchObject({
+      modelId: model, responseId: null,
+      promptTokens: 132765, completionTokens: 4779, reasoningTokens: 4740,
+    });
+    expect(sample.fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("attests measured failure when a disabled-thinking blank reply contains reasoning", async () => {
+    const payload = blank(null);
+    (payload.choices[0]!.message as typeof payload.choices[0]["message"] & { reasoning_content?: string })
+      .reasoning_content = "model reasoned without producing final JSON";
+    const sample = setup(payload, "json_object", baseUrl, { type: "disabled" });
+    const result = await structured(sample.adapter);
+    expect(result).toEqual({ success: false, error: "模型返回 content 为空", retryable: false });
+    expect(adapterApi.nativeReasonCompleted(result)).toBe(false);
+    expect(adapterApi.nativeReasonFailure(result)).toBe("unavailable");
+    expect(proof(result)).toMatchObject({
+      modelId: model, promptTokens: 132765, completionTokens: 4779, reasoningTokens: 4740,
+    });
+    expect(sample.fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not attest or accept nonblank output paired with unrequested reasoning", async () => {
+    const payload = blank('{"shots":[]}');
+    (payload.choices[0]!.message as typeof payload.choices[0]["message"] & { reasoning_content?: string })
+      .reasoning_content = "model reasoned before its answer";
+    const sample = setup(payload, "json_object", baseUrl, { type: "disabled" });
+    const result = await structured(sample.adapter);
+    expect(result.success).toBe(false);
+    expect(adapterApi.nativeReasonCompleted(result)).toBe(false);
+    expect(proof(result)).toBeUndefined();
+    expect(sample.fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
-    ["null content", blank(null)],
     ["non-ASCII whitespace", blank("　")],
     ["tab", blank("\t")],
     ["newline", blank(" \n")],
     ["array content", blank([{ type: "text", text: "" }])],
     ["wrong model", { ...blank(), model: "different" }],
-    ["missing id", { ...blank(), id: " " }],
     ["chunk instead of chat completion", { ...blank(), object: "chat.completion.chunk" }],
     ["extra choice", { ...blank(), choices: [...blank().choices, ...blank().choices] }],
     ["wrong finish", { ...blank(), choices: [{ ...blank().choices[0], finish_reason: "length" }] }],

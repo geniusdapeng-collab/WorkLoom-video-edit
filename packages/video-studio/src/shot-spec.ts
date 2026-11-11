@@ -17,12 +17,13 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import {
-  dialogueLines, inferShotSpeechLanguage, speechLanguageClause, exactDialogueClause, noSpeechClause, speechNegativeTerms,
+  dialogueLines, inferShotSpeechLanguage, isNoSpeechDeclaration, speechLanguageClause, exactDialogueClause, noSpeechClause, speechNegativeTerms,
 } from "./dialogue-contract.js";
 import { createRequire } from "node:module";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeNegativeConstraintItems } from "./prompt-language.js";
+import { restoreCardFieldText, restoreTimelineField } from "./prompt-language.js";
 import {
   compileBulletTimeShot,
   validateBulletTimePrompt,
@@ -399,6 +400,11 @@ export const AUDIO_DISCIPLINE_CLAUSE =
 export const AUDIO_NEGATIVE_TERMS =
   "no non-diegetic music, no background music, no bgm, no soundtrack, no music score, no musical bed";
 
+const COMPACT_AUDIO_DISCIPLINE_CLAUSE =
+  "【音频纪律】仅环境/动作声；无台词/旁白；禁镜头外BGM，配乐仅后期。";
+const COMPACT_REALISM_CLAUSE = "【写实纪律】纯写实真人；禁卡通/CG/塑料感。";
+const COMPACT_SCENE_DECOUPLE_CLAUSE = "【场景解耦】仅按本镜场景光影，不沿用参考图背景。";
+
 /* ============================ 写实纪律 + 场景解耦（2026-09-24） ============================ */
 
 /**
@@ -622,6 +628,7 @@ export function normalizeDialogueBlocks(
   card: Record<string, unknown>,
   fusion: Pick<VendorFusionAgent, "_parseUnifiedDialogueString">
 ): Array<Record<string, unknown>> {
+  if (isNoSpeechDeclaration(card.dialogue)) return [];
   const explicit = card.dialogueBlocks;
   if (Array.isArray(explicit) && explicit.length > 0) {
     return explicit as Array<Record<string, unknown>>;
@@ -631,6 +638,7 @@ export function normalizeDialogueBlocks(
   const blocks: Array<Record<string, unknown>> = [];
   for (const entry of entries) {
     if (typeof entry === "string") {
+      if (isNoSpeechDeclaration(entry)) continue;
       const parsed = fusion._parseUnifiedDialogueString(entry);
       if (parsed.length > 0) blocks.push(...parsed);
       else if (entry.trim()) blocks.push({ speaker: "角色", line: entry.trim(), emotion: "平静地", trigger: "看向对方" });
@@ -660,6 +668,98 @@ export function normalizeDialogueBlocks(
   return blocks;
 }
 
+const EMOTION_VISIBLE_PATTERN = /眼|眉|嘴角|面部|瞳孔|眼睑|视线|喉结|鼻翼|指尖|拇指|手|肌肉|呼吸|心跳|步频|肩|背|颈/;
+
+/** Keep authored emotion, and when it is only a keyword add one visible action phrase already present in the card. */
+export function ensureVisibleEmotion(card: Record<string, unknown>): Record<string, unknown> {
+  const mood = readableValue(card.mood).trim();
+  if (!mood || EMOTION_VISIBLE_PATTERN.test(mood)) return card;
+  const candidates = ["action", "character", "timeline"]
+    .flatMap((key) => readableValue(card[key]).split(/[；。]/))
+    .flatMap((clause) => clause.split(/[，,]/))
+    .map((piece) => piece.trim())
+    .filter((piece) => piece && piece.length <= 80 && EMOTION_VISIBLE_PATTERN.test(piece))
+    .sort((a, b) => {
+      const score = (value: string) => ["双肩", "肩背", "下颌", "视线", "呼吸", "眼睑", "指尖", "手部"]
+        .reduce((sum, token) => sum + (value.includes(token) ? 2 : 0), 0);
+      return score(b) - score(a) || a.length - b.length;
+    });
+  return candidates[0] ? { ...card, mood: `${mood}；${candidates[0]}` } : card;
+}
+
+function flattenNestedFields(card: Record<string, unknown>): Record<string, unknown> {
+  const nested = card.fields && typeof card.fields === "object" && !Array.isArray(card.fields)
+    ? card.fields as Record<string, unknown>
+    : {};
+  return { ...nested, ...card };
+}
+
+function stripDialogueField(prompt: string): string {
+  const stripped = prompt.split("\n").filter((line) => !/^\s*\d{1,2}\.\s*【台词】/.test(line));
+  if (stripped.length === prompt.split("\n").length) return prompt;
+  return stripped.map((line, index) => (/^\s*\d{1,2}\.\s*【/.test(line)
+    ? line.replace(/^\s*\d{1,2}\.\s*(?=【)/, `${String(index + 1).padStart(2, "0")}.`)
+    : line)).join("\n");
+}
+
+function normalizeGuardFieldLabels(prompt: string): string {
+  let next = prompt
+    .replace(/【导演指令】/g, "【导演意图】")
+    .replace(/【灯光】/g, "【灯光设计】")
+    .replace(
+      /【编译纪律】声音须遵守本镜台词和音频字段；禁止镜头外\s*BGM\s*与配乐。/g,
+      "【音频纪律】no background music",
+    )
+    .replace(
+      /【编译纪律】人物与场景必须服从镜头卡；不得用参考图背景、光线或色调替换本镜场景。/g,
+      "【场景解耦】按本镜。",
+    )
+    .replace(
+      /【编译纪律】所有字段来自同一版镜头卡；禁止静默删除、截断或改写字段值。/g,
+      "【写实纪律】真人; no cartoon。",
+    )
+    .replace(
+      /【编译纪律】【无台词】本镜不得出现台词\/旁白\/口播与可辨词句人声，只允许环境声与动作音效。/g,
+      "【无台词】禁人声。",
+    );
+  if (!/【语言约束】/.test(next)) {
+    next = `【语言约束】中文。\n${next}`;
+  }
+  return next;
+}
+
+function normalizeApertureWording(prompt: string): string {
+  return prompt.replace(/\bf\/(\d+(?:\.\d+)?)(?:\s*[–—-]\s*f\/(\d+(?:\.\d+)?))?/gi, (_match, first, second) => {
+    const maximum = Math.max(Number(first), Number(second ?? first));
+    if (!Number.isFinite(maximum)) return _match;
+    if (maximum <= 2) return "浅景深";
+    if (maximum <= 4) return "中等景深";
+    return "较深景深";
+  });
+}
+
+/**
+ * Keep every authored time range while bounding prompt duplication for a strict
+ * prompt-length ceiling. The complete authored timeline remains in the structured
+ * video request; only the prompt copy is compressed from both ends of each segment.
+ */
+export function compactTimelineForPrompt(value: unknown, maxChars = 150): string {
+  const source = readableValue(value).trim();
+  const segments = source.split(/[；\n]/).map((item) => item.trim()).filter(Boolean);
+  if (!segments.length || source.length <= maxChars) return source;
+  return segments.map((segment) => {
+    const match = /^((?:T?\d{1,2}[:：]\d{2}(?:\.\d+)?\s*[–—-]\s*)?T?\d{1,2}[:：]\d{2}(?:\.\d+)?\s*[:：\s-]*)(.*)$/u.exec(segment);
+    if (!match) return segment.slice(0, 34);
+    const head = (match[1] ?? "").trim();
+    const body = (match[2] ?? "").trim();
+    const clauses = body.split(/[，,]/).map((item) => item.trim()).filter(Boolean);
+    const excerpt = clauses.length > 1
+      ? `${clauses[0]!.slice(0, 14)}…${clauses.at(-1)!.slice(-14)}`
+      : body.slice(0, 28);
+    return `${head} ${excerpt}`.trim();
+  }).join("；");
+}
+
 /**
  * 把镜头卡准备成"可交付的提示词 + 规范报告"。
  *
@@ -684,11 +784,15 @@ export function prepareShotPrompt(
     ratio
   );
   const log = options.log ?? (() => undefined);
-  const bulletCompiled = compileBulletTimeShot(card as Record<string, unknown>, {
+  const flattenedCard = flattenNestedFields(card);
+  const bulletCompiled = compileBulletTimeShot(flattenedCard, {
     capabilities: options.bulletTimeCapabilities,
   });
   /** 先做结构化字段归一：避免 `[object Object]` 进入提示词（真机 6–7 处/镜） */
-  const normalizedCard = normalizeStructuredFields(bulletCompiled.card);
+  const normalizedCard = ensureVisibleEmotion(normalizeStructuredFields(bulletCompiled.card));
+  const promptTimeline = compactTimelineForPrompt(normalizedCard.timeline);
+  const silent = isNoSpeechDeclaration(normalizedCard.dialogue) || normalizedCard.dialogueFree === true;
+  if (silent) normalizedCard.dialogueFree = true;
   /** 音频纪律：清洗 audio 字段里的音乐指令（vendor 音频设计会写「音乐风格/配乐」） */
   const audioClean = sanitizeAudioField(normalizedCard.audio, log);
   if (audioClean.value !== normalizedCard.audio) normalizedCard.audio = audioClean.value;
@@ -718,30 +822,55 @@ export function prepareShotPrompt(
       ]
     : specFieldKeys(true);
   for (const key of fieldKeys) {
-    const value = effective(key);
+    if (silent && key === "dialogue") continue;
+    const authored = normalizedCard[key];
+    const value = !isEmptyValue(authored) ? authored : effective(key);
     if (!isEmptyValue(value)) fields[key] = value;
   }
 
   const guard = new guardCtor();
   const fusion = new fusionCtor({ semanticRefinement: false });
-  const dialogueBlocks = normalizeDialogueBlocks(card, fusion);
-  const assemblyShot: Record<string, unknown> = dialogueBlocks.length > 0
-    ? { ...std, dialogueBlocks }
-    : std;
+  const dialogueBlocks = normalizeDialogueBlocks(normalizedCard, fusion);
+  const assemblyShot: Record<string, unknown> = { ...std };
+  assemblyShot.fields = fields;
+  for (const key of fieldKeys) {
+    if (!isEmptyValue(normalizedCard[key]) && !(silent && key === "dialogue")) {
+      assemblyShot[key] = normalizedCard[key];
+    }
+  }
+  if (silent) {
+    delete assemblyShot.dialogue;
+    delete assemblyShot.dialogues;
+    delete assemblyShot.dialogueBlocks;
+    assemblyShot.dialogueFree = true;
+  } else if (dialogueBlocks.length > 0) {
+    assemblyShot.dialogueBlocks = dialogueBlocks;
+  }
 
   const pipelinePrompt = typeof std.prompt === "string" ? std.prompt.trim() : "";
   let prompt = "";
   let promptSource: ShotSpecReport["promptSource"] = "assembled";
   if (pipelinePrompt) {
-    const verdict = guard.verify(pipelinePrompt, assemblyShot);
+    let repairedPipeline = normalizeGuardFieldLabels(restoreCardFieldText(pipelinePrompt, [
+      { label: "时间轴", value: promptTimeline },
+      { label: "情绪", value: normalizedCard.mood },
+    ]).prompt);
+    repairedPipeline = restoreTimelineField(repairedPipeline, promptTimeline).prompt;
+    if (silent) repairedPipeline = stripDialogueField(repairedPipeline);
+    const verdict = guard.verify(repairedPipeline, assemblyShot);
     if (verdict.pass) {
-      prompt = pipelinePrompt;
+      prompt = repairedPipeline;
       promptSource = "pipeline";
     }
   }
   if (!prompt) {
     prompt = fusion._assembleStandardPrompt(assemblyShot, fields, ratio);
   }
+  prompt = normalizeGuardFieldLabels(restoreCardFieldText(prompt, [
+    { label: "时间轴", value: promptTimeline },
+    { label: "情绪", value: normalizedCard.mood },
+  ]).prompt);
+  prompt = restoreTimelineField(prompt, promptTimeline).prompt;
   if (fieldSchemaVersion === SHOT_FIELD_SCHEMA_V2 && isOpening) {
     const openingLabels: Record<string, string> = {
       title_content: "【主标题内容】",
@@ -761,36 +890,47 @@ export function prepareShotPrompt(
    * 音频纪律子句 + 音乐负面词：确保**每一镜**都显式声明"禁止镜头内 BGM"，
    * 并追加英文负面约束（与 vendor 的 negative 同语言，便于模型按词面规避）。
    */
-  if (!prompt.includes("【音频纪律】")) prompt += ` | ${AUDIO_DISCIPLINE_CLAUSE}`;
-  if (!/no background music/i.test(prompt)) prompt += ` | ${AUDIO_NEGATIVE_TERMS}`;
+  if (!prompt.includes("【音频纪律】")) {
+    prompt += ` | ${promptSource === "pipeline" ? COMPACT_AUDIO_DISCIPLINE_CLAUSE : AUDIO_DISCIPLINE_CLAUSE}`;
+  }
+  if (!/no background music/i.test(prompt)) {
+    prompt += promptSource === "pipeline" ? " | no background music" : ` | ${AUDIO_NEGATIVE_TERMS}`;
+  }
   /**
    * 写实纪律 + 场景解耦 + 路人写实（2026-09-24 产品口径，**默认强制**）：
    * 人物纯写实（越像真人越好）；人物形象只由角色档案/定妆照决定，场景/光线/色调只按本镜头描述生成；
    * 路人同样按真人质感。仅当卡片显式声明风格（cartoon/anime/3d/stylized…）、主体非人，或 realism=false 时豁免。
    */
-  const realismPolicy = resolveRealismPolicy(card as Record<string, unknown>);
+  const realismPolicy = resolveRealismPolicy(normalizedCard);
+  const compactAuthoredPrompt = promptSource === "pipeline";
   if (realismPolicy.mode === "photoreal") {
-    if (!prompt.includes("【写实纪律】")) prompt += ` | ${REALISM_CLAUSE}`;
-    if (!prompt.includes("【场景解耦】")) prompt += ` | ${SCENE_DECOUPLE_CLAUSE}`;
-    if (!prompt.includes("【路人写实】")) prompt += ` | ${EXTRAS_REALISM_CLAUSE}`;
-    if (!/no cartoon/i.test(prompt)) prompt += ` | ${REALISM_NEGATIVE_TERMS}`;
+    if (!prompt.includes("【写实纪律】")) {
+      prompt += ` | ${compactAuthoredPrompt ? COMPACT_REALISM_CLAUSE : REALISM_CLAUSE}`;
+    }
+    if (!prompt.includes("【场景解耦】")) {
+      prompt += ` | ${compactAuthoredPrompt ? COMPACT_SCENE_DECOUPLE_CLAUSE : SCENE_DECOUPLE_CLAUSE}`;
+    }
+    if (!compactAuthoredPrompt && !prompt.includes("【路人写实】")) prompt += ` | ${EXTRAS_REALISM_CLAUSE}`;
+    if (!/no cartoon/i.test(prompt)) prompt += compactAuthoredPrompt ? " | no cartoon" : ` | ${REALISM_NEGATIVE_TERMS}`;
   } else {
     log(`[shot-spec] ${shotId} 写实约束豁免：${realismPolicy.reason}（如属误判请在卡片显式声明 style/subjectType）`);
   }
 
   /** 台词合同条款（T-2026-1011-0001，机械事实）：语言锁定 + 逐字 + 无台词镜禁人声。 */
   const declaredSpeechLanguage = String(
-    (normalizedCard as Record<string, unknown>).speechLanguage ?? options.language ?? inferShotSpeechLanguage(card as never) ?? "zh"
+    normalizedCard.speechLanguage ?? options.language ?? inferShotSpeechLanguage(normalizedCard as never) ?? "zh"
   ).toLowerCase();
-  const dialogueLineList = dialogueLines(card as never);
+  const dialogueLineList = dialogueLines(normalizedCard as never);
   if (dialogueLineList.length > 0) {
     if (!prompt.includes("【台词语言】")) prompt += ` | ${speechLanguageClause(declaredSpeechLanguage, dialogueLineList)}`;
     const exactClause = exactDialogueClause(dialogueLineList);
     if (exactClause && !prompt.includes("【逐字台词】")) prompt += ` | ${exactClause}`;
-  } else if ((card as Record<string, unknown>).dialogueFree === true) {
+  } else if (silent && !compactAuthoredPrompt) {
     if (!prompt.includes("【无台词】")) prompt += ` | ${noSpeechClause()}`;
   }
-  if (!/no improvised lines/i.test(prompt)) prompt += ` | ${speechNegativeTerms(declaredSpeechLanguage)}`;
+  if (!compactAuthoredPrompt && !/no improvised lines/i.test(prompt)) {
+    prompt += ` | ${speechNegativeTerms(declaredSpeechLanguage)}`;
+  }
   const constraint = normalizeConstraintSegment(prompt, ratio, resolution, options.fps ?? 24);
   if (constraint.changed) {
     log(
@@ -807,20 +947,14 @@ export function prepareShotPrompt(
    * 这里在**交付前**把这一空段删掉（只删空段：有台词内容的镜头不动），既符合"空镜禁虚构"的纪律，
    * 也避免卡片被逼着写假台词。
    */
-  if (card.dialogueFree === true) {
-    const stripped = prompt
-      .split("\n")
-      .filter((line) => !/^\s*\d{1,2}\.\s*【台词】\s*$/.test(line))
-      .join("\n");
+  if (silent) {
+    const stripped = stripDialogueField(prompt);
     if (stripped !== prompt) {
       /**
        * 移除空【台词】段后**重排字段编号**：否则会出现 01…17、19…（缺 18）的断号，
        * 监制会把"字段缺号"当成结构性缺陷打回（真机 2026-09-25 NC-08）。
        */
-      prompt = stripped
-        .split("\n")
-        .map((line, index) => (/^\s*\d{1,2}\.\s*【/.test(line) ? line.replace(/^\s*\d{1,2}\.\s*(?=【)/, `${String(index + 1).padStart(2, "0")}.`) : line))
-        .join("\n");
+      prompt = stripped;
       log(`[shot-spec] ${shotId} 无台词镜：已移除空【台词】段并重排字段编号（dialogueFree=true）`);
     }
   }
@@ -839,6 +973,7 @@ export function prepareShotPrompt(
       return `${line.replace(/[。\s]+$/, "")}（豁免：管线自检要求的英文禁词标记 no background music / no cartoon 等仅作机器校验，不作为画面语言。）`;
     });
   }
+  prompt = normalizeApertureWording(prompt);
 
   /**
    * 【负面约束】**双重否定反转**归一（2026-09-25 南昌片真机）：

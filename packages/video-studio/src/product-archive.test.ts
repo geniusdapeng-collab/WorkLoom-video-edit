@@ -10,6 +10,7 @@ import {
   normalizeProductName,
   productArchivePromptLines,
   productHeroPhoto,
+  productReferencePhotos,
   selectProductArchive,
   sha256FileSync,
   verifyProductArchive,
@@ -102,6 +103,9 @@ describe("product archive（真实商品档案）", () => {
     expect(body).toContain("车身轮廓、导流罩开口");
     expect(body).not.toContain("屏幕比例");
     expect(body).not.toContain("卡口布局");
+    const references = productReferencePhotos(bike, 4);
+    expect(references.map((photo) => photo.angle)).toEqual(["three-quarter", "side"]);
+    expect(references.map((photo) => photo.file)).toEqual([front.file, side.file]);
   });
 
   it("中文『摩托车』档案同样使用机动车规则，不落入屏幕/卡口模板", () => {

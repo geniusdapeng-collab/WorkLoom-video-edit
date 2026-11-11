@@ -278,6 +278,21 @@ export function loadCharacterLibrary(root: string): Map<string, CharacterEntry> 
   return library;
 }
 
+/**
+ * Resolve only an unambiguous single-person source selection.
+ * Multi-person selections must continue through shot-level casting; an unknown or
+ * malformed selection never falls back to the library default.
+ */
+export function resolveSingleSourceCast<T extends { id: string }>(
+  selection: { mode?: unknown; characters?: Array<{ id?: unknown }> } | undefined,
+  candidates: ReadonlyMap<string, T>,
+): T | undefined {
+  if (!selection || selection.mode === "none" || !Array.isArray(selection.characters)
+    || selection.characters.length !== 1) return undefined;
+  const id = selection.characters[0]?.id;
+  return typeof id === "string" ? candidates.get(id) : undefined;
+}
+
 export interface ShotLikeForCasting {
   character?: unknown;
   characters?: unknown;

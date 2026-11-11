@@ -10,6 +10,7 @@ import {
   promptRepairCapabilityForKind, readPromptRepairPlan, repairApprovedSourcePrompts, verifyApprovedSourceAdoption,
   APPROVED_SOURCE_REPAIR_INPUT_SCHEMA, type VerifiedApprovedSourcePlan,
 } from "./approved-source-plan.js";
+import { readApprovedProductionPlan } from "./approved-production-plan.js";
 import type { MarketingScope } from "./marketing-authority.js";
 import type { ProjectLease } from "./archive-host.js";
 
@@ -131,6 +132,34 @@ async function retainReviewedFailedDraft(original: VerifiedApprovedSourcePlan) {
 }
 
 describe("verified approved-source planning", () => {
+  it("accepts a same-byte approved profile alias without inventing a dual-profile witness", async () => {
+    fixture = await approvedSourceFixture({ workDir, scope: fixture.scope, createdAt, sameHashProfileAlias: true }); rows = [fixture.row];
+    const plan = await prepareApprovedSourcePlan(scope, projectId);
+    const manifest = JSON.parse(await readFile(fixture.portraitManifest.path, "utf8"));
+    const catalogPath = (plan.selection.exportCharacters[0] as Record<string, any>).builtinCharacterSource.profilePath as string;
+    expect(catalogPath).not.toBe(manifest.characters[0].profile.path);
+    expect(await readFile(catalogPath)).toEqual(await readFile(manifest.characters[0].profile.path));
+    await writeFile(catalogPath, "changed same-hash alias");
+    await expect(plan.verifyCurrent()).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("derives ordered intervals from the approved G4 scenes for a silent plan without a segment contract", async () => {
+    const metadata = structuredClone(fixture.request.metadata) as Record<string, any>;
+    delete metadata.brief.segmentContract;
+    const g1 = fixture.gateFiles[0]!, g1Proof = (fixture.output.productionEvidence.gates as Array<Record<string, any>>)
+      .find(gate => gate.gate === "G1_DOSSIER")!, g4Proof = (fixture.output.productionEvidence.gates as Array<Record<string, any>>)
+      .find(gate => gate.gate === "G4_PRD")!;
+    const plan = readApprovedProductionPlan({ workDir: fixture.runDir, metadata,
+      marketing: { schemaVersion: "workloom.prd-marketing-authority/v1", scope: fixture.scope,
+        g1Artifact: { path: g1.path, sha256: g1.sha256, content: await readFile(g1.path, "utf8") }, g1Proof: g1Proof as any },
+      proof: g4Proof,
+      shots: fixture.contractFiles.map(file => ({ shotId: file.shotId,
+        duration: (file.contract as any).request.parameters.duration_sec })) });
+    expect(plan.scenes.map(scene => scene.interval)).toEqual([
+      { startSec: 0, endSec: 10, brief: expect.stringContaining("合成人物完整观察商品") },
+      { startSec: 10, endSec: 20, brief: expect.stringContaining("合成人物完整观察商品") },
+    ]);
+  });
   it("reads the complete current originals and canonically restores two shots without any provider or source write", async () => {
     const dto = await readPromptRepairPlan(scope, projectId);
     expect(dto).toMatchObject({ kind: "ready", expectedLatestAttempt: 4, sourceRunId: "RUN-source", retainedShotCount: 2,

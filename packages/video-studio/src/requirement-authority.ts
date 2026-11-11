@@ -35,9 +35,30 @@ export function captureRequirementTheme(
     contentSha256: createHash("sha256").update(contentMd).digest("hex"), verdict });
 }
 
+/** Correct only closed-form review contradictions that can be proved from the frozen rules. */
+export function reconcileRequirementThemeDraft(draft: string): string {
+  const overtakesTwo = /(?:连超|连续超越|连续超过)\s*(?:两|2)\s*(?:台|辆)/u.test(draft);
+  const finalCornerSecond = /((?:最后一个弯|最后弯|末弯)[^。；\n]{0,40})第二位/u;
+  let corrected = draft;
+  const notes: string[] = [];
+  if (overtakesTwo && !/套圈/u.test(draft) && finalCornerSecond.test(draft)) {
+    corrected = corrected.replace(finalCornerSecond, "$1第三位");
+    notes.push("[宿主赛位一致性校正] 原草案在“第二位”起跑位下写“连超两台”，与三车竞争关系矛盾；"
+      + "仅将核心描述的赛位改为“第三位”，保留连超两台、冲线夺冠及全部客户原文。");
+  }
+  const blockedOutsideThenPass = /((?:最后一弯|最后一个弯|最后弯|末弯)[^。；\n]{0,30})外线被封(?:死|住)?\s*[，,]\s*(?:仍|却|还是)?\s*(连超|连续超越|连续超过)/u;
+  if (blockedOutsideThenPass.test(corrected)) {
+    corrected = corrected.replace(blockedOutsideThenPass, "$1从外线出弯$2");
+    notes.push("[宿主外线约束校正] 原草案同时写“外线被封”和“外线连超”，与全部超车统一在外线出弯完成的冻结约束矛盾；"
+      + "仅改为从外线出弯完成原定连续超越，保留对手数量、夺冠结果与全部客户原文。");
+  }
+  return notes.length ? `${corrected}\n\n${notes.join("\n\n")}` : draft;
+}
+
 /** Append the frozen customer source after the complete, unchanged creative draft. */
 export function requirementThemeApprovalPayload(authority: PrdAuthority, draft: string): string {
   if (!draft.trim()) return draft;
+  const reviewDraft = reconcileRequirementThemeDraft(draft);
   const source = JSON.stringify({
     schemaVersion: "workloom.g2-frozen-brief/v1",
     scope: authority.marketing.scope,
@@ -46,7 +67,7 @@ export function requirementThemeApprovalPayload(authority: PrdAuthority, draft: 
     brief: authority.metadata.brief ?? null,
   }, null, 2).replaceAll("`", "\\u0060");
   const sha256 = createHash("sha256").update(source).digest("hex");
-  return `${draft}\n\n## G2 宿主冻结客户 Brief\n`
+  return `${reviewDraft}\n\n## G2 宿主冻结客户 Brief\n`
     + "此附件是当前项目的审阅基线。应逐项核对前面的实际创意，遗漏或矛盾须独立裁决；附件本身不证明创意已落实，也不增加商品事实或素材授权。\n"
     + `附件 JSON 原始字节 SHA256 ${sha256}\n\n`
     + ["```json", source, "```"].join("\n");

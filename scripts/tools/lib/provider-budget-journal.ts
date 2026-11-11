@@ -7,7 +7,10 @@ import {
 } from "./provider-budget-policy.js";
 
 const JOURNAL_SCHEMA = "workloom.provider-budget-wal/v1";
-const MAX_JOURNAL_BYTES = 512 * 1024;
+// A full multi-stage video workflow can legitimately exceed a thousand paid
+// model calls. Keep the append-only audit trail bounded without freezing a
+// valid task at the former 512 KiB ceiling.
+const MAX_JOURNAL_BYTES = 64 * 1024 * 1024;
 const ERROR_CODE = /^[A-Z][A-Z0-9_]{0,95}$/;
 
 type BudgetLimits = { profile?: never; caps: TaskCaps }
@@ -18,7 +21,11 @@ type Reserve = { type: "reserve"; hash: string; wireSha256: string; at: number; 
 type Ack = { type: "ack"; hash: string; at: number; taskId: string };
 type Settle = { type: "settle"; hash: string; at: number; usage: Settlement };
 type Freeze = { type: "freeze"; hash: string; at: number; reason: string };
-type Event = Reserve | Ack | Settle | Freeze;
+type Reconcile = {
+  type: "reconcile"; hash: string; at: number; usage: Settlement;
+  basis: "conservative-claim-maximum"; reason: string;
+};
+type Event = Reserve | Ack | Settle | Freeze | Reconcile;
 
 export interface Reservation {
   readonly hash: string;
@@ -73,6 +80,10 @@ function parseEvent(raw: string): Event {
   if (row.type === "ack" && safeTaskId(row.taskId)) return { type: row.type, hash: row.hash, at: row.at, taskId: row.taskId };
   if (row.type === "settle" && validateSettlement(row.usage)) return { type: row.type, hash: row.hash, at: row.at, usage: row.usage };
   if (row.type === "freeze" && typeof row.reason === "string" && ERROR_CODE.test(row.reason)) return { type: row.type, hash: row.hash, at: row.at, reason: row.reason };
+  if (row.type === "reconcile" && validateSettlement(row.usage)
+    && row.basis === "conservative-claim-maximum" && typeof row.reason === "string" && ERROR_CODE.test(row.reason)) {
+    return { type: row.type, hash: row.hash, at: row.at, usage: row.usage, basis: row.basis, reason: row.reason };
+  }
   throw new BudgetError("BUDGET_JOURNAL_INVALID", 503);
 }
 
@@ -86,6 +97,8 @@ export class BudgetJournal {
   private readonly byTask = new Map<string, Reservation>();
   private readonly byImage = new Map<string, ImageProof>();
   private frozenReason: string | null = null;
+  private frozenHash: string | null = null;
+  private readonly reconciled = new Set<string>();
   private writeFailed = false;
 
   private constructor(private readonly fd: number, private readonly header: Header, private readonly now: () => number) {}
@@ -174,8 +187,26 @@ export class BudgetJournal {
       valid(!previous.usage && previous.claim.kind === event.usage.kind && (previous.claim.kind !== "video" || previous.taskId));
       previous.usage = event.usage;
       if (event.usage.kind === "image") this.byImage.set(event.usage.image.urlHash, event.usage.image);
-    } else {
+    } else if (event.type === "freeze") {
       this.frozenReason ??= event.reason;
+      this.frozenHash ??= event.hash;
+    } else {
+      // Reconciliation is append-only and may release only a frozen,
+      // unsettled LLM reservation at its already-audited conservative maximum.
+      valid(!previous.usage && previous.claim.kind === "llm" && event.usage.kind === "llm"
+        && event.hash === this.frozenHash && event.reason === this.frozenReason
+        && event.usage.inputTokens === previous.claim.inputTokens
+        && event.usage.outputTokens === previous.claim.maxOutputTokens
+        && event.usage.microCny === previous.claim.microCny);
+      previous.usage = event.usage;
+      this.reconciled.add(event.hash);
+      if (event.hash === this.frozenHash && ![...this.byHash.values()].some(entry => !entry.usage)) {
+        // A reconciled freeze is closed history. Retaining its reason made a
+        // later unknown reservation inherit the old frozen state and prevented
+        // its own freeze event from being appended.
+        this.frozenReason = null;
+        this.frozenHash = null;
+      }
     }
   }
 
@@ -192,7 +223,12 @@ export class BudgetJournal {
     const deadline = this.deadline;
     return deadline !== null && (this.now() < this.header.at || this.now() >= deadline);
   }
-  get frozen(): string | null { return this.writeFailed ? "BUDGET_JOURNAL_WRITE_FAILED" : this.frozenReason; }
+  get frozen(): string | null {
+    if (this.writeFailed) return "BUDGET_JOURNAL_WRITE_FAILED";
+    if (this.frozenReason && this.frozenHash && this.reconciled.has(this.frozenHash)
+      && ![...this.byHash.values()].some(entry => !entry.usage)) return null;
+    return this.frozenReason;
+  }
   find(hash: string): Reservation | undefined { return this.byHash.get(hash); }
   task(taskId: string): Reservation | undefined { return this.byTask.get(taskId); }
   image(urlHash: string): ImageProof | undefined { return this.byImage.get(urlHash); }

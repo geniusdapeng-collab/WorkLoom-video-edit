@@ -17,7 +17,7 @@ const MAX_SEPARATOR_RECOVERY_BYTES = 1_048_576;
  * Every key and value must already be a valid JSON token. The final strict
  * parse checks the entire repaired body, including text after the insertions.
  */
-function recoverSceneJson(raw: string, maxInsertions: 1 | 3): SceneSeparatorRecovery | undefined {
+function recoverSceneJson(raw: string, maxInsertions: 1 | 8): SceneSeparatorRecovery | undefined {
   const whitespace = /[ \t\r\n]*/y;
   const string = /"(?:[^"\\\u0000-\u001f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"/y;
   const scalar = /(?:true|false|null|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)/y;
@@ -134,7 +134,7 @@ export function recoverSceneJsonMissingSeparators(raw: string): SceneSeparatorRe
   if (raw.length > MAX_SEPARATOR_RECOVERY_BYTES || Buffer.byteLength(raw, "utf8") > MAX_SEPARATOR_RECOVERY_BYTES) {
     return undefined;
   }
-  return recoverSceneJson(raw, 3);
+  return recoverSceneJson(raw, 8);
 }
 
 /** Parse the entire native body without allowing JSON.parse's last-key-wins behavior. */

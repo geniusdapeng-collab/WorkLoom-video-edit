@@ -31,6 +31,7 @@ export * from "./route-preflight.js";
 export * from "./real-person-asset-sync.js";
 export * from "./duration-rules.js";
 export * from "./duration-contract.js";
+export * from "./duration-projection.js";
 export * from "./vendor-compat.js";
 export * from "./confirmation.js";
 export * from "./studio.js";
@@ -61,6 +62,8 @@ export * from "./film-service-client.js";
 export * from "./film-contracts.js";
 /** 真实商品档案：涉及公司/品牌的片子必须绑定真实产品图（客户上传优先，系统检索次之）。 */
 export * from "./product-archive.js";
+/** 商品真实外观优先于通用的无涂装/无标识去标识冲突。 */
+export * from "./product-appearance-priority.js";
 /** 认证真人素材主档与一致性门（人物属性唯一事实源；禁止猜）。 */
 export * from "./real-person-asset.js";
 /** 花钱前的提示词红线 linter（提高一次过率）。 */

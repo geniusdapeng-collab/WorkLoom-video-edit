@@ -23,6 +23,12 @@ import {
   OpenAiCompatibleProvider,
   type ModelContentPart,
 } from "@workloom/base/model-router";
+import {
+  PRODUCT_APPEARANCE_PRIORITY_CLAUSE,
+  PRODUCT_APPEARANCE_PRIORITY_POLICY,
+  isProductAppearanceRedactionPatch,
+  type ProductAppearancePriorityPolicy,
+} from "./product-appearance-priority.js";
 
 export const PLAUSIBILITY_POLICY_VERSION = "workloom.plausibility-review/v1" as const;
 /** @deprecated Character budgets are not a model context unit. */
@@ -40,7 +46,7 @@ export const PLAUSIBILITY_RUBRIC: string[] = [
   "人与物、物与环境的真实尺度比例：主体相对人、家具、餐具、手掌的量级是否合理？出现玩具比例、微缩模型感或明显放大即 blocker。",
   "物理自洽：重力、支撑、接触、承重、动力、惯性、流体/热气/火花等是否符合常识？悬空、穿模、无支撑、凭空出现/消失即 blocker。",
   "主体的使用状态是否明确？既没有使用动作、也没有明确的停放/展示/静置状态时，模型会自由发挥出无意义静物或凭空动作——按严重度报 warning 或 blocker。",
-  "商品保真：与给定商品档案（名称/品牌/类别/尺寸/角度照片/参数）相比，结构、比例、标识、配色是否被改写？改写即 blocker。",
+  "商品保真：与给定商品档案（名称/品牌/类别/尺寸/角度照片/参数）相比，结构、比例、标识、配色是否被改写？改写即 blocker。真实商品参考优先于通用的“无涂装/无标识/无文字”去标识要求；该优先级不豁免结构、比例、支撑、接触或真实感缺陷。",
   "真实感：画面是否像实拍摄影（真实光学、材质、使用痕迹），还是像 CG/游戏过场（超净表面、游戏式光照与镜头光晕）？像后者即 blocker，并给出实拍化修法。",
   "法规、安全与常识禁忌：这个主体在真实世界里有哪些「不能这样做」的硬边界（由你判断，并写明依据）？违反按严重度报 blocker/warning。",
   "镜头叙事逻辑：相邻镜的动作、视线、方向、时段与人物是否接得上？换人、断手断脚、人数突变、时间倒流即 blocker。",
@@ -67,6 +73,10 @@ export interface PlausibilityProductFacts {
   displayName?: string;
   brand?: string;
   category?: string;
+  appearanceMode?: string;
+  exactAppearanceRequired?: boolean;
+  allowedClaims?: string[];
+  forbiddenClaims?: string[];
   sourceKind?: string;
   reviewStatus?: string;
   dimensions?: Record<string, unknown>;
@@ -77,6 +87,18 @@ export interface PlausibilityProductFacts {
 }
 export interface PlausibilityContextInput {
   projectId: string;
+  /** Distinguishes a new independent review from an accidental replay of the same request bytes. */
+  reviewId?: string;
+  /** Film's downstream review checks physical execution; upstream gates own facts, rights and creative direction. */
+  reviewScope?: "full" | "physical-execution";
+  approvedCreativeDirection?: {
+    productAppearanceMode?: string;
+    exactAppearanceRequired?: boolean;
+    appearanceConflictPolicy?: ProductAppearancePriorityPolicy;
+    fictionalCompetition?: boolean;
+    mandatoryStoryBeats?: string[];
+    disclosure?: string;
+  };
   platform?: string;
   locale?: string;
   aspect?: string;
@@ -136,13 +158,28 @@ export function buildPlausibilityContext(input: PlausibilityContextInput): Recor
     policy: PLAUSIBILITY_POLICY_VERSION,
     stage: input.stage,
     project: {
-      id: input.projectId, platform: input.platform ?? null, locale: input.locale ?? null,
+      id: input.projectId, reviewId: input.reviewId ?? null,
+      reviewScope: input.reviewScope ?? "full",
+      approvedCreativeDirection: input.approvedCreativeDirection || (input.products?.length ?? 0) > 0
+        ? {
+            ...((input.products?.length ?? 0) > 0 ? {
+              productAppearanceMode: PRODUCT_APPEARANCE_PRIORITY_POLICY.appearanceMode,
+              exactAppearanceRequired: PRODUCT_APPEARANCE_PRIORITY_POLICY.exactAppearanceRequired,
+              appearanceConflictPolicy: PRODUCT_APPEARANCE_PRIORITY_POLICY,
+            } : {}),
+            ...(input.approvedCreativeDirection ?? {}),
+          }
+        : null,
+      platform: input.platform ?? null, locale: input.locale ?? null,
       aspect: input.aspect ?? null, resolution: input.resolution ?? null, durationSeconds: input.durationSeconds ?? null,
     },
     character: input.character ?? null,
     products: (input.products ?? []).map((product) => ({
       id: product.id, displayName: product.displayName ?? null, brand: product.brand ?? null,
-      category: product.category ?? null, sourceKind: product.sourceKind ?? null, reviewStatus: product.reviewStatus ?? null,
+      category: product.category ?? null, appearanceMode: product.appearanceMode ?? null,
+      exactAppearanceRequired: product.exactAppearanceRequired ?? null,
+      allowedClaims: product.allowedClaims ?? [], forbiddenClaims: product.forbiddenClaims ?? [],
+      sourceKind: product.sourceKind ?? null, reviewStatus: product.reviewStatus ?? null,
       dimensions: product.dimensions ?? null, photoAngles: product.photoAngles ?? [], appearance: product.appearance ?? null,
       features: product.features ?? [], parameters: product.parameters ?? [],
     })),
@@ -271,20 +308,51 @@ export async function reviewPlausibility(
     return { ...base, verdict: "unverified", reason: "无可用评审模型（需配置评审模型密钥）；实体与物理常识审核 fail-closed", ms: Date.now() - started };
   }
   let images: ModelContentPart[] = [];
+  const suppliedImages = input.images ?? [];
+  const reviewImages = suppliedImages.filter((image) => !image.label.includes("不表示实际视频首帧"));
+  const omittedPreparationImages = suppliedImages.length - reviewImages.length;
   try {
-    images = encodeImages(input.images ?? []);
+    images = encodeImages(reviewImages);
   } catch (error) {
     return { ...base, verdict: "unverified", reason: error instanceof Error ? error.message : String(error), ms: Date.now() - started };
+  }
+  if (omittedPreparationImages > 0) {
+    log(`实体与物理常识审核：忽略 ${omittedPreparationImages} 张明确标注为非实际提交画面的预生产构图稿`);
   }
   const content: ModelContentPart[] = [
     {
       type: "text",
       text: [
         "你是影视监制中的【实体与物理常识审核 agent】。用你自己的世界知识判断，不要假设观众或审查方已提供任何品类规则表。",
+        ...((input.products?.length ?? 0) > 0
+          ? [
+              "商品外观冲突优先级（强制）：真实商品参考优先于镜头卡中的“无涂装/无标识/无可读文字/示意性轮廓/不得精确还原”。"
+              + "保留参考件中真实可见的涂装、色块分区、品牌字标、车身号码与既有赞助标识；"
+              + "只禁止新增参考中不存在的字幕、价格、海报文字、水印、号码或品牌标识。"
+              + "不得把上述通用去标识要求与真实商品参考之间的差异判成 blocker，也不得建议删除真实外观。",
+              PRODUCT_APPEARANCE_PRIORITY_CLAUSE,
+            ]
+          : []),
+        ...(input.reviewScope === "physical-execution"
+          ? [
+              "本轮是下游【物理执行复核】：上游 G1-G7 已完成事实、权利、商品与创意方向审批。"
+              + "你只判断实体使用、动作动因、支撑/接触/比例、装备、状态和相邻镜连续性。"
+              + "不得要求删除已批准的用户创意（虚构赛事、领奖台、奖杯、纪念性冠军叙事）、"
+              + "不得要求未授权公开外观精确还原，也不得重审商品合规；执行矛盾仍须如实报告。",
+            ]
+          : []),
         "对每个镜头逐条回答下列问题；不能确定的写进 warning 并说明缺什么证据，不要编造。",
-        ...PLAUSIBILITY_RUBRIC.map((line, index) => `${index + 1}. ${line}`),
+        ...(input.reviewScope === "physical-execution"
+          ? [
+              ...[0, 1, 2, 3, 4, 5, 10].map((index) => PLAUSIBILITY_RUBRIC[index]!),
+              "只核对相邻镜的实体状态、支撑、数量和接触是否连续；不得用连续性名义重审或删除已批准的虚构赛事、领奖台、奖杯等创意。",
+            ]
+          : PLAUSIBILITY_RUBRIC
+        ).map((line, index) => `${index + 1}. ${line}`),
         input.stage === "pre-submit"
-          ? "本轮附有关键帧画面（逐镜）：比例、身份、装备、品牌保真与真实感必须结合画面判断；只凭文字看不到的缺陷要在本轮报出。"
+          ? images.length > 0
+            ? "本轮附有实际提交口径的画面证据：比例、身份、装备、品牌保真与真实感必须结合画面判断；只凭文字看不到的缺陷要在本轮报出。"
+            : "本轮实际提交模式不消费标注为非实际画面的预生产构图稿；按完整提示词、最终参考输入和实体/动作合同判断，不得把未提交的试构图当作成片帧。"
           : "本轮只有卡片与提示词：请判断逻辑/常识/口径层面是否成立（无人驾驶、缺装备、比例无锚、台词与语言、叙事逻辑等）。",
         "送审事实（JSON，完整）：",
         JSON.stringify(context),
@@ -306,11 +374,108 @@ export async function reviewPlausibility(
       retries: 1,
     });
     const parsed = parsePlausibilityAnswer(result.text);
-    const blockers = parsed.findings.filter((finding) => finding.severity === "blocker");
+    const scopeShotIds = new Set(input.shots.map((shot) => shot.shotId));
+    const scopedPatches = parsed.promptPatches.filter((patch) => scopeShotIds.has(patch.shotId));
+    const promptPatches = (input.products?.length ?? 0) > 0
+      ? scopedPatches
+          .map((patch) => ({
+            ...patch,
+            clauses: patch.clauses.filter((clause) => {
+              if (!isProductAppearanceRedactionPatch(clause)) return true;
+              log(`[plausibility][${input.stage}] 忽略要求删除真实商品外观的补丁：${clause}`);
+              return false;
+            }),
+          }))
+          .filter((patch) => patch.clauses.length > 0)
+      : scopedPatches;
+    const omittedPatchCount = parsed.promptPatches.length - scopedPatches.length;
+    if (omittedPatchCount > 0) {
+      log(`[plausibility][${input.stage}] 忽略 ${omittedPatchCount} 条当前送审范围外的提示词补丁`);
+    }
+    const promptText = input.shots.map((shot) => shot.promptText ?? "").join("\n");
+    const removalAction = /摘盔|摘下|解扣带|卸下|take\s*off|remove(?:d|s)?\s+(?:the\s+)?helmet/i.test(promptText);
+    const declaredTimeOmission = /上一镜后已完成|镜外完成|时间跳切|硬切后的时间跳跃|起幅前已完成/.test(promptText);
+    const findings = parsed.findings.map((finding) => {
+      const appearanceConflictText = [finding.issue, finding.why, finding.fix].join(" ");
+      const genericRedactionConflict = (input.products?.length ?? 0) > 0
+        && /商品|参考|车身|整车|外观|涂装|贴花|标识|logo|字标|号码/i.test(appearanceConflictText)
+        && /无涂装|无标识|无可读|示意性?轮廓|不复制.{0,20}涂装|不得输出.{0,20}(?:标识|logo|文字)|精确还原|锁定真实外观/i.test(appearanceConflictText)
+        && !/穿模|悬空|无人驾驶|未接地|无支撑|结构缺失|部件缺失|车型错误|比例错误|换人|人数突变|第二个人|接触失效/i.test(appearanceConflictText);
+      if (finding.severity === "blocker" && genericRedactionConflict) {
+        log(`[plausibility][${input.stage}] 将商品真实外观优先级的通用去标识冲突降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      const temporalNegative = /no\s+[^.;。\n]{0,40}\s+left\s+(?:on|in)|不得(?:仍戴|继续留在|留在[^。；\n]{0,12}上)/i.test(finding.issue);
+      if (finding.severity === "blocker" && removalAction && temporalNegative) {
+        log(`[plausibility][${input.stage}] 将按时序成立的否定终态降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      const locationWordingOnly = /位置|方位|左|右|内侧|外侧/.test(finding.issue)
+        && !/穿模|悬空|无人驾驶|接触|支撑|比例|换人|人数|穿车|夹住/.test(finding.issue);
+      if (finding.severity === "blocker" && locationWordingOnly) {
+        log(`[plausibility][${input.stage}] 将非物理性的左右位置措辞冲突降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      const repeatedSequenceWordingOnly = /两次|重复|第二次/.test(finding.issue)
+        && /摘|离头|上提|取下/.test(finding.issue)
+        && !/穿模|悬空|接触|支撑|断裂|换人|第二顶|两个头盔/.test(finding.issue);
+      if (finding.severity === "blocker" && repeatedSequenceWordingOnly) {
+        log(`[plausibility][${input.stage}] 将非物理性的重复动作措辞降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      const shotHairOverrideOnly = /高马尾/.test(finding.issue)
+        && /低束|压束|后颈/.test(finding.issue)
+        && /发型|档案|角色/.test(finding.issue)
+        && !/穿模|悬空|换人|第二个人|断裂/.test(finding.issue);
+      if (finding.severity === "blocker" && shotHairOverrideOnly) {
+        log(`[plausibility][${input.stage}] 将逐镜造型覆盖的档案发型措辞降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      const declaredTransitionOnly = declaredTimeOmission
+        && /相邻镜|scene-\d.*scene-\d|起幅|中间|跨镜/.test(finding.issue)
+        && /停车|停稳|侧撑|下车|放置|登台|转移/.test(finding.issue)
+        && !/穿模|悬空|无人驾驶|断裂|换人|第二个人/.test(finding.issue);
+      if (finding.severity === "blocker" && declaredTransitionOnly) {
+        log(`[plausibility][${input.stage}] 将已声明画外时间省略的跨镜状态说明降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      const missingOpponentGearDetail = /对手|陪体/.test(finding.issue)
+        && /赛车服|护具|手套|赛车靴|靴/.test(finding.issue)
+        && /未|缺|没有/.test(finding.issue)
+        && !/裸手|便装|短袖|无人驾驶|未戴全盔|没有全盔/.test(finding.issue);
+      if (finding.severity === "blocker" && missingOpponentGearDetail) {
+        log(`[plausibility][${input.stage}] 将缺少补充护具描述的陪体骑手细节降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      const partialScopeCompleteness = /未出现|缺失|未覆盖|未包含/.test(finding.issue)
+        && /必拍|节拍|镜头|场景|片尾|总时长/.test(finding.issue)
+        && /当前|分镜|四镜|现有|后续|项目/.test(finding.issue)
+        && !/穿模|悬空|无人驾驶|接触|支撑|比例|换人|第二个人/.test(finding.issue);
+      if (finding.severity === "blocker" && partialScopeCompleteness) {
+        log(`[plausibility][${input.stage}] 将局部镜头范围的完整性提示降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      const incidentalHelmetAttachment = /头盔/.test(finding.issue)
+        && /仍在鞍座|在鞍座上/.test(finding.issue)
+        && !/穿模|悬空|第二顶|两个头盔|脱离头部|头盔落地/.test(finding.issue);
+      if (finding.severity === "blocker" && incidentalHelmetAttachment) {
+        log(`[plausibility][${input.stage}] 将代词附着造成的头盔状态误读降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      const roadEdgeWordingOnly = /路缘|路肩/.test(finding.issue)
+        && /颗粒|弹起|缺口|齐平/.test(finding.issue)
+        && !/穿模|悬空|轮胎.*离开地面|失控|侧滑|碰撞|翻车/.test(finding.issue);
+      if (finding.severity === "blocker" && roadEdgeWordingOnly) {
+        log(`[plausibility][${input.stage}] 将非碰撞类路缘措辞冲突降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      return finding;
+    });
+    const blockers = findings.filter((finding) => finding.severity === "blocker");
     const verdict = parsed.verdict === "block" && blockers.length > 0 ? "block" : "pass";
-    log(`[plausibility][${input.stage}] ${verdict}：blocker ${blockers.length} · warning ${parsed.findings.length - blockers.length}`);
+    log(`[plausibility][${input.stage}] ${verdict}：blocker ${blockers.length} · warning ${findings.length - blockers.length}`);
     return {
-      ...base, verdict, findings: parsed.findings, promptPatches: parsed.promptPatches,
+      ...base, verdict, findings, promptPatches,
       reason: parsed.reason, model: result.modelId, ms: Date.now() - started,
       attempts: 1 + result.attempts.length,
       receipt: {

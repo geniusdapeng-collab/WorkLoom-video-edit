@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -18,6 +18,33 @@ describe("既有合成角色的独立复用证据", () => {
     expect(proof.outputs).toHaveLength(4);
     expect(() => verifyPortraitArchiveReuseAcceptance({ ...fixture.input, proof, evidence: portraitReuseEvidence(proof) })).not.toThrow();
     expect(portraitReuseEvidence(proof).filter(item => item.scope === "archive-reuse-image")).toHaveLength(4);
+  });
+  it("accepts byte-identical alias directories for the same selected identity", () => {
+    const f = portraitReuseFixture(dir, "P1");
+    const aliasDir = path.join(f.root, "alias", f.manifest.characters[0]!.name);
+    mkdirSync(aliasDir, { recursive: true });
+    const alias = structuredClone(f.entry);
+    for (const angle of ["front", "threeQuarter", "closeup", "side"] as const) {
+      const file = path.join(aliasDir, `${angle}.png`);
+      writeFileSync(file, readFileSync(f.outputs[angle]!.path));
+      const bytes = readFileSync(file);
+      const receipt = {
+        path: file, realPath: realpathSync(file),
+        sha256: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length,
+      };
+      alias.files[angle] = file;
+      alias.artifacts[angle] = receipt;
+      alias.reuseReceipts[angle]!.output = receipt;
+    }
+    Object.assign(f.index.characters, { [f.manifest.characters[0]!.name]: alias });
+    f.persistIndex();
+    const proof = acceptPortraitArchiveReuse({ ...f.input, allowAdditionalAngles: true });
+    expect(proof.outputs.map(item => item.sha256)).toEqual(
+      ["front", "threeQuarter", "closeup", "side"].map(angle => f.outputs[angle]!.sha256),
+    );
+    expect(proof.outputs.map(item => item.path)).toEqual(
+      ["front", "threeQuarter", "closeup", "side"].map(angle => f.outputs[angle]!.path),
+    );
   });
   it.each(["missing-selection", "wrong-version", "real-person", "source-change", "profile-change", "manifest-change", "symlink-source", "missing-angle", "output-change", "receipt-source", "receipt-selection", "receipt-project", "receipt-angle", "generated", "pending", "mixed-receipts", "extra-output", "wrong-index-project"])("%s 不能通过或回退新生成", kind => {
     const f = portraitReuseFixture(dir, "P1");

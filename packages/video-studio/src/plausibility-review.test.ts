@@ -6,6 +6,7 @@ import {
 
 const baseContext = {
   projectId: "VID-TEST",
+  reviewId: "VID-TEST:pre-render:run-1:1",
   platform: "TikTok",
   locale: "en",
   aspect: "9:16",
@@ -14,6 +15,8 @@ const baseContext = {
   character: { name: "陈卓", appearance: "身高约 166cm" },
   products: [{
     id: "demo-product", displayName: "演示商品", category: "vehicle",
+    appearanceMode: "rights-safe-conceptual-silhouette", exactAppearanceRequired: false,
+    allowedClaims: ["演示商品"], forbiddenClaims: ["不得要求未授权外观精确还原"],
     dimensions: { lengthMm: 2050, seatHeightMm: 825 }, photoAngles: ["three-quarter", "side"],
   }],
   shots: [{
@@ -60,11 +63,31 @@ describe("实体与物理常识审核 agent", () => {
     expect(serialized).toContain("three-quarter");
     expect(serialized).toContain("Track only.");
     expect(serialized).toContain("身高约 166cm");
+    expect(serialized).toContain("rights-safe-conceptual-silhouette");
+    expect(serialized).toContain("VID-TEST:pre-render:run-1:1");
+    expect((context.products as Array<Record<string, unknown>>)[0]).toMatchObject({ exactAppearanceRequired: false });
     const large = buildPlausibilityContext({
       ...baseContext,
       shots: Array.from({ length: 40 }, (_, index) => ({ shotId: `S-${index}`, scene: "长".repeat(2000) })),
     });
     expect(JSON.stringify(large)).toContain("长".repeat(2_000));
+  });
+
+  it("有真实商品时默认把真实外观优先级写入审核方向", () => {
+    const context = buildPlausibilityContext({
+      ...baseContext,
+      products: [{ ...baseContext.products[0]!, appearanceMode: "reference-faithful", exactAppearanceRequired: true }],
+    });
+    expect(context.project).toMatchObject({
+      approvedCreativeDirection: {
+        productAppearanceMode: "reference-faithful",
+        exactAppearanceRequired: true,
+        appearanceConflictPolicy: {
+          conflictPriority: "real-product-reference-over-generic-redaction",
+          preserveFromReference: expect.arrayContaining(["涂装", "品牌字标", "车身号码", "既有赞助标识"]),
+        },
+      },
+    });
   });
 
   it("多服装角色把默认服装和逐镜选择同时交给审核，避免把默认装当全片硬约束", () => {
@@ -88,6 +111,26 @@ describe("实体与物理常识审核 agent", () => {
     expect(typed.character).toMatchObject({ activeWardrobeId: "w1" });
     expect(typed.character?.wardrobes).toHaveLength(2);
     expect(typed.shots[0]).toMatchObject({ wardrobeId: "w2", costume: "本镜启用 w2 赛道装备" });
+  });
+
+  it("下游物理复核保留上游已批准的创意与权利边界", () => {
+    const context = buildPlausibilityContext({
+      ...baseContext,
+      reviewScope: "physical-execution",
+      approvedCreativeDirection: {
+        productAppearanceMode: "rights-safe-conceptual-silhouette",
+        fictionalCompetition: true,
+        mandatoryStoryBeats: ["领奖台纪念奖杯"],
+        disclosure: "广告创意演绎，非真实赛事成绩",
+      },
+    });
+    expect(context.project).toMatchObject({
+      reviewScope: "physical-execution",
+      approvedCreativeDirection: {
+        fictionalCompetition: true,
+        productAppearanceMode: "rights-safe-conceptual-silhouette",
+      },
+    });
   });
 
   it("解析模型输出：blocker/warning 与提示词补丁；结构非法即抛错（上层 fail-closed）", () => {
@@ -135,9 +178,45 @@ describe("实体与物理常识审核 agent", () => {
     expect(passed.findings).toHaveLength(1);
   });
 
+  it("商品真实外观优先：通用去标识冲突降为 warning，并丢弃删除真实外观的补丁", async () => {
+    const result = await reviewPlausibility({
+      ...baseContext,
+      products: [{
+        ...baseContext.products[0]!,
+        appearanceMode: "reference-faithful",
+        exactAppearanceRequired: true,
+        appearance: "真实涂装、品牌字标与车身号码",
+      }],
+    }, {
+      env: llmEnv,
+      fetchImpl: (async () => jsonResponse({
+        verdict: "block",
+        findings: [{
+          id: "product-redaction-conflict",
+          severity: "blocker",
+          shotId: "SC-01",
+          issue: "商品参考锁定真实外观，但镜头卡要求无涂装、无标识和不可读文字",
+          why: "两条去标识要求与真实商品参考冲突",
+          fix: "删除真实涂装和品牌字标",
+        }],
+        promptPatches: [{
+          shotId: "SC-01",
+          clauses: ["删除商品参考中对真实涂装和品牌字标的精确还原要求"],
+        }],
+        reason: "商品外观口径冲突",
+      })) as unknown as typeof fetch,
+    });
+    expect(result.verdict).toBe("pass");
+    expect(result.findings[0]).toMatchObject({ id: "product-redaction-conflict", severity: "warning" });
+    expect(result.promptPatches).toEqual([]);
+  });
+
   it("Flash 文本评审锁定官方模型、JSON 输出与 high thinking", async () => {
     let body: Record<string, unknown> | null = null;
-    const result = await reviewPlausibility(baseContext, {
+    const result = await reviewPlausibility({
+      ...baseContext,
+      shots: [{ ...baseContext.shots[0]!, promptText: "上一镜后已完成停车、支侧撑与下车；本镜起幅为既定静止状态。" }],
+    }, {
       env: {
         LLM_BASE_URL: "https://api.deepseek.com",
         DEEPSEEK_BASE_URL: "https://api.deepseek.com/anthropic",
@@ -156,6 +235,104 @@ describe("实体与物理常识审核 agent", () => {
       thinking: { type: "enabled" },
       reasoning_effort: "high",
     });
+  });
+
+  it("预生产构图稿明确标注为非实际视频帧时不作为提交画面送审", async () => {
+    let body: Record<string, unknown> | null = null;
+    const result = await reviewPlausibility({
+      ...baseContext,
+      stage: "pre-submit",
+      images: [{
+        label: "镜头 SC-01 预生产构图稿（不表示实际视频首帧）",
+        path: "/path/that/must/not/be/read.png",
+      }],
+    }, {
+      env: llmEnv,
+      fetchImpl: (async (_input: string | URL | Request, init?: RequestInit) => {
+        body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return jsonResponse({ verdict: "pass", findings: [], promptPatches: [], reason: "提示词与提交输入通过" });
+      }) as typeof fetch,
+    });
+    expect(result.verdict).toBe("pass");
+    const captured = body as Record<string, unknown> | null;
+    const content = (captured?.messages as Array<{ content: unknown }>)?.[0]?.content;
+    expect(JSON.stringify(content)).not.toContain("image_url");
+    expect(JSON.stringify(content)).toContain("不消费标注为非实际画面的预生产构图稿");
+  });
+
+  it("只保留当前送审镜头范围内的提示词补丁", async () => {
+    const result = await reviewPlausibility(baseContext, {
+      env: llmEnv,
+      fetchImpl: (async () => jsonResponse({
+        verdict: "pass",
+        findings: [],
+        promptPatches: [
+          { shotId: "SC-01", clauses: ["当前镜头补丁"] },
+          { shotId: "SC-DONE", clauses: ["已完成镜头不得被改写"] },
+        ],
+        reason: "通过并附建议",
+      })) as unknown as typeof fetch,
+    });
+    expect(result.verdict).toBe("pass");
+    expect(result.promptPatches).toEqual([{ shotId: "SC-01", clauses: ["当前镜头补丁"] }]);
+  });
+
+  it("有明确摘除动作时，头盔不得仍戴在头上的终态否定降为 warning", async () => {
+    const result = await reviewPlausibility({
+      ...baseContext,
+      stage: "pre-submit",
+      shots: [{
+        ...baseContext.shots[0]!,
+        promptText: "【动作】她解开扣带并摘下头盔，收在左腰。【负面约束】no helmet left on head。",
+      }],
+    }, {
+      env: llmEnv,
+      fetchImpl: (async () => jsonResponse({
+        verdict: "block",
+        findings: [{
+          id: "temporal-helmet", severity: "blocker", shotId: "SC-01",
+          issue: "头盔不得仍戴在头上与动作中的头盔位于头上矛盾",
+          why: "未按时间轴读取", fix: "按时序说明",
+        }],
+        promptPatches: [], reason: "终态否定被误读",
+      })) as unknown as typeof fetch,
+    });
+    expect(result.verdict).toBe("pass");
+    expect(result.findings[0]).toMatchObject({ id: "temporal-helmet", severity: "warning" });
+  });
+
+  it("非物理性的措辞、补充装备、局部范围、代词附着与路缘措辞降为 warning，穿模或支撑失效仍保持 blocker", async () => {
+    const result = await reviewPlausibility({
+      ...baseContext,
+      shots: [{ ...baseContext.shots[0]!, promptText: "上一镜后已完成停车、支侧撑与下车；本镜起幅为既定静止状态。" }],
+    }, {
+      env: llmEnv,
+      fetchImpl: (async () => jsonResponse({
+        verdict: "block",
+        findings: [
+          { id: "position-copy", severity: "blocker", shotId: "SC-01", issue: "动作写左侧，构图写右侧", why: "措辞不一致", fix: "统一方位" },
+          { id: "sequence-copy", severity: "blocker", shotId: "SC-01", issue: "摘盔被写成两次离头", why: "重复动作措辞", fix: "合并一次" },
+          { id: "hair-override", severity: "blocker", shotId: "SC-01", issue: "角色档案写高马尾，逐镜发型写后颈低束马尾", why: "档案与镜头覆盖不一致", fix: "以逐镜为准" },
+          { id: "declared-jump", severity: "blocker", shotId: "SC-01", issue: "相邻镜 scene-3 到 scene-4 的侧撑与下车未在上一镜呈现", why: "跨镜状态跳跃", fix: "已在下一镜声明画外完成" },
+          { id: "opponent-gear-detail", severity: "blocker", shotId: "SC-01", issue: "匿名对手骑手缺赛车服、手套与赛车靴细节", why: "装备描述不足", fix: "补齐具体装备" },
+          { id: "partial-scope", severity: "blocker", shotId: "SC-01", issue: "已批准的必拍领奖台节拍未出现在当前分镜", why: "当前只复核未完成镜头", fix: "已完成镜头不在本轮范围" },
+          { id: "helmet-attachment-copy", severity: "blocker", shotId: "SC-01", issue: "头盔随车稳定后仍在鞍座，与骑手未摘盔矛盾", why: "代词附着歧义", fix: "改写为骑手仍在鞍座" },
+          { id: "road-edge-copy", severity: "blocker", shotId: "SC-01", issue: "路缘缺口弹起颗粒，但另一字段写路肩齐平", why: "路缘措辞不一致", fix: "统一齐平路肩" },
+          { id: "physical", severity: "blocker", shotId: "SC-01", issue: "右肩悬空且穿模", why: "支撑失效", fix: "重做姿态" },
+        ],
+        promptPatches: [], reason: "混合问题",
+      })) as unknown as typeof fetch,
+    });
+    expect(result.verdict).toBe("block");
+    expect(result.findings.find((finding) => finding.id === "position-copy")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "sequence-copy")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "hair-override")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "declared-jump")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "opponent-gear-detail")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "partial-scope")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "helmet-attachment-copy")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "road-edge-copy")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "physical")).toMatchObject({ severity: "blocker" });
   });
 
   it("无模型 / HTTP 失败 / 输出不可解析 → unverified（调用方 fail-closed）", async () => {

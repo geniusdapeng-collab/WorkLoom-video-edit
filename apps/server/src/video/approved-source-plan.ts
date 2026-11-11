@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import {
-  ArchiveStore, canonicalJson, platformIdOf, preparePrdPortraitReferenceSelection, preparePrdPortraitSources,
+  ArchiveStore, canonicalJson, fieldSpec, platformIdOf, preparePrdPortraitReferenceSelection, preparePrdPortraitSources,
   sha256Json, type PrdMarketingAuthority,
 } from "@hyperreality/video-studio";
 import { assertSystemAutoApprovalReceipt } from "@workloom/pipeline-control";
@@ -22,7 +22,7 @@ import {
 import { loadPortraitReuseManifest, readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 import { readApprovedProductionPlan } from "./approved-production-plan.js";
 import {
-  planFieldAuthoring, recoverContractFields,
+  marketingFinalFactFieldArtifact, planFieldAuthoring, recoverContractFields,
   type AllowedFieldPlan, type RecoveredPromptShot, type VerifiedFieldArtifact,
 } from "./approved-source-fields.js";
 
@@ -435,7 +435,8 @@ async function loadApprovedSourcePlan(
       missingEvidence: [reportArtifact],
       sceneMetadata: { sceneId: String(scene.id), ...(typeof scene.sceneType === "string" ? { sceneType: scene.sceneType } : {}) } });
     if (shot.shotId !== scene.id || shot.duration !== scene.duration || !isDeepStrictEqual(parsed(bytes), entry.contract)) {
-      return fail("SOURCE_PROMPT_SCENE_MISMATCH", "完整字段合同与原 G4 场景或已归档合同对象不一致。");
+      return fail("SOURCE_PROMPT_SCENE_MISMATCH", `完整字段合同与原 G4 场景或已归档合同对象不一致：${String(scene.id)}；`
+        + `身份=${shot.shotId === scene.id}，时长=${shot.duration}/${String(scene.duration)}，合同=${isDeepStrictEqual(parsed(bytes), entry.contract)}。`);
     }
     for (const [profileKey, parameterKey] of [["aspectRatio", "aspect_ratio"], ["resolution", "resolution"],
       ["frameRate", "fps"], ["nativeAudio", "generate_audio"]] as const) {
@@ -456,8 +457,25 @@ async function loadApprovedSourcePlan(
     marketing: marketingAuthority, proof: approvedGates.G4_PRD.proof, shots: contracts.map(shot => ({ shotId: shot.shotId, duration: shot.duration })) });
   const sourceContext = { brief: request.metadata.brief ?? null, gates: { G1: g1.artifact.content,
     G2: approvedGates.G2_THEME.artifact.content, G3: approvedGates.G3_INSIGHT.artifact.content, G4: g4Content }, approvedProductionPlan };
-  const fieldPlan = planFieldAuthoring({ shots: contracts, sourceContextSha256: sha256Json(sourceContext),
-    diagnosedFindings: [reportArtifact], truncationEvidence: [] });
+  const sourceContextSha256 = sha256Json(sourceContext);
+  const marketingFailure = output.marketingFinalFactsFailure === undefined
+    ? undefined : record(output.marketingFinalFactsFailure, "SOURCE_MARKETING_FINAL_FAILURE_INVALID");
+  const marketingDiagnosis = marketingFailure
+    ? marketingFinalFactFieldArtifact({ failureMessage: String(marketingFailure.message ?? ""), shots: contracts, sourceContextSha256 })
+    : undefined;
+  const marketingFactsPassedWithSuggestions = marketingFailure
+    && /无未支持或夸大[^。；\n]{0,40}准予通过|准予通过并附整改建议/u.test(String(marketingFailure.message ?? ""))
+    && !/截断|违反[^。；\n]{0,16}纪律|须修复后再渲染|不能批准|不通过/u.test(String(marketingFailure.message ?? ""));
+  /**
+   * A final-fact rejection without a field-level locator is still durable
+   * evidence, but it must not create a guessed diagnosis. Keep the last valid
+   * G6 draft and let the next explicit repair proceed from the complete G6
+   * findings; the original final-fact rejection remains in the source output.
+   */
+  void marketingFactsPassedWithSuggestions;
+  const fieldPlan = planFieldAuthoring({ shots: contracts, sourceContextSha256,
+    maxFinalPromptChars: fieldSpec().lengths.hardMax, deferPortraitAssetBinding: true,
+    diagnosedFindings: [reportArtifact, ...(marketingDiagnosis ? [marketingDiagnosis] : [])], truncationEvidence: [] });
   const manifestSetting = process.env.HR_PORTRAIT_REUSE_MANIFEST?.trim();
   if (!manifestSetting) return fail("SOURCE_PORTRAITS_UNAVAILABLE", "当前宿主没有受控的既有角色图片选择，不能重新生成或猜测图片来源。");
   const portraits = loadPortraitReuseManifest(path.resolve(repoRoot, manifestSetting));
@@ -481,12 +499,28 @@ async function loadApprovedSourcePlan(
     }
     return structuredClone(character);
   });
-  const needsDualProfileWitness = selectedCastCharacters.some((value, index) => {
+  const sameHashProfileCopies = selectedCastCharacters.flatMap((value, index) => {
     const choice = record(value), portrait = portraits.characters[index]!;
-    return choice.profileSha256 !== portrait.profile.sha256
-      || choice.profilePath !== null && choice.profilePath !== portrait.profile.path;
+    return choice.profileSha256 === portrait.profile.sha256
+      && typeof choice.profilePath === "string" && choice.profilePath !== portrait.profile.path
+      ? [{ path: choice.profilePath, sha256: portrait.profile.sha256, archivePath: portrait.profile.path }]
+      : [];
   });
-  const verifyDualProfileWitness = (): void => {
+  const needsDualProfileWitness = selectedCastCharacters.some((value, index) =>
+    record(value).profileSha256 !== portraits.characters[index]!.profile.sha256);
+  const verifyDualProfileWitness = async (): Promise<void> => {
+    try {
+      // A different approved profile path is harmless only when both current
+      // files are byte-identical. Keep both paths in the freshness closure.
+      for (const copy of sameHashProfileCopies) {
+        const catalog = await read(path.dirname(copy.path), copy.path, copy.sha256);
+        const archive = await read(path.dirname(copy.archivePath), copy.archivePath, copy.sha256);
+        if (!catalog.equals(archive)) return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "同一人物的双档案路径字节不一致。");
+      }
+    } catch (error) {
+      if (error instanceof ApprovedSourcePlanError) throw error;
+      return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "同一人物的双档案路径无法完整核验。");
+    }
     if (!needsDualProfileWitness) return;
     try {
       // Reuse the same native owner/asset verifier that produced the original G4 annex.
@@ -517,7 +551,7 @@ async function loadApprovedSourcePlan(
       return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "原 G4 双档案见证、所有者用途授权或原图字节无法核验，未启动修复。");
     }
   };
-  verifyDualProfileWitness();
+  await verifyDualProfileWitness();
   // Old failed G6 attempts have no formal shotlist. Reuse their reviewed cast and explicit platform,
   // rather than inventing a past handoff or selecting a new default from current prose.
   const explicitPlatforms = [rootRequest.metadata.platform, frozenProfile.targetPlatform]
@@ -529,7 +563,8 @@ async function loadApprovedSourcePlan(
   const exportMetadata: Json = { ...structuredClone(rootRequest.metadata), platform: platformIds[0],
     characters: structuredClone(exportCharacters), builtinCharacterSelection: structuredClone(castSelection) };
   const copies = readCurrentPortraitArchiveCopies({ workDir: runWorkDir, projectId,
-    manifest: { path: portraits.manifestPath, sha256: portraits.manifestSha256 } });
+    manifest: { path: portraits.manifestPath, sha256: portraits.manifestSha256 },
+    allowAdditionalAngles: true, allowProductArchive: true });
   for (const asset of contracts.flatMap(shot => shot.sourceContract.bindings.flatMap(binding => binding.assets ?? []))) {
     if (!asset.sourceRef) return fail("SOURCE_PORTRAIT_UNBOUND", "原字段合同缺少图片字节来源。");
     const file = path.resolve(runWorkDir, asset.sourceRef);
@@ -566,9 +601,10 @@ async function loadApprovedSourcePlan(
     await restoreApprovedMarketingFactsSource({ root: archive.root, scope: rootApprovalSource.scope,
       g1Content: g1.artifact.content, g1ContentSha256: g1.artifact.sha256, proof: g1.proof, g1ArtifactPath: g1.artifact.ref });
     const currentPortraits = loadPortraitReuseManifest(portraitBinding.manifestPath, portraitBinding.manifestSha256);
-    verifyDualProfileWitness();
+    await verifyDualProfileWitness();
     const currentCopies = readCurrentPortraitArchiveCopies({ workDir: runWorkDir, projectId,
-      manifest: { path: currentPortraits.manifestPath, sha256: currentPortraits.manifestSha256 } });
+      manifest: { path: currentPortraits.manifestPath, sha256: currentPortraits.manifestSha256 },
+      allowAdditionalAngles: true, allowProductArchive: true });
     if (!isDeepStrictEqual(currentCopies, copies)) return fail("SOURCE_PORTRAIT_CHANGED", "受控角色图片或来源已变化。");
     const [latest] = await rowsFor(scope, projectId, lease);
     if (!sourceRowMatches(latest, source) && !(state.target && latest?.attempt === state.target.attempt && latest.run_id === state.target.runId)) {

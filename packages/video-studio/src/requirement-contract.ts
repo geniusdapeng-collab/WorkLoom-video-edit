@@ -4,6 +4,7 @@ import {
   TARGET_DURATION_TOLERANCE_SECONDS,
   withinTargetDurationTolerance,
 } from "./duration-contract.js";
+import { projectShotDurations } from "./duration-projection.js";
 
 export type RequirementRecord = Record<string, unknown>;
 export const REQUIREMENT_CONTRACT_VERSION = "workloom.requirement-contract/v1";
@@ -20,6 +21,7 @@ const validationFacts = new WeakMap<RequirementContractError, Readonly<Requireme
 const riskValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const discoveryValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const prdCharacterShapePaths = new WeakMap<RequirementContractError, string>();
+const prdSceneRequiredPaths = new WeakMap<RequirementContractError, string>();
 const prdAudioReferencesPath = "/audioSpecification/audioReferences";
 const prdAudioReferencesOverflows = new WeakMap<RequirementContractError, Readonly<{
   path: typeof prdAudioReferencesPath;
@@ -27,7 +29,12 @@ const prdAudioReferencesOverflows = new WeakMap<RequirementContractError, Readon
   observed: number;
   limit: number;
 }>>();
-const prdCharacterPath = /^PRD production response(\/characterSystem\/characters\/(?:0|[1-9]\d{0,5}))$/;
+const prdCharacterPath = /^PRD production response(\/characterSystem(?:\/characters\/(?:0|[1-9]\d{0,5}))?)$/;
+const PRD_SCENE_REQUIRED_FIELDS = new Set([
+  "sceneId", "sequence", "purpose", "duration", "emotionalBeat", "setting", "timeOfDay",
+  "keyProps", "visualRequirements", "audioRequirements", "dialogue",
+]);
+const prdSceneRequiredPath = /^PRD production response(\/scenePlan\/scenes\/(?:0|[1-9]\d{0,5}))\/([A-Za-z][A-Za-z0-9_]{0,63})$/;
 const finiteNumber = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
 const schemaPath = /^SceneArchitect response(?:\/(?:opening|scenes|ending|duration|purpose|keyElements|index|emotionalBeat|productionContract|props|actions|name|description|actorId|noPropsReason|totalDuration|sceneCount|narrativeArc|\d{1,6}))*$/;
 const riskArrayPath = /^RiskAssessor response\/(?:technicalRisks|businessConstraints|mitigationSuggestions)$/;
@@ -84,6 +91,11 @@ export function structuredDiscoveryFeedback(error: unknown): string {
 /** Only the validator can attest this exact closed character-object violation. */
 export function prdCharacterShapePath(error: unknown): string | undefined {
   return error instanceof RequirementContractError ? prdCharacterShapePaths.get(error) : undefined;
+}
+
+/** Only a fixed scene-item required-field miss may open one bounded structural retry. */
+export function prdSceneRequiredPathForError(error: unknown): string | undefined {
+  return error instanceof RequirementContractError ? prdSceneRequiredPaths.get(error) : undefined;
 }
 
 /** Only this validator's fixed PRD path and numeric overflow may enter structural correction. */
@@ -204,6 +216,12 @@ export function validateRequirementSchema(value: unknown, schemaValue: unknown, 
       if (keyword === "additionalProperties") {
         const prdPath = prdCharacterPath.exec(location)?.[1];
         if (prdPath) prdCharacterShapePaths.set(error, prdPath);
+      }
+      if (keyword === "required" && !discovery) {
+        const scenePath = prdSceneRequiredPath.exec(field);
+        if (scenePath && PRD_SCENE_REQUIRED_FIELDS.has(scenePath[2]!)) {
+          prdSceneRequiredPaths.set(error, `${scenePath[1]}/${scenePath[2]}`);
+        }
       }
       if (keyword === "maxItems" && location === "PRD production response" + prdAudioReferencesPath
         && typeof observed === "number" && Number.isSafeInteger(observed)
@@ -495,6 +513,26 @@ export function normalizeDiscoveryTiming(
   if (Math.abs(residual) > TARGET_DURATION_TOLERANCE_SECONDS) {
     return { changes, previousDuration, normalizedDuration: null };
   }
+  if (!exactTiming && Number.isSafeInteger(target)) {
+    const projected = projectShotDurations(
+      nodes.map((node, index) => ({
+        shotId: index === 0 ? "opening" : index === nodes.length - 1 ? "ending" : `scene-${index}`,
+        duration: durations[index],
+      })),
+      { targetSeconds: target, minSeconds: 4, maxSeconds: 30, enforceVoiceFloor: false },
+    );
+    if (projected.ok) {
+      nodes.forEach((node, index) => {
+        node.duration = projected.entries[index]!.seconds;
+      });
+      structure.totalDuration = target;
+      structure.sceneCount = nodes.length;
+      residual = 0;
+      if (nodes.some((node, index) => node.duration !== durations[index])) {
+        changes.push("scene-duration-reconciled");
+      }
+    }
+  }
   if (residual !== 0) {
     const adjustable = nodes.map((node, index) => ({ node, index, duration: durations[index]! }))
       .sort((left, right) => right.duration - left.duration);
@@ -731,6 +769,7 @@ export function structuredSceneInstructions(cast: RequirementCast, audience: unk
     + `确实无可见道具时：{"props":[],"actions":[{"actorId":"$scene","description":"云影缓慢移过封闭场地的地面"}],"noPropsReason":"本场只展示环境光影变化，没有独立可见道具"}。有 props 时必须完全省略 noPropsReason，不能填空串或 null；两个示例互斥。\n`
     + `props 必须是当前场景中实际可见的物理对象，不得把性格、语气、摄影、履历、否定规则或人物日常爱好当道具；人物档案里的用品只有本场真正出现才可声明。`
     + `actions 不能只填“起身”“看向”等孤立动词；每个所选出镜人物至少在一个节点有明确动作。每个节点至少一个动作；真正没有可见道具时才允许显式空props并说明原因。`
+    + `若 opening 建立了对手车、人群或其它可计数的核心对象，后续所有“第几台/第几辆/第几次”等位次、动作和声音描述必须与 opening 实际建立的总数自洽；不得突然增加未建立的第三台、第三位或额外一次动作。\n`
     + `完整保留场景目的和约束，不截断，不虚构额外人物；商品参数和部件事实必须能由本次商品事实证据支持，未知项不得靠人物设定补齐。\n`;
 }
 
@@ -841,6 +880,8 @@ ${example}
   const contract = `本次实际 SceneArchitect 响应 JSON Schema（完整适用，不是示例成品）：\n${schema}\n`
     + `本次 schema 派生时长边界与可行数量（仅约束，不分配节点）：\n${JSON.stringify(timing)}\n`
     + `以下精确结构约束优先于本段其余“约/≈”表述：sceneCount 必须等于 2 + scenes.length；所有节点 duration 之和必须等于 totalDuration（算术容差 ${SCENE_SUM_ARITHMETIC_TOLERANCE_SECONDS} 秒），并位于目标 ${target} 秒 ±${TARGET_DURATION_TOLERANCE_SECONDS} 秒内。`
+    + `所有节点 duration 必须是整数秒并位于 4–30 秒；若目标总时长允许，只调整与叙事相容的余量，不得用小数秒或低于 4 秒的片段凑总长。`
+    + `若 opening 建立了对手车、人群或其它可计数的核心对象，后续位次、次数和声音必须与已建立总数自洽，不得新增未出现的第三台、第三位或额外次数。`
     + `逐节点内容、数量和时长仍由本次模型创作，输出前核对节点数与时长之和；不得用预制节点或返回后补值替代。`;
   const exampleAt = suffix.indexOf(example);
   return value.slice(0, value.length - suffix.length) + guidance
@@ -848,7 +889,11 @@ ${example}
 }
 
 /** Extend the schema supplied to the existing SceneArchitect run, preserving its other fields. */
-export function structuredSceneSchema(value: unknown, segments?: FrozenSegmentContract): RequirementRecord {
+export function structuredSceneSchema(
+  value: unknown,
+  segments?: FrozenSegmentContract,
+  options: { middleMinimum?: 4 } = {},
+): RequirementRecord {
   const schema = structuredClone(requirementRecord(value, "SceneArchitect schema"));
   const properties = requirementRecord(schema.properties, "场景 schema.properties");
   const physical = {
@@ -874,6 +919,12 @@ export function structuredSceneSchema(value: unknown, segments?: FrozenSegmentCo
   const middle = requirementRecord(properties.scenes, "主体场景 schema");
   extend(middle.items);
   middle.minItems = 0;
+  if (!segments && options.middleMinimum === 4) {
+    const middleProperties = requirementRecord(requirementRecord(middle.items, "主体场景 item").properties,
+      "主体场景 item properties");
+    const duration = requirementRecord(middleProperties.duration, "主体场景 duration schema");
+    if (typeof duration.minimum === "number" && duration.minimum > 4) duration.minimum = 4;
+  }
   if (segments) {
     const bounds = structuredSceneTiming(schema, segments.totalSeconds);
     const middleCount = segments.count - 2, duration = segments.secondsPerSegment;

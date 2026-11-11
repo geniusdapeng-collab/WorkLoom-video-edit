@@ -12,7 +12,7 @@
  */
 import { inspectBulletTimeMotion, type BulletTimeCapabilities } from "./bullet-time.js";
 
-export const PROMPT_REDLINE_POLICY_VERSION = "workloom.prompt-redlines/v1" as const;
+export const PROMPT_REDLINE_POLICY_VERSION = "workloom.prompt-redlines/v2" as const;
 
 export interface RedlineIssue { id: string; detail: string; why: string; hard: boolean }
 
@@ -20,6 +20,7 @@ export interface RedlineShotLike {
   shotId?: string;
   scene?: unknown; sceneDescription?: unknown; action?: unknown; props?: unknown; negative?: unknown;
   composition?: unknown; camera_movement?: unknown; timeline?: unknown; constraint?: unknown;
+  fields?: unknown; prompt?: unknown;
   [key: string]: unknown;
 }
 
@@ -37,18 +38,25 @@ function positiveOnly(value: string): string {
     .join("；");
 }
 const text = (value: unknown): string => String(value ?? "");
-const allText = (shot: RedlineShotLike, keys: string[]): string => keys.map((key) => text(shot[key])).join("；");
+const allText = (shot: RedlineShotLike, keys: string[]): string => {
+  const nested = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
+    ? shot.fields as Record<string, unknown>
+    : {};
+  return keys.flatMap((key) => [shot[key], nested[key]]).map(text).filter(Boolean).join("；");
+};
 
-export function auditShotRedlines(shot: RedlineShotLike, options: { fps?: number; bulletTimeCapabilities?: BulletTimeCapabilities } = {}): RedlineIssue[] {
+export function auditShotRedlines(shot: RedlineShotLike, options: {
+  fps?: number; aspect?: string; bulletTimeCapabilities?: BulletTimeCapabilities;
+} = {}): RedlineIssue[] {
   const issues: RedlineIssue[] = [];
   const add = (id: string, detail: string, why: string, hard = true): void => { issues.push({ id, detail, why, hard }); };
-  const visual = positiveOnly(allText(shot, ["scene", "sceneDescription", "composition", "action", "props"]));
-  const negative = text((shot as Record<string, unknown>).negative);
-  const camera = text((shot as Record<string, unknown>).camera_movement);
-  const timeline = text((shot as Record<string, unknown>).timeline);
+  const visual = positiveOnly(allText(shot, ["scene", "sceneDescription", "composition", "action", "props", "prompt"]));
+  const negative = allText(shot, ["negative"]);
+  const camera = allText(shot, ["camera_movement"]);
+  const timeline = allText(shot, ["timeline"]);
 
   // ① 屏幕文字：出现屏幕就必须写明"虚化/不可辨认/光晕"，并把文字与 LOGO 放进负面清单
-  if (/屏幕|触控|显示|界面/.test(visual) && !/(背对|不可见|不朝镜头)/.test(allText(shot, ["sceneDescription","composition"]))) {
+  if (/屏幕|触控(?:屏|面)|显示器|操作界面|用户界面|屏幕界面/.test(visual) && !/(背对|不可见|不朝镜头)/.test(allText(shot, ["sceneDescription","composition"]))) {
     if (!/(虚化|不可辨|光晕|过曝成色块|不出现任何可读)/.test(visual)) {
       add("screen-must-be-blurred", `${shot.shotId}：画面含屏幕，但没有写「界面虚化/不可辨认/只保留柔光光晕」`, "模型默认会把界面渲染成可读文字（FP-02 真机返修）");
     }
@@ -96,11 +104,33 @@ export function auditShotRedlines(shot: RedlineShotLike, options: { fps?: number
   if (/手|待提交|放置|取出|捏住/.test(visual) && !/无多余手指|无六指/.test(negative)) {
     add("hands-negative", `${shot.shotId}：含手部动作，但负面清单缺「无多余手指/六指」`, "手部畸变是最常见的返修项", false);
   }
+  // ⑧ 竖屏横向结构：领奖台、舞台、联排台阶等横向分组结构若只用“三层/左右/两侧”
+  // 一笔带过，模型常优先保住人物中近景而裁掉侧翼。这里要求把几何关系写成可执行约束。
+  const declaredAspect = allText(shot, ["constraint"]).match(/(\d+)\s*:\s*(\d+)\s*画幅/);
+  const fallbackAspect = String(options.aspect ?? "").match(/^(\d+)\s*:\s*(\d+)$/);
+  const aspect = declaredAspect ?? fallbackAspect;
+  const portrait = aspect && Number(aspect[1]) < Number(aspect[2]);
+  const horizontalStructure = /领奖台|舞台|展台|台体|台阶|阶梯|主背板|背景墙|门架|龙门架|横梁|长廊|连廊|环形灯|灯光矩阵/.test(visual);
+  const groupedStructure = /三层|多层|左右|两侧|左中右|联排|并列|横向|一整排/.test(visual);
+  if (portrait && horizontalStructure && groupedStructure) {
+    const lockedCamera = /(?:领奖台|舞台|展台|台体|结构)[^；。\n]{0,60}(?:三分之四|3\s*\/\s*4|斜侧|近侧斜侧|偏侧)[^；。\n]{0,30}(?:机位|视角|构图)|(?:三分之四|3\s*\/\s*4|斜侧|近侧斜侧|偏侧)[^；。\n]{0,30}(?:机位|视角|构图)[^；。\n]{0,60}(?:领奖台|舞台|展台|台体|结构)/.test(visual);
+    const lockedBoundary = /(?:左右|两侧|左中右)[^；。\n]{0,60}(?:完整入画|可见边界|边缘完整|不被裁切|不裁切|不被遮挡|均清晰可辨|全部在画内)|(?:每块|三个|三块)[^；。\n]{0,30}(?:台体|台面)[^；。\n]{0,30}(?:可见|边界|不重叠)|(?:左右|两侧)[^；。\n]{0,100}(?:贴近画框|部分出画|轻微出画)[^；。\n]{0,100}(?:层数|高差|内缘)[^；。\n]{0,50}(?:清晰|可辨)|(?:层数|高差|内缘)[^；。\n]{0,50}(?:清晰|可辨)[^；。\n]{0,100}(?:贴近画框|部分出画|轻微出画)/.test(visual);
+    const lockedRelativePosition = /(?:左|右|两侧)[^；。\n]{0,50}(?:低于|低台|矮台|次高)|(?:中央|中间)[^；。\n]{0,40}(?:最高|高台)/.test(visual);
+    if (!(lockedCamera && lockedBoundary && lockedRelativePosition)) {
+      add(
+        "vertical-horizontal-structure-framing",
+        `${shot.shotId}：${aspect[1]}:${aspect[2]} 竖屏含横向分组结构，但未同时锁定近侧三分之四机位、左右可见边界和子结构相对高度`,
+        "竖屏会优先保留人物中近景并裁掉横向侧翼；仅写“三层/左右”无法保证模型把结构完整、按比例生成，必须把机位、可见边界和左中右相对位置写成同一组可执行约束",
+      );
+    }
+  }
   return issues;
 }
 
 /** 整片红线汇总：hard 项必须清零才允许进入花钱阶段（fail-closed） */
-export function auditFilmRedlines(shots: readonly RedlineShotLike[], options: { fps?: number; bulletTimeCapabilities?: BulletTimeCapabilities } = {}): {
+export function auditFilmRedlines(shots: readonly RedlineShotLike[], options: {
+  fps?: number; aspect?: string; bulletTimeCapabilities?: BulletTimeCapabilities;
+} = {}): {
   policy: typeof PROMPT_REDLINE_POLICY_VERSION;
   hard: RedlineIssue[]; soft: RedlineIssue[]; perShot: Array<{ shotId: string; issues: RedlineIssue[] }>;
 } {

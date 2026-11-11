@@ -177,6 +177,39 @@ describe("native successful field repair synchronization", () => {
     await expect(h.accepted(async () => { await batch(native.repairer, shot(), ["character_constraint"]); })).rejects.toThrow(/PRD_FIELD_REPAIR_SCOPE/);
   });
 
+  it("keeps a verified negative baseline when a model repair replaces it with an audio instruction", async () => {
+    const h = harness(), source = shot();
+    const baseline = "no text anywhere in frame, no watermark, no readable characters, no duplicate rider";
+    Object.assign(source, { negative: baseline, fields: { ...requirementRecord(source.fields, "source fields"),
+      negative: baseline, mood: source.mood } });
+    const native = repairer([{
+      negative: "现场原生声不得被静音或被音乐替换；无人声歌词与可辨词句；器乐仅限授权铺底。",
+      mood: "克制而自信",
+    }]);
+    await h.accepted(async () => {
+      const result = await batch(native.repairer, source, ["negative", "mood"]);
+      const final = expectCurrentAliases(result, "negative", baseline);
+      expectCurrentAliases(result, "mood", "克制而自信");
+      expect(final.fields).toMatchObject({ negative: baseline, mood: "克制而自信" });
+      expect(result.actions).toEqual([expect.objectContaining({ fieldEn: "mood", after: "克制而自信" })]);
+    });
+  });
+
+  it("keeps the negative baseline for an approved silent run without a frozen segment contract", async () => {
+    const h = harness(false), source = shot();
+    const baseline = "no text anywhere in frame, no watermark, no readable characters, no duplicate rider";
+    Object.assign(source, { negative: baseline, fields: { ...requirementRecord(source.fields, "source fields"),
+      negative: baseline, mood: source.mood } });
+    const native = repairer([{
+      negative: "生成画面内不出现模型自创文字、水印、可读招牌或品牌标识；后期合规字幕不计入生成文字。",
+    }]);
+    await h.accepted(async () => {
+      const result = await batch(native.repairer, source, ["negative"]);
+      expectCurrentAliases(result, "negative", baseline);
+      expect(result.actions).toEqual([]);
+    });
+  });
+
   it("rejects an unknown field accepted by the permissive native parser", async () => {
     const h = harness(), native = repairer([{ character_constraint: repairedText, another_character: "未声明人物" }]);
     await expect(h.accepted(async () => { await batch(native.repairer, shot(), ["character_constraint"]); })).rejects.toThrow(/PRD_FIELD_REPAIR_SCOPE/);

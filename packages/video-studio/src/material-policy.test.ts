@@ -120,6 +120,47 @@ describe("素材镜生成提示词", () => {
     expect(productPrompt).not.toContain("地标/建筑");
     expect(productPrompt).not.toContain("无 LOGO");
   });
+  it("商品素材模式编译完整 25 字段中的叙事与现场约束", () => {
+    const complete = buildMaterialScenePrompt({
+      ...baseShot,
+      fields: {
+        director_instruction: "国际大赛主看台中的车队纵深",
+        baseline: "照片级实拍竞速广告",
+        character: "主角与八名全盔职业对手骑手同场",
+        action: "主角从外线连续超越多名对手摩托车",
+        portraits: "主角 front/closeup + 商品三角度参考",
+        costume: "所有骑手穿全覆赛车服并戴全盔",
+        composition: "后追随中广景，前后多层摩托车压出竞速纵深",
+        timeline: "T00:00-00:02 追近车群；T00:02-00:05 连续超越",
+        consistency: "对手车全部为两轮摩托车，禁止汽车与四轮车",
+        depth_of_field: "前景车身实焦，多层车群由近及远保持可辨",
+        mood: "紧张、热血、克制",
+        pacing: "连续压迫后完成超越",
+        audio: "只保留现场发动机、胎噪与风切",
+        makeup: "面罩闭合不露脸",
+        transition: "硬切承接前镜方向",
+        character_constraint: "每辆对手车都由可见全盔骑手驾驶",
+        bright_constraint: "摩托车车身与骑手轮廓清晰",
+      },
+    }, {
+      referenceMode: "product",
+    });
+    expect(complete).toContain("【导演指令】国际大赛主看台中的车队纵深");
+    expect(complete).toContain("【基础】照片级实拍竞速广告");
+    expect(complete).toContain("【角色】主角与八名全盔职业对手骑手同场");
+    expect(complete).toContain("【动作】主角从外线连续超越多名对手摩托车");
+    expect(complete).toContain("【参考图字段】主角 front/closeup + 商品三角度参考");
+    expect(complete).toContain("【服装】所有骑手穿全覆赛车服并戴全盔");
+    expect(complete).toContain("【构图】后追随中广景");
+    expect(complete).toContain("【时间轴】T00:00-00:02");
+    expect(complete).toContain("【连续性与一致性】对手车全部为两轮摩托车");
+    expect(complete).toContain("【景深】前景车身实焦");
+    expect(complete).toContain("【情绪】紧张、热血、克制");
+    expect(complete).toContain("【节奏】连续压迫后完成超越");
+    expect(complete).toContain("【声音】只保留现场发动机");
+    expect(complete).toContain("【妆发】面罩闭合不露脸");
+    expect(complete).toContain("【转场】硬切承接前镜方向");
+  });
 
   it("平稳运镜保持意图，不被升级成速度坡道", () => {
     expect(prompt).toContain("运动强度要求");

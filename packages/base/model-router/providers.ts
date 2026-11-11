@@ -43,7 +43,7 @@ export interface ChatUsageReceipt {
 /** Measured stop with a blank final JSON-mode message. This is failure evidence. */
 export type NativeBlankJsonReceipt = Readonly<{
   modelId: typeof DEEPSEEK_FLASH_MODEL_ID;
-  responseId: string;
+  responseId: string | null;
   requestHash: string;
   responseHash: string;
   promptTokens: number;
@@ -270,7 +270,12 @@ function objectRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function completionUsage(data: OpenAiResponse, thinkingEnabled: boolean, outputCeiling: number) {
+function completionUsage(
+  data: OpenAiResponse,
+  thinkingEnabled: boolean,
+  outputCeiling: number,
+  options: { allowReasoningWhenDisabled?: boolean } = {},
+) {
   const promptTokens = data.usage?.prompt_tokens;
   const completionTokens = data.usage?.completion_tokens;
   const totalTokens = data.usage?.total_tokens;
@@ -282,7 +287,7 @@ function completionUsage(data: OpenAiResponse, thinkingEnabled: boolean, outputC
   if (reasoningTokens !== undefined && (!safeInteger(reasoningTokens) || reasoningTokens > completionTokens)) {
     throw new ModelProviderError("模型 reasoning_tokens 无效", "protocol", { retryable: false });
   }
-  if (!thinkingEnabled && reasoningTokens !== undefined && reasoningTokens !== 0) {
+  if (!thinkingEnabled && !options.allowReasoningWhenDisabled && reasoningTokens !== undefined && reasoningTokens !== 0) {
     throw new ModelProviderError("非思考场景返回了 reasoning tokens", "protocol", { retryable: false, unknown: true });
   }
   if (completionTokens > outputCeiling || totalTokens > DEEPSEEK_FLASH_CONTEXT_TOKENS) {
@@ -291,13 +296,25 @@ function completionUsage(data: OpenAiResponse, thinkingEnabled: boolean, outputC
   return { promptTokens, completionTokens, reasoningTokens: reasoningTokens ?? 0 };
 }
 
-function isNativeChatJsonMessage(data: OpenAiResponse): data is OpenAiResponse & { id: string } {
+function isNativeChatJsonMessage(
+  data: OpenAiResponse,
+  contentMode: "text" | "blank" = "text",
+): boolean {
   const choice = data.choices?.[0];
   const message = objectRecord(choice?.message);
   const usage = objectRecord(data.usage);
-  if (data.object !== "chat.completion" || data.error != null || typeof data.id !== "string" || !data.id.trim()
+  const content = message?.content;
+  const contentValid = contentMode === "text"
+    ? typeof content === "string"
+    // Some OpenAI-compatible providers encode an absent final JSON message as
+    // null instead of an empty string. It remains blank only inside the same
+    // complete native envelope and is never accepted as a successful answer.
+    : content === null || typeof content === "string";
+  const hasResponseId = typeof data.id === "string" && Boolean(data.id.trim());
+  if (data.object !== "chat.completion" || data.error != null
+    || (!hasResponseId && contentMode !== "blank")
     || !Array.isArray(data.choices) || data.choices.length !== 1 || choice?.index !== 0 || choice.finish_reason !== "stop"
-    || message?.role !== "assistant" || typeof message.content !== "string"
+    || message?.role !== "assistant" || !contentValid
     || message.refusal != null || message.function_call != null
     || (message.tool_calls != null && (!Array.isArray(message.tool_calls) || message.tool_calls.length !== 0))
     || !usage || (usage.completion_tokens_details != null && !objectRecord(usage.completion_tokens_details))) return false;
@@ -486,7 +503,10 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     return this.#matchesBlankDispatch(before) && after?.provider === this && after.finalJson === true
       && this.#matchesTransport(after, DEEPSEEK_CHAT_PATH) && before.scene === second.scene
       && before.mode === second.mode && before.effort === second.effort
-      && first.requestHash !== second.requestHash && first.responseId !== second.responseId;
+      && first.requestHash !== second.requestHash
+      && (first.responseId === null || second.responseId === null
+        ? first.responseHash !== second.responseHash
+        : first.responseId !== second.responseId);
   }
 
   #matchesTransport(dispatched: OpenAiTransport, path: typeof DEEPSEEK_CHAT_PATH | typeof DEEPSEEK_RESPONSES_PATH): boolean {
@@ -733,31 +753,46 @@ export class OpenAiCompatibleProvider implements ModelProvider {
           { retryable: false },
         );
       }
-      if (!thinkingEnabled && String(choice.message?.reasoning_content ?? "").trim()) {
-        throw new ModelProviderError("非思考场景返回了 reasoning_content", "protocol", {
-          retryable: false,
-          unknown: true,
-        });
-      }
+      const unrequestedReasoning = !thinkingEnabled && Boolean(String(choice.message?.reasoning_content ?? "").trim());
       const text = textFromContent(choice.message?.content);
       if (!text) {
         const error = new ModelProviderError("模型返回 content 为空", "empty", { retryable: false });
+        let blankAttested = false;
         // Preserve the ordinary empty-content error. Only the native nonstream
         // Chat JSON wire may supply evidence of a complete, measured failure.
         if (!structuredRequest && this.modelId === DEEPSEEK_FLASH_MODEL_ID && responseFormat?.type === "json_object" && attempt === 1
           && response.status === 200 && !response.redirected && !signal.aborted
-          && isNativeEndpoint(transport.endpoint, DEEPSEEK_CHAT_PATH) && isNativeChatJsonMessage(data)
-          && !/[^ ]/u.test(choice.message?.content as string)) {
+          && isNativeEndpoint(transport.endpoint, DEEPSEEK_CHAT_PATH) && isNativeChatJsonMessage(data, "blank")
+          && (choice.message?.content === null || !/[^ ]/u.test(choice.message?.content as string))) {
           try {
-            const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
-            const receipt = Object.freeze({ ...usage, modelId: this.modelId, responseId: data.id, requestHash, responseHash });
+            // A provider can leave reasoning content/tokens on an otherwise
+            // fully measured blank JSON reply. That is still failure evidence,
+            // never a successful answer, and may enter the one bounded repair.
+            const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling, {
+              allowReasoningWhenDisabled: true,
+            });
+            const receipt = Object.freeze({ ...usage, modelId: this.modelId,
+              responseId: typeof data.id === "string" && data.id.trim() ? data.id : null, requestHash, responseHash });
             nativeBlankJsonErrors.set(error, receipt);
             nativeBlankJsonDispatches.set(receipt, { ...transport, provider: this, scene: opts.scene ?? "generic", mode, effort });
+            blankAttested = true;
           } catch (validationError) {
             if (!(validationError instanceof ModelProviderError)) throw validationError;
           }
         }
+        if (unrequestedReasoning && !blankAttested) {
+          throw new ModelProviderError("非思考场景返回了 reasoning_content", "protocol", {
+            retryable: false,
+            unknown: true,
+          });
+        }
         throw error;
+      }
+      if (unrequestedReasoning) {
+        throw new ModelProviderError("非思考场景返回了 reasoning_content", "protocol", {
+          retryable: false,
+          unknown: true,
+        });
       }
       const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
 

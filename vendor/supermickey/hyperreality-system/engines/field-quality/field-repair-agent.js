@@ -242,6 +242,13 @@ class RuleRepairer {
           ? current.map(p => typeof p === 'string' ? p : (p && p.path ? p.path : JSON.stringify(p))).join(', ')
           : String(current);
         let normalized = portraitsStr.replace(/^['"]|['"]$/g, '').trim();
+        const portraitValues = normalized.split(/[,，;；]/).map(value => value.trim()).filter(Boolean);
+        const canonicalPortrait = /^image:\/\/characters\/[^,\s;，；]+(?:\/[^,\s;，；]+)+$/i;
+        const portraitNotApplicable = portraitValues.length > 0
+          && portraitValues.every(value => /^(?:NONE|N\/A|NA|NOT_APPLICABLE|不适用|无角色出场|无角色|无人物)$/i.test(value));
+        if (portraitNotApplicable || (portraitValues.length > 0 && portraitValues.every(value => canonicalPortrait.test(value)))) {
+          continue;
+        }
         if (prd && prd.characters.length) {
           const charName = prd.characters[0].nameEn || 'character';
           normalized = `/characters/${charName}/portrait_v1.png`;

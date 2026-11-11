@@ -62,7 +62,15 @@ export type JsonObject = Record<string, unknown>;
 export type ImageProof = { urlHash: string; width: number; height: number };
 export type Resolution = "720p" | "1080p";
 export type BudgetScope = {
-  video: { seconds: number | null; ratio: string | null; resolution: Resolution | null };
+  video: {
+    /** Fixed segment length for frozen structured-scene schemas. */
+    seconds: number | null;
+    ratio: string | null;
+    resolution: Resolution | null;
+    /** Optional final-media contract for non-uniform approved shot durations. */
+    allowedSeconds?: number[];
+    totalSeconds?: number;
+  };
   inlineImageSha256: string[];
 };
 export type Claim =
@@ -175,26 +183,46 @@ const ARK_DIMENSIONS: Record<Resolution, Record<string, readonly [number, number
 export function normalizeBudgetScope(value: unknown = {}): BudgetScope {
   fields(value, ["video", "inlineImageSha256"]);
   const video = value.video ?? {};
-  fields(video, ["seconds", "ratio", "resolution"]);
+  fields(video, ["seconds", "ratio", "resolution", "allowedSeconds", "totalSeconds"]);
   const seconds = video.seconds ?? null;
   const ratio = video.ratio ?? null;
   const resolution = video.resolution ?? null;
+  const allowedSeconds = video.allowedSeconds;
+  const totalSeconds = video.totalSeconds;
   check(seconds === null || safeInteger(seconds, TASK_CAPS.minVideoSeconds) && seconds <= TASK_CAPS.maxVideoSeconds,
     "BUDGET_SCOPE_INVALID", 503);
+  check((allowedSeconds === undefined && totalSeconds === undefined)
+    || (Array.isArray(allowedSeconds) && allowedSeconds.length > 0 && allowedSeconds.length <= 64
+      && allowedSeconds.every(value => safeInteger(value, TASK_CAPS.minVideoSeconds) && value <= TASK_CAPS.maxVideoSeconds)
+      && new Set(allowedSeconds).size === allowedSeconds.length
+      && safeInteger(totalSeconds, TASK_CAPS.minVideoSeconds)
+      && totalSeconds <= TASK_CAPS.maxVideoSeconds * 64),
+  "BUDGET_SCOPE_INVALID", 503);
   check(ratio === null || typeof ratio === "string" && Object.hasOwn(ARK_DIMENSIONS["1080p"], ratio), "BUDGET_SCOPE_INVALID", 503);
   check(resolution === null || resolution === "720p" || resolution === "1080p", "BUDGET_SCOPE_INVALID", 503);
   const images = value.inlineImageSha256 ?? [];
   check(Array.isArray(images) && images.length <= 128 && images.every(safeHash)
     && new Set(images).size === images.length, "BUDGET_SCOPE_INVALID", 503);
-  return { video: { seconds, ratio, resolution }, inlineImageSha256: [...images].sort() };
+  return {
+    video: {
+      seconds, ratio, resolution,
+      ...(allowedSeconds === undefined ? {} : {
+        allowedSeconds: [...allowedSeconds as number[]].sort((left, right) => left - right),
+        totalSeconds: totalSeconds as number,
+      }),
+    },
+    inlineImageSha256: [...images].sort(),
+  };
 }
 
 export const videoMicroCny = (resolution: Resolution, providerTokens: number): number => providerTokens * (resolution === "1080p" ? 77 : 70);
 function videoEstimate(resolution: Resolution, ratio: string, seconds: number): number {
   const dimensions = Object.hasOwn(ARK_DIMENSIONS[resolution], ratio) ? ARK_DIMENSIONS[resolution][ratio] : undefined;
   check(dimensions);
-  // Official no-video-input estimate at 24 fps. Terminal usage is reconciled separately.
-  return videoMicroCny(resolution, Math.ceil(seconds * dimensions[0] * dimensions[1] * 24 / 1024));
+  // Official no-video-input estimate at 24 fps, with a bounded 2% reservation
+  // buffer for provider token rounding. Terminal usage is still reconciled to
+  // exact reported tokens; a larger real overrun remains fail-closed.
+  return Math.ceil(videoMicroCny(resolution, Math.ceil(seconds * dimensions[0] * dimensions[1] * 24 / 1024)) * 1.02);
 }
 
 async function llmClaim(body: JsonObject, scope: BudgetScope, known: FindImage): Promise<Claim> {
@@ -360,7 +388,10 @@ function videoClaim(body: JsonObject, scope: BudgetScope, known: FindImage): Cla
     && body.duration <= TASK_CAPS.maxVideoSeconds && (body.resolution === "720p" || body.resolution === "1080p"));
   check(["generate_audio", "watermark", "return_last_frame"].every((key) => body[key] === undefined || typeof body[key] === "boolean"));
   check(body.output_format === undefined || body.output_format === "mp4");
-  check(Array.isArray(body.content) && body.content.length >= 1 && body.content.length <= 5);
+  // Seedance 2.5 accepts up to 30 reference images; the text prompt is the
+  // additional content item. Keep the gateway aligned with the model catalog
+  // instead of imposing the legacy four-image ceiling.
+  check(Array.isArray(body.content) && body.content.length >= 1 && body.content.length <= 31);
   const [prompt, ...images] = body.content as unknown[];
   fields(prompt, ["type", "text"]);
   check(prompt.type === "text" && someText(prompt.text));
@@ -387,9 +418,12 @@ function videoClaim(body: JsonObject, scope: BudgetScope, known: FindImage): Cla
     check(body.omni_reference_task_type === undefined || images.length > 0 && body.omni_reference_task_type === "reference");
   }
   check(typeof ratio === "string" && Object.hasOwn(ARK_DIMENSIONS[body.resolution], ratio));
+  const durationAllowed = scope.video.allowedSeconds === undefined
+    ? scope.video.seconds === null || scope.video.seconds === body.duration
+    : scope.video.allowedSeconds.includes(body.duration);
   check((scope.video.ratio === null || scope.video.ratio === ratio)
     && (scope.video.resolution === null || scope.video.resolution === body.resolution)
-    && (scope.video.seconds === null || scope.video.seconds === body.duration), "BUDGET_VIDEO_SCOPE_MISMATCH");
+    && durationAllowed, "BUDGET_VIDEO_SCOPE_MISMATCH");
   return { kind: "video", seconds: body.duration, ratio, resolution: body.resolution,
     microCny: videoEstimate(body.resolution, ratio, body.duration) };
 }

@@ -51,12 +51,13 @@ function sameNamedLead(clause: string, scope: RivalIdentityScope): boolean {
 /** The caller supplies its verified current G4 snapshot, never generated shot prose. */
 export function reviewedRivalIdentity(input: {
   contract: RequirementContract;
-  cuts: FrozenSegmentContract;
+  cuts: FrozenSegmentContract | undefined;
   reviewedPrd: RequirementRecord;
   shotId: string;
   duration: unknown;
 }): RivalIdentityScope | undefined {
   const { contract, cuts, reviewedPrd, shotId, duration } = input;
+  if (!cuts) return undefined;
   const index = contract.scenes.findIndex(scene => scene.id === shotId);
   const scene = contract.scenes[index], interval = cuts.intervals[index];
   if (!scene || !interval || duration !== scene.duration || duration !== cuts.secondsPerSegment

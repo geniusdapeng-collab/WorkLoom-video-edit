@@ -54,7 +54,7 @@ import { acceptRenderedShot, findRenderedShotAcceptance, RENDERED_SHOT_ACCEPTANC
 import { buildProducerReviewContract, type ProducerGateOptions } from "../../packages/video-studio/src/producer-gate.js";
 import { assessPortraitDecision, selectPortraitDecisionRecord } from "../../packages/video-studio/src/portrait-decision.js";
 import { hasExplicitPortraitAuthorization, verifyPortraitOwnerAuthorization, type PortraitOwnerAuthorization } from "../../packages/video-studio/src/portrait-owner-authorization.js";
-import { loadCharacterEntry, readPortraitArtifact, resolveShotCast } from "../../packages/video-studio/src/character-archive.js";
+import { loadCharacterEntry, readPortraitArtifact, resolveShotCast, resolveSingleSourceCast } from "../../packages/video-studio/src/character-archive.js";
 import { buildVideoSubmissionRequest, type VideoSubmissionImage, type VideoSubmissionRequest } from "../../packages/video-studio/src/video-submission-request.js";
 import { runVideoSubmission, readVideoSubmissionRecovery, verifyVideoSubmissionArtifacts, type VideoSubmissionArtifact, type VideoSubmissionResult } from "../../packages/video-studio/src/video-submission-task.js";
 import { executeRevision } from "../../packages/video-studio/src/revision-executor.js";
@@ -98,7 +98,7 @@ import {
 import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../../packages/video-studio/src/shot-intent.js";
 import { DEFAULT_COVER_INTRO_SECONDS, canonicalCoverIntroPath, canonicalCoverIntroRelativePath, parseCoverIntroSeconds } from "./lib/cover-delivery-policy.mjs";
 import { verifyAvSyncEvidence } from "../../packages/video-studio/src/av-sync.js";
-import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, selectProductArchive, autoBindProductSelector } from "../../packages/video-studio/src/product-archive.js";
+import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, productReferencePhotos, selectProductArchive, autoBindProductSelector } from "../../packages/video-studio/src/product-archive.js";
 import { assertShotMatchesCertifiedAsset, assetIdOf, hasIdentityAnchor, identityAnchorContext, identityAnchorPath, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, referenceAssetRefs, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
 import { auditFilmRedlines, PROMPT_REDLINE_POLICY_VERSION } from "../../packages/video-studio/src/prompt-redlines.js";
 import { assessFilmFirstPass, FIRST_PASS_POLICY_VERSION } from "../../packages/video-studio/src/first-pass.js";
@@ -113,6 +113,7 @@ import {
 import { REALISM_CLAUSE, REALISM_NEGATIVE_TERMS } from "../../packages/video-studio/src/shot-spec.js";
 import { resolveFilmSpeechLanguage, dialogueLines, speechLanguageClause, exactDialogueClause, noSpeechClause, speechNegativeTerms } from "../../packages/video-studio/src/dialogue-contract.js";
 import { reviewPlausibility, applyPromptPatches, PLAUSIBILITY_POLICY_VERSION } from "../../packages/video-studio/src/plausibility-review.js";
+import { PRODUCT_APPEARANCE_PRIORITY_POLICY, reconcileProductAppearancePrompt } from "../../packages/video-studio/src/product-appearance-priority.js";
 import { createGenerationQuality } from "./generation-quality.mjs";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
 import { FullChainFilmWorker } from "../../packages/video-studio/src/film-worker-runtime.js";
@@ -1803,6 +1804,13 @@ const generatedShots = (): ShotCard[] => pendingShots().filter((shot) => !isMate
 const materialShots = (): ShotCard[] => shots.filter((shot) => isMaterialShot(shot));
 /** 商品镜：素材镜里由 G-PROD1 绑定真实商品档案的镜头（参考图锁的是**产品外观**，不要求复刻参考构图） */
 const isProductMaterialShot = (shot: ShotCard): boolean => Boolean((shot as Record<string, unknown>).productRef);
+function productReferencePaths(shot: ShotCard): string[] {
+  const productRef = (shot as Record<string, unknown>).productRef as Record<string, unknown> | undefined;
+  if (!productRef || !Array.isArray(productRef.photos)) return [];
+  return [...new Set(productRef.photos
+    .map((photo) => photo && typeof photo === "object" ? String((photo as Record<string, unknown>).path ?? "").trim() : "")
+    .filter((file) => file && existsSync(file)))];
+}
 /** 需要提示词文生关键帧/台词的人镜两类：生成镜 + 授权真人素材镜（素材镜另有动效提示词） */
 const promptShots = (): ShotCard[] => pendingShots().filter((shot) => !isMaterialShot(shot));
 const assetShots = (): ShotCard[] => shots.filter((shot) => isAssetShot(shot) && !isMaterialShot(shot));
@@ -1831,7 +1839,13 @@ function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: st
   const hasDoc = /身份证|证件|护照|单据|票据/.test(text);
   const docOk = /(不可辨|背面|无证件文字|无身份证|不出现)/.test(text);
   if (hasDoc && !docOk) issues.push("证件类道具未声明不可辨认/背面/不入画——会出现可辨字迹与号码（隐私红线，真机返修 5 次）");
-  if (/定住|稳住|定格/.test(text) && /推|拉|移|摇|环绕/.test(text) && !inspectBulletTimeMotion(input.shot, BULLET_TIME_CAPABILITIES).motionException) {
+  const freezeLanguage = /定住|定格|稳住(?:画面|机位|构图)/.test(text);
+  const cameraMoveLanguage = /推|拉|移|摇|环绕/.test(text);
+  const explicitPullbackToRest = /极缓慢单轴后拉/.test(text)
+    && /收至静止|落幅静止|落幅停在/.test(text)
+    && !/同时推近|同时拉近|边后拉边/.test(text);
+  if (freezeLanguage && cameraMoveLanguage && !explicitPullbackToRest
+    && !inspectBulletTimeMotion(input.shot, BULLET_TIME_CAPABILITIES).motionException) {
     issues.push("同一镜同时锁\"定住\"时点与推拉运镜，且没有合法的 bulletTime 主体时间/摄影机时间分层合同——落幅必漂");
   }
   const fpsMatch = text.match(/(\d{2})\s*fps/i);
@@ -1897,11 +1911,14 @@ let FIRST_PASS_ORDER: ShotCard[] = shots;
 /* ---------- ⓪-0.4 提示词红线门（G-RL1，T-2026-0929-0008：提高一次过率） ---------- */
 /**
  * 每一次"渲完才发现"的返修，都对应一条可以提前写死在卡片里的红线。这里在**花钱之前**统一清零：
- * 屏幕文字/图标/LOGO、证件字迹与号码、卡片类道具重复、timeline 定住而运镜没定住、卡片与管线帧率不一致。
+ * 屏幕文字/图标/LOGO、证件字迹与号码、卡片类道具重复、timeline 定住而运镜没定住、卡片与管线帧率不一致，
+ * 以及竖屏横向分组结构未锁定机位、可见边界和相对位置。
  * hard 项不清零就 fail-closed；soft 项进证据与日志（不阻断，但必须被看见）。
  */
 {
-  const redlines = auditFilmRedlines(preRenderShots as unknown as Array<Record<string, unknown>>, { fps: FPS, bulletTimeCapabilities: BULLET_TIME_CAPABILITIES });
+  const redlines = auditFilmRedlines(preRenderShots as unknown as Array<Record<string, unknown>>, {
+    fps: FPS, aspect: ASPECT, bulletTimeCapabilities: BULLET_TIME_CAPABILITIES,
+  });
   const shotIds = shots.map((shot) => String(shot.shotId));
   const redlineGate = recordGate({
     stepKey: "g-prompt-redlines",
@@ -2076,11 +2093,19 @@ for (const shot of preRenderShots) {
   }
   card.productRef = {
     id: match.archive.id,
+    displayName: match.archive.displayName,
+    category: match.archive.category ?? null,
     sourceKind: match.archive.source.kind,
     priority: match.archive.source.priority,
     matchedBy: match.matchedBy,
     photo: hero.file,
     photoSha256: hero.sha256,
+    photos: productReferencePhotos(match.archive, 4).map((photo) => ({
+      file: photo.file,
+      path: productPhotoPath(entry, photo),
+      angle: photo.angle ?? null,
+      sha256: photo.sha256,
+    })),
     reviewStatus: match.archive.source.reviewStatus ?? null,
     bound
   };
@@ -2246,6 +2271,12 @@ if (strictSourceCast && needsNewRender && (!sourceCast || !Array.isArray(sourceC
   || sourceCast.characters.some(({ id }) => typeof id !== "string" || !characters.has(id)))) {
   throw new Error("SOURCE_CAST_LIBRARY_MISMATCH");
 }
+const sourceCharacter = (() => {
+  const explicit = sourceDocument.character as { id?: unknown; name?: unknown; appearanceInShots?: unknown } | undefined;
+  if (typeof explicit?.id === "string" || typeof explicit?.name === "string") return explicit;
+  const selected = strictSourceCast ? resolveSingleSourceCast(sourceCast, characters) : undefined;
+  return selected ? { id: selected.id, name: selected.name } : undefined;
+})();
 /**
  * 选角（2026-09-24 规则）：
  *   ① 镜头卡/项目显式指定 → 用指定的；
@@ -2259,11 +2290,13 @@ let portraitReferenceAuthorization: PortraitOwnerAuthorization | null = null;
 let portraitReferenceAuthorizationPaths: string[] = [];
 const lead = (() => {
   const list = [...characters.values()];
-  const explicitId = shotlist.character?.id ?? "";
-  const explicitName = shotlist.character?.name ?? "";
+  const explicitId = sourceCharacter?.id ?? "";
+  const explicitName = sourceCharacter?.name ?? "";
   const byExplicit = list.find((c) => c.id === explicitId || (!strictSourceCast && c.name === explicitName));
   if (byExplicit) return byExplicit;
   if (strictSourceCast) {
+    const byVerifiedSource = resolveSingleSourceCast(sourceCast, characters);
+    if (byVerifiedSource) return byVerifiedSource;
     if (sourceCast?.mode !== "none" && needsNewRender) throw new Error("SOURCE_CAST_LIBRARY_MISMATCH");
     return undefined;
   }
@@ -2577,7 +2610,7 @@ function leadVisibleInShot(shot: ShotCard): boolean {
   if (!usePortraitRefs || !lead || isAssetShot(shot)) return false;
   const original = sourceDocument.shots!.find((item) => String(item.shotId) === String(shot.shotId));
   if (!original) throw new Error(`PORTRAIT_SHOT_SOURCE_MISSING: ${shot.shotId}`);
-  const appearance = (sourceDocument.character as { appearanceInShots?: unknown } | undefined)?.appearanceInShots;
+  const appearance = sourceCharacter?.appearanceInShots;
   const declared = Array.isArray(appearance) && appearance.map(String).includes(String(shot.shotId));
   const identities = [...characters.values()].map((candidate) => ({ ...candidate,
     aliases: characterRegistry.aliases.find((entry) => entry.id === candidate.id)?.names ?? [] }));
@@ -2599,7 +2632,19 @@ function leadVisibleInShot(shot: ShotCard): boolean {
   }
   // An explicit project appearance is affirmative casting, but cannot override a contrary original card.
   const candidate = declared && !hasIdentity && !hasOffscreenOnly ? { ...originalSource, characterId: lead.id } : originalSource;
-  const resolved = resolveShotCast(candidate, identities);
+  const verifiedSingleSource = strictSourceCast ? sourceCharacter : undefined;
+  const castCandidate = verifiedSingleSource?.id === lead.id ? (() => {
+    const clean = { ...candidate } as Record<string, unknown>;
+    for (const key of ["cast", "characters", "characterId", "character", "character_ref", "characterRef"]) delete clean[key];
+    if (clean.fields && typeof clean.fields === "object" && !Array.isArray(clean.fields)) {
+      const fields = { ...(clean.fields as Record<string, unknown>) };
+      for (const key of ["cast", "characters", "characterId", "character", "character_ref", "characterRef"]) delete fields[key];
+      clean.fields = fields;
+    }
+    clean.characterId = lead.id;
+    return clean;
+  })() : candidate;
+  const resolved = resolveShotCast(castCandidate, identities);
   if (resolved.status === "not_applicable") {
     if (declared) throw new Error(`PORTRAIT_VISIBILITY_CONFLICT: ${shot.shotId}; ${resolved.notes.join(";")}`);
     return false;
@@ -2614,7 +2659,7 @@ function leadVisibleInShot(shot: ShotCard): boolean {
 }
 function portraitVideoInputs(shot: ShotCard): { images: VideoSubmissionImage[]; paths: string[] } {
   if (!leadVisibleInShot(shot)) return { images: [], paths: [] };
-  if (!lead || (sourceDocument.character as { id?: string } | undefined)?.id !== lead.id || !portraitReferenceAuthorization) throw new Error(`PORTRAIT_REFERENCE_AUTHORIZATION_REQUIRED: ${shot.shotId}; explicit source character and verified current owner authorization required`);
+  if (!lead || sourceCharacter?.id !== lead.id || !portraitReferenceAuthorization) throw new Error(`PORTRAIT_REFERENCE_AUTHORIZATION_REQUIRED: ${shot.shotId}; explicit source character and verified current owner authorization required`);
   const current = loadCharacterEntry(lead.dir);
   const requestedVersion = arg("--portrait-version");
   if (!current || current.id !== lead.id || current.activeSet?.version !== lead.version || current.verification.status !== "passed"
@@ -2653,10 +2698,236 @@ function portraitVideoInputs(shot: ShotCard): { images: VideoSubmissionImage[]; 
   });
   return { images, paths };
 }
-const portraitReferenceClause = "【人物参考】图1与图2为同一原创虚构成年人物的正面全身和头肩近景，二图共同锚定同一人，不得生成两个人；若有图3，图3仅作商品外观与比例依据。预生产构图稿不作为视频首帧提交。";
+const portraitReferenceClause = "【人物参考】同人参考；图3商品；非首帧。";
 function portraitReferenceClauseFor(shot: ShotCard): string {
   const plan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
   return plan.applicable && plan.valid ? bulletTimeReferenceClause(plan.angles) : portraitReferenceClause;
+}
+/** Authored Film cards may keep standard fields under `fields`; consumers must not lose that binding. */
+function shotAuthoredText(shot: ShotCard, key: string): string {
+  const own = shot[key];
+  if (own !== undefined && own !== null && String(own).trim()) return String(own).trim();
+  const nested = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
+    ? shot.fields as Record<string, unknown>
+    : {};
+  const value = nested[key];
+  return value === undefined || value === null ? "" : String(value).trim();
+}
+/** Resolve only contradictions proven by the current card; never invent a new scene or claim. */
+function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { prompt: string; corrections: string[] } {
+  let next = prompt;
+  const corrections: string[] = [];
+  const fieldText = (key: string): string => shotAuthoredText(shot, key);
+  const characterText = fieldText("character");
+  const actionText = fieldText("action");
+  const sceneText = `${fieldText("scene")}；${fieldText("sceneDescription")}`;
+  const sceneIdentity = String((shot as Record<string, unknown>).sceneId ?? shot.shotId ?? "");
+  const supportMode = String((shot as Record<string, unknown>).supportMode ?? "").trim();
+  if (/面罩闭合|不露脸|面部.*不可见/.test(characterText) && !/面部清晰可辨|摘盔后.*面部/.test(characterText)) {
+    const corrected = next.replace(/[，。；\s]*面部无阴影明亮清晰/g, "；全盔外壳、肩背轮廓与路面明亮，禁止生成面部");
+    if (corrected !== next) {
+      next = corrected;
+      corrections.push("masked-face-brightness");
+    }
+  }
+  const helmetSeam = next
+    .replace(/全盔后缘无孔缝内/g, "全盔后缘与骑行服领口之间")
+    .replace(/全盔后缘无孔缝的黑色发圈/g, "全盔后缘与骑行服领口之间的黑色发圈")
+    .replace(/(?:全盔|头盔)后下方开口处/g, "全盔后缘与骑行服领口之间")
+    .replace(/(?:全盔|头盔)后下方开口/g, "全盔后缘与骑行服领口之间")
+    .replace(/开口处发圈/g, "全盔后缘与领口之间的发圈")
+    .replace(/后下方开口处/g, "全盔后缘与骑行服领口之间")
+    .replace(/后下方开口/g, "全盔后缘与骑行服领口之间")
+    .replace(/压束在全盔内/g, "后颈压平于内衬")
+    .replace(/压束在头盔内/g, "后颈压平于内衬");
+  if (helmetSeam !== next) {
+    next = helmetSeam;
+    corrections.push("helmet-seam-without-shell-hole");
+  }
+  if (sceneIdentity === "opening" && next.includes("全盔后缘与骑行服领口之间") && !/禁止盔壳开孔/.test(next)) {
+    const shellNegative = next.replace(
+      /^(\s*\d{1,2}\.\s*【负面约束】)([^\n]*)$/m,
+      (_line, head: string, body: string) => `${head}${body}；禁止盔壳开孔、破洞或发丝穿过盔体，禁止盔体夹住发束`,
+    );
+    if (shellNegative !== next) {
+      next = shellNegative;
+      corrections.push("helmet-shell-negative");
+    }
+  }
+  const lowTiedPonytail = next
+    .replace(/黑色高马尾/g, "黑色低束马尾")
+    .replace(/高马尾/g, "低束马尾")
+    .replace(/后颈压平于内衬/g, "后颈低束并压平于内衬");
+  if (lowTiedPonytail !== next) {
+    next = lowTiedPonytail;
+    corrections.push("low-nape-ponytail-under-helmet");
+  }
+  const duration = Number(shot.duration ?? 0);
+  if (duration > 0 && /四秒内不换场地/.test(next) && duration !== 4) {
+    next = next.replace(/四秒内不换场地/g, `${duration}秒内不换场地`);
+    corrections.push("scene-duration-label");
+  }
+  const unifiedLight = next
+    .replace(/5600K漫射(?:主光|天光)/g, "6500K漫射主光")
+    .replace(/6000K冷白补光/g, "5600K冷白补光");
+  if (unifiedLight !== next) {
+    next = unifiedLight;
+    corrections.push("unified-color-temperature");
+  }
+  if (/(?:完全停稳|已停稳)/.test(characterText + sceneText)
+    && /(?:双手|左手|右手).*(?:摘盔|提盔|解扣带|头盔)/.test(actionText)
+    && !/下车站在车侧|左脚.*撑住|侧撑放下后，她已下车/.test(next)) {
+    const supportClause = supportMode === "maintenance-stand"
+      ? "车辆由可见的后轮起车架稳固承托，后轮离地约3至5厘米、前轮着地、侧撑收起"
+      : "车辆由侧撑尖、前轮与后轮三点着地";
+    next = next
+      .replace(/肩背打开、上身直立坐在已完全停稳的车上/g, `肩背打开、上身直立站在已完成支撑的车辆侧面`)
+      .replace(/她的赛车已停稳，静止在画面右后方/g, `她的赛车已停稳，${supportClause}并静止在画面右后方`);
+    next = next.replace(/^(\s*\d{1,2}\.\s*【动作】)([^\n]*)$/m,
+      (_line, head: string, body: string) => `${head}${body.startsWith("车身停稳后，")
+        ? body.replace(/^车身停稳后，/, `${supportClause}；她已下车站在车侧，双脚落地承重；`)
+        : `${supportClause}；她已下车站在车侧，双脚落地承重；${body}`}`);
+    corrections.push(supportMode === "maintenance-stand" ? "stopped-vehicle-maintenance-stand" : "stopped-vehicle-side-stand");
+  }
+  const supportedParking = next
+    .replace(/她的赛车已停稳，侧撑放下并静止在画面右后方/g,
+      "她的赛车已停稳，侧撑已支起，侧撑尖、前轮与后轮三点着地，车身向左侧微倾并停在画面右后方")
+    .replace(/侧撑已支起，侧撑尖与后轮共同在沥青上承重/g,
+      "侧撑已支起，侧撑尖、前轮与后轮三点着地")
+    .replace(/侧撑放下后，她已下车站在车侧，双脚落地承重/g,
+      "上一镜后已完成停车、支侧撑与下车；本镜起幅第一帧，车辆由前轮、后轮与侧撑尖三点着地，她已站在车侧、双脚落地承重");
+  if (supportedParking !== next) {
+    next = supportedParking;
+    corrections.push("supported-parking-contact");
+  }
+  if (sceneIdentity === "scene-4") {
+    const helmetRemoval = next.replace(
+      /她左手先压住盔沿，右手绕到下巴下方解开扣带，扣带松开的瞬间头盔微微上抬离眉/g,
+      "她先完全解开下巴扣带并可见扣带松开；双手抓住盔口下缘与下巴处，向前下方轻拉使颊垫越过颧骨，再向上提离头顶，壳体保持刚性不变形，护耳衬垫不穿模、发束不被盔体夹住",
+    );
+    if (helmetRemoval !== next) {
+      next = helmetRemoval;
+      corrections.push("helmet-removal-mechanics");
+    }
+  }
+  const releasedHair = next
+    .replace(/马尾顺势松开垂落/g, "发圈不解开，压束马尾顺势释放并垂落")
+    .replace(/马尾松开顺肩背垂落/g, "发圈保持扎紧，发束自然垂落至肩背")
+    .replace(/同一根黑色发圈扎着的发圈不解开，发圈保持扎紧/g, "同一根黑色发圈保持扎紧")
+    .replace(/压束马尾顺势释放并垂落到肩背/g, "发圈保持扎紧、扎点不变；被头盔压束的发束在头盔离头后失去压缩，整束垂落到肩背，发丝不散开、不变成披散长发")
+    .replace(/no loose spread hair/gi, "no messy unstyled hair");
+  if (releasedHair !== next) {
+    next = releasedHair;
+    corrections.push("ponytail-release-not-unfastened");
+  }
+  if (sceneIdentity && next.includes('"scene_id":"opening"') && sceneIdentity !== "opening") {
+    next = next.replaceAll('"scene_id":"opening"', `"scene_id":"${sceneIdentity}"`);
+    corrections.push("scene-id");
+  }
+  const singleOpponent = next
+    .replace(/两台对手车缩到画幅后侧/g, "被超越的第二台对手车缩到画幅右后方")
+    .replace(/全段烧录『创意演绎 · 赛道专用不可上路』/g, "合规字幕与片尾商品名仅由正式后期字幕层叠加，不进入生成画面");
+  if (singleOpponent !== next) {
+    next = singleOpponent;
+    corrections.push("single-opponent-and-post-text-scope");
+  }
+  const groundedPass = next
+    .replace(/后轮在弯前轻微横向滑动把缝隙收窄成一条窄线/g, "车辆受控向弯心收线，主角车保持后轮贴地跟进");
+  if (groundedPass !== next) {
+    next = groundedPass;
+    corrections.push("grounded-opponent-line");
+  }
+  if (sceneIdentity === "scene-1") {
+    const rightBend = next
+      .replace(/退到画幅右后方/g, "留在画幅右侧内侧并退到画幅右下后方")
+      .replace(/画幅右侧留净空作超越路径/g, "画幅左侧留净空作外线超越路径")
+      .replace(/退向画幅右后方/g, "保持在画幅右侧内侧并退到画幅右下后方");
+    if (rightBend !== next) {
+      next = rightBend;
+      corrections.push("right-hand-bend-screen-mapping");
+    }
+  }
+  if (sceneIdentity === "scene-2") {
+    const outerLine = next
+      .replace(/第二台对手车压画幅左三分之一内侧/g, "第二台对手车位于画幅右三分之一内侧")
+      .replace(/后轮擦路缘扬起细碎颗粒/g, "后轮在沥青上擦过，由轮胎与粗沥青摩擦带起细碎颗粒")
+      .replace(/后轮擦路缘弹起细碎颗粒/g, "后轮在沥青上擦过并带起细碎颗粒，路缘为与路面齐平的低矮冷灰路肩")
+      .replace(/后轮压过路缘时胎噪瞬时抬升/g, "后轮擦过粗沥青时胎噪瞬时抬升")
+      .replace(/车身沿外线滑出/g, "车身沿外线贴地出弯");
+    if (outerLine !== next) {
+      next = outerLine;
+      corrections.push("outer-line-contact-mapping");
+    }
+  }
+  const dedupedTimeline = next.replace(
+    /T00:00–T00:02：[^\n]*…[^\n]*T00:06–T00:08：[^\n]*\n(?=T00:02–T00:04：)/,
+    "",
+  );
+  if (dedupedTimeline !== next) {
+    next = dedupedTimeline;
+    corrections.push("duplicate-timeline-removed");
+  }
+  if (sceneIdentity === "scene-3" && !next.includes("T00:00–T00:02")) {
+    const completeTimeline = next.replace(
+      /^(\s*\d{1,2}\.\s*【时间轴】)(?![^\n]*T00:00–T00:02)/m,
+      "$1T00:00–T00:02：贴地低机位后追随推进；",
+    );
+    if (completeTimeline !== next) {
+      next = completeTimeline;
+      corrections.push("finish-opening-timeline");
+    }
+  }
+  const supportedFinish = next
+    .replace(/画幅上沿横跨一条纯色且无任何文字标识的冲线横条，横条两侧不出现任何赛事官方标志、主办方标识或赞助商字样/g,
+      "画幅上沿横跨一条纯色无字冲线横条，两端由画外金属龙门立柱受拉悬挂，横条下缘高于全盔至少0.5米且无任何赛事官方标志、主办方标识或赞助商字样")
+    .replace(/画幅上沿横跨一条纯色无字冲线横条，两端由画外金属龙门立柱受拉悬挂并轻微下垂/g,
+      "画幅上沿横跨一条纯色无字冲线横条，两端由画外金属龙门立柱受拉悬挂，横条下缘高于全盔至少0.5米")
+    .replace(/冲线瞬间礼炮纸屑从上方落下/g,
+      "画外赛道边沿礼炮先向上喷射纸屑，纸屑再受重力与空气阻力下落")
+    .replace(/车身贴油箱穿过横条/g, "车身贴油箱从横条下方通过")
+    .replace(/车头穿过冲线横条/g, "骑手与赛车从冲线横条下方通过，车头只越过地面冲线标记")
+    .replace(/车头穿过纯色横条/g, "骑手与赛车从纯色横条下方通过")
+    .replace(/高潮落在车头穿过横条一刻/g, "高潮落在骑手与赛车从横条下方通过一刻")
+    .replace(/看台模糊人声/g, "不可辨看台气流声")
+    .replace(/看台人声压成模糊气流/g, "不可辨看台气流声");
+  if (supportedFinish !== next) {
+    next = supportedFinish;
+    corrections.push("supported-finish-props-and-audio");
+  }
+  const supportedNearStop = next
+    .replace(/赛车沿减速区低矮边线直线滑行到近乎停住/g, "赛车沿边线滑行减速，停稳后左脚前掌点地、右脚留脚踏")
+    .replace(/随车停住后收住/g, "随车停稳后收住")
+    .replace(/车速降至近乎停住/g, "近乎停住后左脚前掌点地")
+    .replace(/停稳后左脚前掌点地、右脚留脚踏/g, "近乎停住后左脚前掌点地、右脚留脚踏，前轮与后轮着地，侧撑尚未放下")
+    .replace(/停稳后左脚前掌点地/g, "近乎停住后左脚前掌点地")
+    .replace(/双手仍握在把上未摘盔/g, "仍在鞍座，双手仍握把，侧撑未放下且未摘盔");
+  if (supportedNearStop !== next) {
+    next = supportedNearStop;
+    corrections.push("near-stop-support");
+  }
+  if (sceneIdentity === "ending") {
+    let endingContinuity = next
+      .replace(/领奖台为无镌刻哑光深灰金属台面/g, "领奖台中段台面高约1.0米、宽约1.5米，为无镌刻哑光深灰金属台面")
+      .replace(/侧后方三米停放一台赛道摩托车整车正面示意外形/g, "侧后方三米停放同一台赛道摩托车，以侧撑支起且前后轮着地，整车正面示意外形")
+      .replace(/侧后方三米停放同一台赛道摩托车，以侧撑支起且前后轮着地，整车正面示意外形/g,
+        "领奖台右侧外沿、与台体错开视角处停放同一台赛道摩托车，以侧撑支起，侧撑尖、前轮与后轮三点着地，整车正面轮廓完整可见且不被台体遮挡")
+      .replace(/冠军奖杯为双手托起的示意外形/g, "冠军奖杯连底座高约35厘米、底座直径约12厘米，为双手在胸口以上托起的示意外形");
+    endingContinuity = endingContinuity.replace(
+      /^(\s*\d{1,2}\.\s*【动作】)([^\n]*)$/m,
+      (_line, head: string, body: string) => {
+        const continuity: string[] = [];
+        if (!/全盔已放在领奖台台面/.test(body)) continuity.push("全盔已放在领奖台台面右侧、盔口朝上，左腰无盔");
+        if (!/(?:奖杯.*台面|从台面.*奖杯|台面.*奖杯)/.test(body)) continuity.push("奖杯由双手在腰侧承托、不悬空");
+        return `${head}${continuity.length ? `起幅第一帧，${continuity.join("；")}；` : ""}${body}`;
+      },
+    );
+    if (endingContinuity !== next) {
+      next = endingContinuity;
+      corrections.push("ending-scale-and-prop-continuity");
+    }
+  }
+  next = next.replace(/6000K冷白(?!补光)/g, "5600K冷白");
+  return { prompt: next, corrections };
 }
 function submissionReceiptArtifacts(submitted: VideoSubmissionResult): VideoSubmissionArtifact[] {
   return [submitted.receipt.preparedFile, submitted.receipt.ackFile].filter(Boolean).map(fingerprintArtifact);
@@ -3184,6 +3455,7 @@ if (STAGES.has("spec")) {
   const started = Date.now();
   const checks: Array<{ id: string; pass: boolean; detail: string; hard?: boolean }> = [];
   let rateFail = 0;
+  const approvedSourcePrompt = (sourceDocument.source as { kind?: unknown } | undefined)?.kind === "approved-source-prompt-repair";
   /** post-only 字段闸用：声明了主角出镜的镜号（`shotlist.character.appearanceInShots`，缺省为空） */
   const leadAppearanceShotIds = (() => {
     const raw = (shotlist as unknown as { character?: { appearanceInShots?: unknown } }).character?.appearanceInShots;
@@ -3236,18 +3508,31 @@ if (STAGES.has("spec")) {
       { label: "导演意图", value: (shot as Record<string, unknown>).director_instruction },
       { label: "灯光设计", aliases: ["灯光/照明", "照明"], value: (shot as Record<string, unknown>).lighting },
     ];
-    const contractFixed = restoreCardFieldText(normalized.prompt, contractFields);
+    const contractFixed = approvedSourcePrompt
+      ? { prompt: normalized.prompt, restored: [] }
+      : restoreCardFieldText(normalized.prompt, contractFields);
     /** 时间轴补全（vendor 组装器会截断末段节拍，实测 6/6 镜） */
-    const timelineFixed = restoreTimelineField(contractFixed.prompt, (shot as Record<string, unknown>).timeline);
+    const timelineFixed = approvedSourcePrompt
+      ? { prompt: contractFixed.prompt, restored: false, segments: 0 }
+      : restoreTimelineField(contractFixed.prompt, (shot as Record<string, unknown>).timeline);
     /**
      * 台词窗归一到真实镜头时长（2026-09-28 T1 真机监制打回）：
      * vendor `_renderDialogueBlocks` 用 `Math.round(duration)` 算窗，4.5s 镜头被写成 `[00s-05s]`，
      * 与合同「每镜 4.5 秒」冲突，生成端可能照 5s 拉长口播。这里按真实小数时长重排。
      */
     const dialogueFixed = normalizeDialogueWindow(timelineFixed.prompt, duration);
-    const finalPrompt = appendCinematicContract(dialogueFixed.prompt, buildCinematicContract(shot as unknown as Record<string, unknown>))
+    const compiledDisciplinePresent = /【编译纪律】|【音频纪律】/.test(dialogueFixed.prompt);
+    const promptWithCinematic = compiledDisciplinePresent
+      ? dialogueFixed.prompt
+      : appendCinematicContract(dialogueFixed.prompt, buildCinematicContract(shot as unknown as Record<string, unknown>));
+    const composedPrompt = promptWithCinematic
       + (leadVisibleInShot(shot) ? `\n${portraitReferenceClauseFor(shot)}` : "")
       + (REVISION_CONTEXT ? `\n【本次返修验收】保持原镜头主体与意图，仅修复下列已归因问题：${REVISION_CONTEXT}` : "");
+    const plausibilityCorrection = correctFilmPlausibilityConflicts(composedPrompt, shot);
+    const finalPrompt = plausibilityCorrection.prompt;
+    if (plausibilityCorrection.corrections.length) {
+      log(`  ${shot.shotId}: 逻辑冲突归一 ${plausibilityCorrection.corrections.join("、")}`);
+    }
     const finalBulletTimeAudit = validateBulletTimePrompt(finalPrompt, shot as unknown as Record<string, unknown>, { capabilities: BULLET_TIME_CAPABILITIES });
     specReports.push({
       shotId: shot.shotId, charCount: finalPrompt.length, promptSource: report.promptSource,
@@ -3255,6 +3540,7 @@ if (STAGES.has("spec")) {
       missingSpecFields: report.missingSpecFields, missingP0Fields: report.missingP0Fields,
       redlines: report.redlines, degraded: report.degraded,
       sceneSubstituted: report.sceneSubstituted, sceneSubstitution: report.sceneSubstitution,
+      plausibilityCorrections: plausibilityCorrection.corrections,
       languageNormalized: {
         replacements: normalized.replacements, dedupedRefs: normalized.dedupedRefs,
         remainingLatin: normalized.remainingLatin, timelineRestored: timelineFixed.restored,
@@ -3616,7 +3902,7 @@ function recordFinalPromptGate(shot: ShotCard, verdict: ProducerVerdict): void {
     inputPaths: [file], exactInputPaths: true, evidence: { mode: "final-prompt", promptSha256: sha256FileSync(file), reviewContractHash: verdict.contractHash ?? null, bulletTime } });
 }
 function plausibilityArchiveFor(shot: ShotCard): NonNullable<ReturnType<typeof selectProductArchive>["archive"]> | null {
-  const selector = String((shot as Record<string, unknown>).product ?? "").trim();
+  const selector = String(shotAuthoredText(shot, "product") || policyBrief?.productId || policyBrief?.product || "").trim();
   if (!selector) return null;
   return selectProductArchive(productLibrary.archives, selector).archive ?? null;
 }
@@ -3637,8 +3923,19 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
       return file ? [{ label: `镜头 ${String(shot.shotId)} ${isMaterialShot(shot) ? "当前商品参考准备件" : "预生产构图稿（不表示实际视频首帧）"}`, path: file }] : [];
     })
     : [];
+  const reviewArchiveByShot = new Map(reviewShots.map((shot) => [String(shot.shotId), plausibilityArchiveFor(shot)]));
   return {
     projectId: PROJECT,
+    reviewId: `${PROJECT}:${stage}:${RUN_ID}:${Date.now()}`,
+    reviewScope: "physical-execution",
+    approvedCreativeDirection: {
+      productAppearanceMode: PRODUCT_APPEARANCE_PRIORITY_POLICY.appearanceMode,
+      exactAppearanceRequired: PRODUCT_APPEARANCE_PRIORITY_POLICY.exactAppearanceRequired,
+      appearanceConflictPolicy: PRODUCT_APPEARANCE_PRIORITY_POLICY,
+      fictionalCompetition: true,
+      mandatoryStoryBeats: ["封闭赛道竞速", "连续超车", "冲线", "停稳摘盔", "领奖台纪念奖杯"],
+      disclosure: "广告创意演绎，不是真实赛事成绩、真实冠军、真实赛事官方活动或品牌背书",
+    },
     platform: String((shotlist as Record<string, unknown>).platform ?? arg("--platform", "")),
     locale: FILM_SPEECH_LANGUAGE,
     aspect: ASPECT,
@@ -3652,21 +3949,54 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
     } : null,
     products: archives.map((archive) => ({
       id: archive.id, displayName: archive.displayName, brand: archive.brand, category: archive.category,
+      appearanceMode: PRODUCT_APPEARANCE_PRIORITY_POLICY.appearanceMode,
+      exactAppearanceRequired: PRODUCT_APPEARANCE_PRIORITY_POLICY.exactAppearanceRequired,
+      allowedClaims: [
+        String(archive.displayName ?? ""),
+        "赛道专用车辆，不具备道路行驶资质",
+      ].filter(Boolean),
+      forbiddenClaims: [
+        "不得要求或宣称未授权公开图片的精确外观还原",
+        "不得新增 G1 未核实的外观部件、涂装、贴花或赞助商标识",
+        "不得宣称真实赛事成绩、冠军、性能优势或厂商背书",
+      ],
       sourceKind: archive.source?.kind, reviewStatus: archive.source?.reviewStatus,
       dimensions: archive.specs?.dimensions as Record<string, unknown> | undefined,
       photoAngles: [...new Set((archive.photos ?? []).map((photo) => photo.angle).filter(Boolean) as string[])],
       appearance: archive.specs?.appearance, features: archive.specs?.features,
       parameters: (archive.specs?.parameters ?? []).map((parameter) => ({ name: String(parameter?.name ?? ""), value: String(parameter?.value ?? "") })),
     })),
-    shots: reviewShots.map((shot) => ({
-      shotId: String(shot.shotId), durationSec: Number(shot.duration ?? 0) || undefined,
-      scene: String(shot.scene ?? ""), sceneDescription: String(shot.sceneDescription ?? ""),
-      action: String(shot.action ?? ""), props: String(shot.props ?? ""), character: String(shot.character ?? ""),
-      wardrobeId: String((shot as Record<string, unknown>).wardrobeId ?? ""),
-      costume: String((shot as Record<string, unknown>).costume ?? ""),
-      dialogue: shot.dialogue ?? null, dialogueFree: (shot as Record<string, unknown>).dialogueFree === true,
-      product: String((shot as Record<string, unknown>).product ?? ""), promptText: promptFor(String(shot.shotId)),
-    })),
+    shots: reviewShots.map((shot) => {
+      const promptText = promptFor(String(shot.shotId));
+      const promptField = (label: string): string => {
+        const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const match = new RegExp(`^\\d+\\.【${escaped}】([^\\n]*)$`, "m").exec(promptText);
+        return match?.[1]?.trim() ?? "";
+      };
+      const costume = promptField("服装") || shotAuthoredText(shot, "costume");
+      const explicitWardrobe = shotAuthoredText(shot, "wardrobeId");
+      const wardrobeFromCostume = /(?:^|[\s，,；;:：])(w\d+)\b/i.exec(costume)?.[1]
+        ?? /^w\d+\b/i.exec(costume)?.[0]
+        ?? "";
+      const authoredCharacter = promptField("角色") || shotAuthoredText(shot, "character");
+      const dialogueField = promptField("台词");
+      const currentDialogue = Array.isArray(shot.dialogue) ? shot.dialogue : [];
+      return {
+        shotId: String(shot.shotId), durationSec: Number(shot.duration ?? 0) || undefined,
+        scene: promptField("场景") || shotAuthoredText(shot, "scene"),
+        sceneDescription: shotAuthoredText(shot, "sceneDescription"),
+        action: promptField("动作") || shotAuthoredText(shot, "action"),
+        props: promptField("道具") || shotAuthoredText(shot, "props"),
+        character: authoredCharacter,
+        wardrobeId: explicitWardrobe || wardrobeFromCostume,
+        costume,
+        dialogue: currentDialogue.length ? currentDialogue : null,
+        dialogueFree: (shot as Record<string, unknown>).dialogueFree === true
+          || (currentDialogue.length === 0 && (!dialogueField || /无台词|无对白|none/i.test(dialogueField))),
+        product: shotAuthoredText(shot, "product") || reviewArchiveByShot.get(String(shot.shotId))?.id || "",
+        promptText,
+      };
+    }),
     images,
     stage,
   };
@@ -3698,8 +4028,23 @@ async function runPlausibilityGate(stage: "pre-render" | "pre-submit", reviewSho
   }
   const result = await reviewPlausibility(reviewContext, { env: ENV, log });
   const scopeIds = new Set(reviewShots.map((shot) => String(shot.shotId)));
-  if (result.promptPatches.some((patch) => !scopeIds.has(String(patch.shotId)))) throw new Error("PLAUSIBILITY_PATCH_SCOPE_INVALID");
-  if (result.verdict === "pass" && result.promptPatches.length > 0) {
+  const outOfScopePatches = result.promptPatches.filter((patch) => !scopeIds.has(String(patch.shotId)));
+  const plausibilityResultFile = join(WORK_DIR, `plausibility-${stage}-${Date.now()}.json`);
+  writeFileSync(plausibilityResultFile, `${JSON.stringify({
+    schemaVersion: "workloom.plausibility-result/v1",
+    stage,
+    scopeShotIds: [...scopeIds],
+    outOfScopePatchShotIds: [...new Set(outOfScopePatches.map((patch) => String(patch.shotId)))],
+    result,
+  }, null, 2)}\n`, "utf8");
+  if (outOfScopePatches.length) {
+    log(`实体与物理常识审核返回 ${outOfScopePatches.length} 条范围外补丁；${result.verdict === "pass" ? "通过结论不允许应用" : "当前结论为拦截，补丁不应用"}`);
+  }
+  if (result.verdict === "pass" && outOfScopePatches.length) throw new Error("PLAUSIBILITY_PATCH_SCOPE_INVALID");
+  const approvedSource = (sourceDocument.source as { kind?: unknown } | undefined)?.kind === "approved-source-prompt-repair";
+  if (result.verdict === "pass" && result.promptPatches.length > 0 && approvedSource) {
+    log(`实体与物理常识审核通过；${result.promptPatches.length} 条 warning 补丁仅留建议，不改写已审批源提示词`);
+  } else if (result.verdict === "pass" && result.promptPatches.length > 0) {
     const prompts = new Map(reviewShots.filter((shot) => existsSync(join(PROMPT_DIR, `${shot.shotId}.txt`))).map((shot) => [String(shot.shotId), readFileSync(join(PROMPT_DIR, `${shot.shotId}.txt`), "utf8")]));
     const patched = applyPromptPatches(result.promptPatches, prompts);
     for (const [shotId, text] of patched) if (text !== prompts.get(shotId)) {
@@ -3742,13 +4087,13 @@ async function runPlausibilityGate(stage: "pre-render" | "pre-submit", reviewSho
     checks: [{ id: "plausibility-ok", pass: result.verdict === "pass", hard: true, detail }],
     shotIds: reviewShots.map((shot) => String(shot.shotId)),
     inputPaths: reviewPaths, exactInputPaths: true,
-    evidence: { stage, verdict: result.verdict, scopeShotIds: [...scopeIds], reviewedImagePaths: (reviewContext.images ?? []).map((item) => item.path), finalPromptHashes: reviewShots.filter((shot) => existsSync(join(PROMPT_DIR, `${shot.shotId}.txt`))).map((shot) => ({ shotId: shot.shotId, sha256: sha256FileSync(join(PROMPT_DIR, `${shot.shotId}.txt`)) })), findings: result.findings, promptPatches: result.promptPatches, model: result.model, ms: result.ms, policy: PLAUSIBILITY_POLICY_VERSION },
+    evidence: { stage, verdict: result.verdict, resultFile: plausibilityResultFile, scopeShotIds: [...scopeIds], outOfScopePatchShotIds: [...new Set(outOfScopePatches.map((patch) => String(patch.shotId)))], reviewedImagePaths: (reviewContext.images ?? []).map((item) => item.path), finalPromptHashes: reviewShots.filter((shot) => existsSync(join(PROMPT_DIR, `${shot.shotId}.txt`))).map((shot) => ({ shotId: shot.shotId, sha256: sha256FileSync(join(PROMPT_DIR, `${shot.shotId}.txt`)) })), findings: result.findings, promptPatches: result.promptPatches, model: result.model, ms: result.ms, policy: PLAUSIBILITY_POLICY_VERSION },
     reason: result.verdict === "pass" ? "实体与物理常识审核通过" : result.verdict === "block" ? "实体与物理常识存在 blocker" : `审核未验证：${result.reason}`,
   });
   record({
     stage: `plausibility-${stage}`, shotId: scopeShotId, invoked: true, ok: result.verdict === "pass", cached: false, degraded: false,
-    attempt: 1, ms: Date.now() - started, artifact: null,
-    evidence: { verdict: result.verdict, findings: result.findings, promptPatches: result.promptPatches, model: result.model, policy: PLAUSIBILITY_POLICY_VERSION },
+    attempt: 1, ms: Date.now() - started, artifact: plausibilityResultFile,
+    evidence: { verdict: result.verdict, resultFile: plausibilityResultFile, outOfScopeShotIds: [...new Set(outOfScopePatches.map((patch) => String(patch.shotId)))], findings: result.findings, promptPatches: result.promptPatches, model: result.model, policy: PLAUSIBILITY_POLICY_VERSION },
     verdict: null, note: `实体与物理常识审核（${stage}）：${result.reason}`,
   });
   for (const finding of result.findings) {
@@ -3773,17 +4118,29 @@ function buildCurrentMaterialPrompt(shot: ShotCard): string {
   const productArchive = plausibilityArchiveFor(shot);
   const productReference = /^(?:vehicle|motorcycle|motorbike|motor|car|automobile)$|摩托车|机车|汽车/i
     .test(String(productArchive?.category ?? "").trim());
-  let prompt = buildMaterialScenePrompt(card, {
-    aspect: ASPECT,
-    resolution: SOURCE_RESOLUTION,
-    durationSec: duration,
-    title: shotlist.title,
-    referenceMode: productReference ? "product" : "place",
-    ...(productReference ? {
-      injection: "【参考件环境排除】商品参考件中的纯白背景、影棚柔光、展台、起车架、支撑滚轮、拍摄水印和任何后期遮挡均不属于商品本身，成片必须全部移除；只提取商品结构、比例、配色和已有涂装标识，并把商品放回镜头卡描述的真实赛道、真实光照和真实承重关系中。",
-    } : {}),
-  });
-  prompt = appendCinematicContract(prompt, buildCinematicContract(card));
+  const productReferenceFiles = productReferencePaths(shot);
+  const materialTask = productReference
+    ? `【素材参考任务】以参考资产集合为身份、真实外观、比例与必要实景依据，构建一段 ${duration} 秒实拍视频；参考图不是首帧，不得复刻参考图的构图。影棚背景、展示架、原图海报文字与页面水印必须移除；商品车身中真实可见的涂装、品牌字标、号码与既有赞助标识按参考保留，不新增参考中不存在的文字或标识。`
+    : `【素材参考任务】以实景参考资产为依据，构建一段 ${duration} 秒真实拍摄视频；参考图不是首帧，不得复刻参考图的构图。`;
+  const referenceDiscipline = "【参考资产集合】必须完整使用本次绑定的全部参考图；禁止贴图式运动、禁止画面全程静止；有镜头位移时必须有真实三维视差。";
+  const canonicalPrompt = String(card.prompt ?? "").trim();
+  const productSafePrompt = productReference
+    ? reconcileProductAppearancePrompt(canonicalPrompt).prompt
+    : canonicalPrompt;
+  let prompt = canonicalPrompt
+    ? `${materialTask}\n${productSafePrompt}\n${referenceDiscipline}`
+    : buildMaterialScenePrompt(card, {
+        aspect: ASPECT,
+        resolution: SOURCE_RESOLUTION,
+        durationSec: duration,
+        title: shotlist.title,
+        referenceMode: productReference ? "product" : "place",
+      });
+  const plausibilityCorrections = correctFilmPlausibilityConflicts(prompt, shot);
+  prompt = plausibilityCorrections.prompt;
+  if (plausibilityCorrections.corrections.length) {
+    log(`  ${shot.shotId}: 素材镜合同归一 ${plausibilityCorrections.corrections.join("、")}`);
+  }
   const extraLines: string[] = [REALISM_CLAUSE, REALISM_NEGATIVE_TERMS];
   const materialDialogue = dialogueLines(card as never);
   if (materialDialogue.length > 0) {
@@ -3792,6 +4149,18 @@ function buildCurrentMaterialPrompt(shot: ShotCard): string {
     extraLines.push(noSpeechClause());
   }
   extraLines.push(speechNegativeTerms(FILM_SPEECH_LANGUAGE));
+  if (productReferenceFiles.length > 0) {
+    const appearance = String(productArchive?.specs?.appearance ?? "").trim();
+    const dimensions = productArchive?.specs?.dimensions;
+    const scale = dimensions
+      ? [dimensions.wheelbaseMm ? `轴距约 ${(dimensions.wheelbaseMm / 1000).toFixed(2)} m` : "",
+        dimensions.seatHeightMm ? `座高约 ${(dimensions.seatHeightMm / 1000).toFixed(2)} m` : ""].filter(Boolean).join("、")
+      : "";
+    extraLines.push(`商品真实外观硬约束：${String(productArchive?.displayName ?? "").trim() || "已绑定商品"}，`
+      + `本次 ${productReferenceFiles.length} 张参考图共同锁定真实商品外观、涂装、色块分区、车身已有字标与号码、既有赞助标识、结构比例和空间尺度；`
+      + `${appearance ? `可见外观：${appearance}；` : ""}${scale ? `比例锚：${scale}；` : ""}`
+      + `不得替换车型；只禁止新增参考中不存在的字幕、价格、海报文字、水印、号码或品牌标识`);
+  }
   prompt += ` | ${extraLines.filter((line) => line.trim()).join(" | ")}`;
   const portrait = portraitVideoInputs(shot);
   if (portrait.images.length) prompt += `\n${portraitReferenceClauseFor(shot)}`;
@@ -4161,8 +4530,11 @@ if (STAGES.has("material-gen")) {
     try {
       // Preparation is deterministic and cheap; regenerate from the current reference instead of trusting an old file.
       {
+        const referenceFilter = isProductMaterialShot(shot)
+          ? `scale=${pw}:${ph}:force_original_aspect_ratio=decrease,pad=${pw}:${ph}:(ow-iw)/2:(oh-ih)/2:color=white`
+          : `scale=${pw}:${ph}:force_original_aspect_ratio=increase,crop=${pw}:${ph}:(iw-${pw})*${focus.x}:(ih-${ph})*${focus.y}`;
         run(FFMPEG, ["-y", "-i", photo,
-          "-vf", `scale=${pw}:${ph}:force_original_aspect_ratio=increase,crop=${pw}:${ph}:(iw-${pw})*${focus.x}:(ih-${ph})*${focus.y}`,
+          "-vf", referenceFilter,
           "-q:v", "2", prepared]);
       }
       /**
@@ -4172,11 +4544,17 @@ if (STAGES.has("material-gen")) {
        */
       let prompt = buildCurrentMaterialPrompt(shot);
       const portrait = portraitVideoInputs(shot);
+      const productReferenceFiles = productReferencePaths(shot);
+      const productReferenceDeclaration = (card.productRef as Record<string, unknown> | undefined)?.photos;
+      const declaredProductReferences = Array.isArray(productReferenceDeclaration) ? productReferenceDeclaration.length : 0;
       const plausibility = !DRY_RUN ? await runPlausibilityGate("pre-submit", [shot]) : null;
       prompt = readFileSync(promptFile, "utf8");
-      const submissionPlan = videoPlan({ prompt, refs: [...portrait.images, videoImage(prepared, "product-reference")],
+      const submissionPlan = videoPlan({ prompt, refs: [
+        ...portrait.images,
+        ...productReferenceFiles.map((file) => videoImage(file, "product-reference")),
+      ],
         seconds: renderSecondsFor(duration), generateAudio: ENV.SEEDANCE_GENERATE_AUDIO !== "0", seed: 20260926 });
-      const inputPaths = [photo, prepared, promptFile, ...portrait.paths];
+      const inputPaths = [photo, prepared, promptFile, ...productReferenceFiles, ...portrait.paths];
       rememberInputs("material-gen", inputPaths, shot.shotId);
       const materialSha = sha256FileSync(photo);
       /**
@@ -4209,12 +4587,18 @@ if (STAGES.has("material-gen")) {
           { id: "aspect-constraint", pass: prompt.includes(ASPECT), hard: true, detail: `含画幅约束 ${ASPECT}` },
           { id: "duration-limit", pass: Number.isInteger(duration) && duration === submissionPlan.body.duration, hard: true, detail: `模型能力校验通过，实际请求 ${duration}s（无夹断或变速）` },
           { id: "plausibility-pre-submit", pass: plausibility?.verdict === "pass", hard: true, detail: `当前商品准备件及最终提示词常识审核：${plausibility?.verdict ?? "unverified"}` },
-          { id: "video-inputs", pass: submissionPlan.mode === "reference-image" && (!leadVisibleInShot(shot) || portrait.images.length === 2), hard: true, detail: `reference_image ${submissionPlan.inputs.length} 张；人物原图 ${portrait.images.length} 张；无 first_frame` }
+          { id: "video-inputs", pass: submissionPlan.mode === "reference-image" && (!leadVisibleInShot(shot) || portrait.images.length === 2), hard: true, detail: `reference_image ${submissionPlan.inputs.length} 张；人物原图 ${portrait.images.length} 张；无 first_frame` },
+          {
+            id: "product-reference-inputs",
+            pass: declaredProductReferences > 0 && productReferenceFiles.length === declaredProductReferences,
+            hard: true,
+            detail: `商品参考 ${productReferenceFiles.length}/${declaredProductReferences} 张（必须把镜头卡绑定的参考资产完整提交，缺失或当前字节不可读即拒绝）`
+          }
         ],
         inputPaths, exactInputPaths: true,
         evidence: {
           videoInputMode: submissionPlan.mode, plateUsage: "not-submitted", promptSha256: submissionPlan.promptSha256, wireRequestSha256: submissionPlan.wireRequestSha256, inputPlanSha256: submissionPlan.inputPlanSha256, inputs: submissionPlan.inputs,
-          mode: "submit", policy: MATERIAL_POLICY_VERSION, material: photo, materialSha256: materialSha,
+          mode: "submit", policy: MATERIAL_POLICY_VERSION, material: photo, materialSha256: materialSha, productReferenceFiles,
           promptFile, promptChars: prompt.trim().length, model: VIDEO_MODEL, seconds: duration
         }
       });

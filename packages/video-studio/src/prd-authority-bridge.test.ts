@@ -334,7 +334,7 @@ for (const mode of cases) {
   }
   const invalid = structuredClone(value.production);
   if (mode === "audio") invalid.audioSpecification.audioReferences = ["声音一", "声音二", "声音三", "声音四"];
-  else invalid.characterSystem.characters[0].consistencyRequirements_note = "SYNTHETIC_REJECTED_VALUE";
+  else invalid.characterSystem.consistencyRequirements_note = "SYNTHETIC_REJECTED_VALUE";
   const generator = new PRDGenerator();
   assert.equal(generator.agent2._llmEngine, null);
   assert.equal(generator.agent3._llmEngine, null);
@@ -1378,11 +1378,16 @@ describe("G4 executable plans and one native quality policy", () => {
     expect(run.calls).toHaveLength(2);
   });
 
-  it("still rejects a model's undeclared portraitPlan instead of weakening the strict production schema", async () => {
+  it("projects bounded undeclared character decoration before strict production-schema validation", async () => {
     const value = fixture("NO-NEW-PORTRAIT-KEY"), h = harness();
     (value.production.characterSystem.characters[0] as RequirementRecord).portraitPlan = "不能新增字段";
     const run = h.make(value);
-    await expect(withPrdAuthorityScope(value.authority, () => h.generate(run))).rejects.toThrow("包含未声明字段");
+    await expect(withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run);
+      const characters = requirementRecord(prd.characterSystem, "characters").characters as RequirementRecord[];
+      expect(characters[0]).not.toHaveProperty("portraitPlan");
+      return prd;
+    })).resolves.toMatchObject({ characterSystem: { characters: [expect.any(Object)] } });
     expect(run.calls).toHaveLength(2);
   });
 
@@ -1676,7 +1681,7 @@ describe("PRD failures remain fatal through native catches", () => {
     lengthenAuthority(value);
     value.discovery._originalStoryText = "冻结故事原文【目标JSON结构示例】后续内容不可截断";
     const first = structuredClone(value.production);
-    Object.assign(first.characterSystem.characters[0]!, { privateUnexpectedKey: "PRIVATE_PREVIOUS_MODEL_OUTPUT" });
+    Object.assign(first.characterSystem, { privateUnexpectedKey: "PRIVATE_PREVIOUS_MODEL_OUTPUT" });
     const corrected = structuredClone(value.production);
     corrected.visualSpecification.lightingDirection = "同一原始拍摄要求下以硬侧光照亮赛道外侧与人物动作";
     const baseUrl = "https://prd-shape.invalid/v1";
@@ -1721,16 +1726,16 @@ describe("PRD failures remain fatal through native catches", () => {
     const adapterSuffix = firstPrompt.slice(firstPrompt.lastIndexOf("\n\n【硬性输出要求】"));
     expect(unchanged + adapterSuffix).toBe(firstPrompt);
     expect(secondPrompt.endsWith(adapterSuffix)).toBe(true);
-    expect(feedback).toContain('"/characterSystem/characters/0"');
+    expect(feedback).toContain('"/characterSystem"');
     expect(feedback).toContain('"additionalProperties"');
     const itemSchema = effectivePrdModelSchema("production", PRDSchema, value.contract) as {
-      properties: { characterSystem: { properties: { characters: { items: { properties: RequirementRecord } } } } };
+      properties: { characterSystem: { properties: RequirementRecord } };
     };
-    expect(feedback).toContain(JSON.stringify(Object.keys(itemSchema.properties.characterSystem.properties.characters.items.properties)));
+    expect(feedback).toContain(JSON.stringify(Object.keys(itemSchema.properties.characterSystem.properties)));
     expect(secondPrompt).not.toMatch(/privateUnexpectedKey|PRIVATE_PREVIOUS_MODEL_OUTPUT/);
     expect(retry.options).toEqual(original.options);
     if (mode === "still-invalid") {
-      expect(error).toContain("/characterSystem/characters/0 包含未声明字段");
+      expect(error).toContain("/characterSystem 包含未声明字段");
       expect(result).toBeNull();
     } else if (mode === "unmeasured-retry") {
       expect(error).toContain("Agent3 结构修正缺少已完成的原生模型响应");
@@ -1740,7 +1745,48 @@ describe("PRD failures remain fatal through native catches", () => {
       expect(result?.stages.prdGeneration.data).toMatchObject({ visualSpecification: corrected.visualSpecification });
     }
     expect(run.system.minimalCalls).toBe(0);
-    expect(first.characterSystem.characters[0]).toHaveProperty("privateUnexpectedKey");
+    expect(first.characterSystem).toHaveProperty("privateUnexpectedKey");
+  });
+
+  it("uses one measured native Agent3 retry for a missing required scene field without filling it", async () => {
+    vi.useRealTimers();
+    const value = fixture("PRD-SCENE-FIELD-RETRY"), h = harness(), run = h.make(value);
+    const first = structuredClone(value.production), corrected = structuredClone(value.production);
+    delete (first.scenePlan.scenes[0] as RequirementRecord).dialogue;
+    corrected.scenePlan.scenes[0]!.dialogue = "";
+    const baseUrl = "https://prd-scene-field.invalid/v1";
+    const requests: Array<{ url: string; messages: ChatMessage[]; options: RequirementRecord }> = [];
+    const fetchImpl: typeof fetch = async (url, init) => {
+      const { messages, ...options } = JSON.parse(String(init?.body));
+      requests.push({ url: String(url), messages, options });
+      return Response.json({
+        id: `native-prd-scene-${requests.length}`,
+        model: "deepseek-flash",
+        choices: [{ finish_reason: "stop", message: { content: JSON.stringify(requests.length === 1 ? first : corrected) } }],
+        usage: { prompt_tokens: 300, completion_tokens: 100, total_tokens: 400, completion_tokens_details: { reasoning_tokens: 1 } },
+      });
+    };
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl, apiKey: "test-only", fetchImpl });
+    requirementRecord(run.generator.agent3, "agent3")._llmEngine = new WorkloomLLMEngine({
+      baseUrl, apiKey: "test-only", model: "deepseek-flash", scene: "preproduction",
+      router: { providers: new Map([[provider.modelId, provider]]), sink: {
+        recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
+      } },
+    });
+    await expect(withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run);
+      await h.review(run, prd);
+      return h.success(prd);
+    })).resolves.toMatchObject({ success: true });
+    expect(requests).toHaveLength(2);
+    expect(requests[1]!.url).toBe(requests[0]!.url);
+    expect(requests[1]!.options).toEqual(requests[0]!.options);
+    const feedback = requests[1]!.messages.find(message => message.role === "user")!.content as string;
+    expect(feedback).toContain('"path":"/scenePlan/scenes/0/dialogue"');
+    expect(feedback).toContain('"keyword":"required"');
+    expect(feedback).toContain('"dialogue"');
+    expect(first.scenePlan.scenes[0]).not.toHaveProperty("dialogue");
+    expect(run.system.minimalCalls).toBe(0);
   });
 
   it.each([
@@ -1845,9 +1891,9 @@ describe("PRD failures remain fatal through native catches", () => {
 
   it("refuses an unmeasured character shape failure without spending a structural retry", async () => {
     const value = fixture("PRD-CHAR-UNATTESTED"), h = harness();
-    Object.assign(value.production.characterSystem.characters[0]!, { needsPortrait: true });
+    Object.assign(value.production.characterSystem, { portraitPlan: "不能新增字段" });
     const run = h.make(value);
-    await expect(withPrdAuthorityScope(value.authority, () => h.generate(run))).rejects.toThrow("/characterSystem/characters/0 包含未声明字段");
+    await expect(withPrdAuthorityScope(value.authority, () => h.generate(run))).rejects.toThrow("/characterSystem 包含未声明字段");
     expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
     expect(run.system.minimalCalls).toBe(0);
   });
@@ -2109,7 +2155,7 @@ describe("bounded blank JSON correction at the actual frozen PromptFusion entry"
   const scene = "preproduction";
   const templateHeading = "\n\n【硬性输出要求】";
   const correctionHeading = "\n\n## 本镜头最终 JSON 交付\n";
-  const providerReply = (content: string, id = "fixture-response") => ({
+  const providerReply = (content: string | null, id = "fixture-response") => ({
     id, object: "chat.completion", model: "deepseek-flash",
     choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }],
     usage: { prompt_tokens: 132765, completion_tokens: 4779, total_tokens: 137544,
@@ -2189,6 +2235,37 @@ describe("bounded blank JSON correction at the actual frozen PromptFusion entry"
     expect(firstPrompt).toContain("冻结动作原文 3");
   });
 
+  it("corrects one schema-valid primary Fusion envelope whose authored values are all empty", async () => {
+    const empty = fusionOutput("opening");
+    for (const key of Object.keys(empty.shots[0]!.fields)) empty.shots[0]!.fields[key] = "";
+    const h = fusionRun("EMPTY-FIELDS", [
+      providerReply(JSON.stringify(empty), "fixture-empty-fields"),
+      providerReply(JSON.stringify(fusionOutput("opening")), "fixture-complete-fields"),
+    ]);
+    await h.accepted(async () => {
+      const output = await h.execute();
+      expect(output).toMatchObject({ shotId: "opening", duration: 10, degraded: false });
+      expect(Object.values((output as RequirementRecord).fields as RequirementRecord)
+        .every(value => String(value).trim().length > 0)).toBe(true);
+    });
+    expect(h.requests).toHaveLength(2);
+    expect(h.requests[1]!.url).toBe(h.requests[0]!.url);
+    expect(prompt(h.requests[1]!.body)).toContain("完整结构修正");
+  });
+
+  it("keeps a second all-empty primary Fusion envelope fatal", async () => {
+    const empty = fusionOutput("opening");
+    for (const key of Object.keys(empty.shots[0]!.fields)) empty.shots[0]!.fields[key] = "";
+    const h = fusionRun("EMPTY-FIELDS-TWICE", [
+      providerReply(JSON.stringify(empty), "fixture-empty-first"),
+      providerReply(JSON.stringify(empty), "fixture-empty-second"),
+    ]);
+    await expect(h.accepted(async () => {
+      try { await h.execute(); } catch { /* the authority retains the native failure */ }
+    })).rejects.toThrow("PRD_PRODUCTION_MODEL_UNVERIFIED");
+    expect(h.requests).toHaveLength(2);
+  });
+
   it.each(["wrong-shot", "missing-field", "extra-field", "another-blank", "unmeasured", "refusal", "same-response"] as const)(
     "keeps the correction fatal when the second exact native response is %s", async kind => {
       const output = fusionOutput(kind === "wrong-shot" ? "scene-1" : "opening");
@@ -2228,17 +2305,47 @@ describe("bounded blank JSON correction at the actual frozen PromptFusion entry"
       expect(h.requests).toHaveLength(1);
     });
 
-  it.each(["native-fill", "second-after-syntax"] as const)("leaves blank JSON fatal in %s after the initial primary call", async mode => {
+  it.each([
+    ["space-only", "  "],
+    ["null", null],
+  ] as const)("corrects one %s focused field fill on the same native route", async (_label, firstFillContent) => {
     const original = fusionOutput("opening");
-    if (mode === "native-fill") delete original.shots[0]!.fields.lighting;
-    const h = fusionRun(mode, [providerReply(mode === "native-fill" ? JSON.stringify(original) : '{"shots":[}'),
+    delete original.shots[0]!.fields.lighting;
+    const filled = {
+      shotId: "opening",
+      fields: {
+        lighting: "5600K阴天午后柔光从左上方斜铺发车格，6500K看台冷白补光勾出头盔与护肩轮廓，光比约3:1，暗部保留冷灰层次。",
+      },
+    };
+    const h = fusionRun("FOCUSED-FILL", [
+      providerReply(JSON.stringify(original), "fixture-primary"),
+      providerReply(firstFillContent, "fixture-fill-blank"),
+      providerReply(JSON.stringify(filled), "fixture-fill-corrected"),
+    ]);
+    await h.accepted(async () => {
+      const output = await h.execute();
+      expect(output).toMatchObject({
+        shotId: "opening",
+        degraded: false,
+        fields: { lighting: expect.stringContaining(filled.fields.lighting) },
+      });
+    });
+    expect(h.requests).toHaveLength(3);
+    expect(prompt(h.requests[1]!.body)).toContain("本次只补齐以下字段");
+    expect(prompt(h.requests[1]!.body)).toContain('"shotId":"opening"');
+    expect(prompt(h.requests[2]!.body)).toContain(correctionHeading.trim());
+    expect(prompt(h.requests[2]!.body)).toContain("完成必要推理后，把完整结果写入最终答复");
+  });
+
+  it("leaves blank JSON fatal after the initial primary syntax failure", async () => {
+    const h = fusionRun("second-after-syntax", [providerReply('{"shots":[}'),
       providerReply("  ", "fixture-nonprimary-blank")]);
     await expect(h.accepted(async () => {
       try { await h.execute(); } catch { /* a native catch cannot clear this failure */ }
     })).rejects.toThrow("PRD_PRODUCTION_MODEL_UNVERIFIED");
     expect(h.requests).toHaveLength(2);
     expect(prompt(h.requests[1]!.body)).not.toContain(correctionHeading);
-    expect(prompt(h.requests[1]!.body)).toContain(mode === "native-fill" ? "本次只补齐以下字段" : "完整结构修正");
+    expect(prompt(h.requests[1]!.body)).toContain("完整结构修正");
   });
 
   it("consumes the single blank allowance across the current approved run", async () => {
@@ -2474,7 +2581,7 @@ describe("approved production authority at native technical and title seams", ()
     };
   }
 
-  it.each([true, false])("keeps exact archive refs through the real native v1 rewrite only in the archive scope (%s)", async useArchive => {
+  it.each([true, false])("never replaces canonical portrait refs with a fabricated legacy placeholder (%s)", async useArchive => {
     const value = fixture(`PORTRAIT-RULE-${useArchive}`), h = productionHarness();
     if (useArchive) value.authority.portraitSources = [syntheticPortraitSource(value)];
     const run = h.make(value);
@@ -2489,7 +2596,10 @@ describe("approved production authority at native technical and title seams", ()
     const rule = new RuleRepairer(), prd = new PRD({ characters: [{ name: "测试人物" }] });
     quality.repairer = { repair: async (input: RequirementRecord, report: RequirementRecord) => {
       const repaired = requirementRecord(invoke(rule, "repair", input, report, prd), "real rule result");
-      expect(requirementRecord(repaired.repaired, "real legacy field").portraits).toBe("/characters/character/portrait_v1.png");
+      expect(requirementRecord(repaired.repaired, "real portrait field").portraits).toEqual([
+        "image://characters/synthetic/v2/closeup.png",
+        "image://characters/synthetic/v2/front.png",
+      ]);
       return { repaired: repaired.repaired, log: { actions: repaired.actions } };
     } };
     const refs = ["image://characters/synthetic/v2/closeup.png", "image://characters/synthetic/v2/front.png"];
@@ -2500,7 +2610,7 @@ describe("approved production authority at native technical and title seams", ()
     await h.accepted(run, async () => {
       const native = requirementRecord(await invoke(quality, "run", shot, "S01"), "native field quality result");
       const final = requirementRecord(native.finalShot, "final shot");
-      const expected = useArchive ? refs : "/characters/character/portrait_v1.png";
+      const expected = refs;
       expect(final.portraits).toEqual(expected);
       expect(requirementRecord(final.fields, "final fields").portraits).toEqual(expected);
       expect(shot).toEqual(snapshot);
@@ -2676,6 +2786,23 @@ describe("approved production authority at native technical and title seams", ()
       expect(shot).toEqual(before);
     });
     expect(h.calls.some(call => ["_shouldGenerateOpening", "_optimizeOpeningTitle"].includes(call.key))).toBe(false);
+  });
+
+  it("restores the current shot's critical negative baseline at the FieldGuard boundary", async () => {
+    const value = fixture("NEGATIVE-ALIAS"), h = productionHarness(), run = h.make(value), shot = productionShot("opening");
+    const baseline = "no text, no watermark, no readable characters, no duplicate rider";
+    shot.negative = "no generated on-screen text other than the post-production compliance subtitle, no logo";
+    requirementRecord(shot.fields, "shot fields").negative = baseline;
+    const before = structuredClone(shot);
+    await h.accepted(run, async () => {
+      const result = requirementRecord(invoke(run.fieldGuard, "normalizeAndValidate", [shot], "Final-Export"), "validated");
+      expect(requirementRecord(result.report, "report")).toMatchObject({ passed: true, errors: [] });
+      expect((result.shots as RequirementRecord[])[0]).toMatchObject({
+        negative: baseline,
+        fields: expect.objectContaining({ negative: baseline }),
+      });
+    });
+    expect(shot).toEqual(before);
   });
 
   it.each([
@@ -2986,6 +3113,30 @@ describe("approved production authority at native technical and title seams", ()
       expect(await invoke(rejected, "refine", prompt, shot)).toMatchObject({ prompt, applied: false, fallbackReason: expect.stringContaining("守卫拦截"), guard: { pass: false } });
       const failed = new SemanticRefinementPass({ guard: run.deliveryGuard, callLLM: async () => { throw new Error("original provider error"); } });
       expect(await invoke(failed, "refine", prompt, shot)).toMatchObject({ prompt, applied: false, fallbackReason: "LLM调用异常:original provider error", guard: null });
+    });
+  });
+
+  it("does not poison the approved production scope when the optional semantic refinement model returns no verified content", async () => {
+    const value = fixture("SEMANTIC-MODEL-FALLBACK"), h = productionHarness(true, true), run = h.make(value);
+    const prompt = deliveryPrompt(), shot = { shotId: "S00", sceneType: "opening", duration: 5 };
+    const capture = productionAdapter(" ");
+    Object.assign(run.fusion, { enabled: true, llmTimeout: 30_000, llmMaxRetries: 2 });
+    run.system.llmEngine = capture.adapter;
+    const semantic = new SemanticRefinementPass({
+      guard: run.deliveryGuard,
+      callLLM: (...args: unknown[]) => invoke(run.fusion, "_callLLM", ...args),
+    });
+    await h.accepted(run, async () => {
+      expect(await invoke(semantic, "refine", prompt, shot)).toMatchObject({
+        prompt,
+        applied: false,
+        fallbackReason: expect.stringContaining("PRD_PRODUCTION_MODEL_UNVERIFIED"),
+        guard: null,
+      });
+      expect(capture.requests).toHaveLength(1);
+      // A following guarded native operation proves the optional provider
+      // failure did not remain sticky as an authority failure.
+      expect(invoke(run.system, "_shouldUseTitleCard")).toBe(false);
     });
   });
 

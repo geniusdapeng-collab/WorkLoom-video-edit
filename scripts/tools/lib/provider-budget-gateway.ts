@@ -225,6 +225,10 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
     const hash = digest(`${path}\n${wireSha256}`);
     const body = decode(bytes, true);
     const claim = await compileClaim(path, body, scope, (urlHash) => store.image(urlHash));
+    if (claim.kind === "video" && scope.video.totalSeconds !== undefined) {
+      check(store.status().usage.videoSeconds + claim.seconds <= scope.video.totalSeconds,
+        "BUDGET_VIDEO_SCOPE_MISMATCH", 429);
+    }
     const existing = store.find(hash);
     if (existing?.taskId) {
       sendJson(response, 200, { id: existing.taskId });

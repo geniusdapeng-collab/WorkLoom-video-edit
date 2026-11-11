@@ -22,6 +22,8 @@ import {
   nativeChatJsonSyntaxRouteCurrent,
   nativeReasonFailure,
   nativeReasonCompleted,
+  applyProjectedDurations,
+  projectShotDurations,
   type CompiledPromptShot,
   type PromptCompileAsset,
   type PromptCompileOptions,
@@ -58,15 +60,15 @@ export const SEMANTIC_QUALITY_QUESTION: Readonly<Record<SemanticQualityCheckId, 
     fields: ["character", "action", "scene"],
   },
   SQ2_SCENE_PROPS: {
-    question: "场景与道具是否服务内容，而非堆砌？",
+    question: "场景与道具是否服务内容，且时间轴是否用显式连续区间从头到尾呈现动作与道具交接？",
     fields: ["scene", "props", "action", "timeline"],
   },
   SQ3_CAMERA_FEASIBLE: {
-    question: "镜头和运动是否能在目标时长内完成？",
+    question: "镜头和运动是否能在目标时长内完成？起幅、方向和速度只能是一套互不冲突的实际计划，不得附加未定时或矛盾的模板。",
     fields: ["camera_movement", "timeline", "constraint"],
   },
   SQ4_LIGHT_COLOR: {
-    question: "光影、构图和色调是否统一？",
+    question: "光影、构图和色调是否统一？护具完整不等于所有护具必须同框；明确不入近景画框的护具可由一致性字段连续承载，只对明确要求同框的部位判缺失。",
     fields: ["lighting", "color_palette", "composition", "mood"],
   },
   SQ5_PURPOSE: {
@@ -320,13 +322,40 @@ function resolveCurrentArchivePromptAssets(
 ): PromptCompileAsset[] {
   const { character, selectionReceipt, sources, outputs } = archive;
   const bindings = input.source.portraitBindings;
-  if (!Array.isArray(bindings) || bindings.length !== 1) return [];
-  const binding = bindings[0];
-  if (binding?.mode !== "studio" || binding.character !== character.name
-    || ![character.id, character.name].some(value => binding.source === `portrait-set://${value}`)
-    || !Array.isArray(binding.portraits) || binding.portraits.length !== outputs.length
-    || !character.angles.every((angle, index) => binding.portraits.some((portrait: { angle?: unknown; outputFile?: unknown }) =>
-      portrait?.angle === angle && portrait.outputFile === outputs[index]?.path))) return [];
+  const maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
+  const equivalentProjectOutput = (file: unknown, index: number): boolean => {
+    if (typeof file !== "string" || !file.trim()) return false;
+    const expected = outputs[index]!;
+    try {
+      const root = realpathSync(input.charactersDir);
+      const candidate = realpathSync(file);
+      const rel = path.relative(root, candidate);
+      if (rel === "" || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return false;
+      const stat = statSync(candidate);
+      if (!stat.isFile() || stat.size !== expected.bytes || expected.bytes <= 0 || expected.bytes > maxBytes) return false;
+      const bytes = readFileSync(candidate);
+      return bytes.length === expected.bytes && digest(bytes) === expected.sha256;
+    } catch {
+      return false;
+    }
+  };
+  // Native normalization may retain only the canonical image URI and drop the
+  // sibling portraitBindings object. When the current archive is already
+  // byte-verified, an exact canonical character+angle URI is sufficient to
+  // resolve the same project copy. A supplied binding is still checked and any
+  // malformed or conflicting binding fails closed.
+  if (bindings !== undefined && bindings !== null && (!Array.isArray(bindings) || bindings.length > 0)) {
+    if (!Array.isArray(bindings) || bindings.length !== 1) return [];
+    const binding = bindings[0];
+    const portraits = Array.isArray(binding?.portraits)
+      ? binding.portraits as Array<{ angle?: unknown; outputFile?: unknown }> : [];
+    if (binding?.mode !== "studio" || binding.character !== character.name
+      || ![character.id, character.name].some(value => binding.source === `portrait-set://${value}`)
+      || portraits.length !== outputs.length
+      || !character.angles.every((angle, index) => portraits.some(portrait =>
+        portrait?.angle === angle && (portrait.outputFile === outputs[index]?.path
+          || equivalentProjectOutput(portrait.outputFile, index))))) return [];
+  }
 
   const uriPath = (root: string, file: string) => path.relative(root, file).split(path.sep).join("/");
   const aliases = new Map<string, number>();
@@ -337,20 +366,62 @@ function resolveCurrentArchivePromptAssets(
     const angleFile = `${angle}${path.extname(original.path)}`;
     for (const reference of [original.path, copy.path, `image://${uriPath(input.workDir, copy.path)}`,
       `image://characters/${uriPath(input.charactersDir, copy.path)}`,
+      `image://characters/${character.id}-${angleFile}`,
+      `image://characters/${character.name}-${angleFile}`,
       `${nativeRoot}/${version}/${angleFile}`, `${nativeRoot}/portraits/${version}/${angleFile}`,
       `${nativeRoot}/portraits/${version}/${path.basename(original.path)}`,
       `portrait-set://${character.id}/${version}/${angle}`]) aliases.set(reference, index);
   }
 
-  // Native ShotNormalizer may list the exact references under one actor label.
-  // A role-only URI, guessed v1 path, unknown or duplicate angle never picks a file.
-  const text = typeof raw === "string" ? raw.trim() : "";
-  const labelled = /^([^:：]+)[:：]\s*(.+)$/u.exec(text);
-  const explicitList = labelled && [character.id, character.name].includes(labelled[1]!.trim()) ? labelled[2]! : text;
-  const values = Array.isArray(raw) ? raw : explicitList.split(/[,，]/u);
-  const indices = values.map(value => typeof value === "string" ? aliases.get(value.trim()) : undefined);
-  const maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
-  if (indices.length === 0 || indices.some(index => index === undefined || outputs[index]!.bytes > maxBytes)
+  // Native ShotNormalizer may list exact references under one actor label and
+  // may use full-width semicolons. An exact selected identity URI means its
+  // canonical front identity anchor; guessed paths, unknown or duplicate
+  // angles still never pick a file.
+  const rawValues = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];
+  const values = rawValues.flatMap(value => typeof value === "string" ? value.split(/[,，;；]/u) : [value])
+    .map(value => {
+      if (typeof value !== "string") return value;
+      const text = value.trim();
+      const labelled = /^([^:：]+)[:：]\s*(.+)$/u.exec(text);
+      return labelled && [character.id, character.name].includes(labelled[1]!.trim()) ? labelled[2]!.trim() : text;
+    });
+  const angleFromReference = (value: string): number | undefined => {
+    const nativePrefix = `image://characters/${character.id}/`;
+    const namePrefix = `image://characters/${character.name}/`;
+    if ([`image://characters/${character.id}`, `image://characters/${character.name}`].includes(value)) return 0;
+    if (!value.startsWith(nativePrefix) && !value.startsWith(namePrefix)) return undefined;
+    const versions = [...value.matchAll(/\/v(\d+)(?=\/|$)/gu)].map(match => Number(match[1]));
+    if (versions.some(version => version !== selectionReceipt.selectedVersion)) return undefined;
+    // FieldQuality can retain the old generic, versioned portrait token. Only
+    // the exact selected identity and version qualify, and the generic token
+    // deterministically means the canonical front identity anchor.
+    const genericPortrait = /^portrait-v(\d+)\.(?:png|jpe?g|webp|bmp|tiff?|heic?)$/iu.exec(value.split("/").at(-1) ?? "");
+    if (genericPortrait && Number(genericPortrait[1]) === selectionReceipt.selectedVersion) return 0;
+    const matches = character.angles.flatMap((angle, index) => new RegExp(
+      `(?:^|[-_/])${angle}(?:\\.(?:png|jpe?g|webp|bmp|tiff?|heic?))?$`, "i",
+    ).test(value) ? [index] : []);
+    return matches.length === 1 ? matches[0] : undefined;
+  };
+  const embeddedNativeIndices = (value: string): number[] => {
+    // Native prose may keep a canonical portrait URI and append review-state
+    // parentheses. Resolve only complete native URI tokens, never a role-only
+    // phrase, guessed angle or unknown version.
+    const references = [...value.matchAll(/image:\/\/characters\/[^\s,，;；、。()（）\[\]【】]+/gu)]
+      .map(match => aliases.get(match[0]!) ?? angleFromReference(match[0]!) ?? -1);
+    return references;
+  };
+  const indices = values.flatMap(value => {
+    if (typeof value !== "string") return [undefined];
+    const text = value.trim();
+    const exact = aliases.get(text);
+    if (exact !== undefined) return [exact];
+    const exactNative = angleFromReference(text);
+    if (exactNative !== undefined) return [exactNative];
+    const embedded = embeddedNativeIndices(text);
+    return embedded.length ? embedded : [undefined];
+  });
+  if (indices.length === 0 || indices.some(index => index === undefined || !Number.isInteger(index)
+    || index < 0 || index >= outputs.length || outputs[index]!.bytes > maxBytes)
     || new Set(indices).size !== indices.length) return [];
   return indices.map(index => {
     const copy = outputs[index!]!;
@@ -367,7 +438,26 @@ function portraitMediaType(file: string): string {
 export function resolvePromptAssets(input: ResolvePromptAssetInput): PromptCompileAsset[] {
   const field = input.source.fields && typeof input.source.fields === "object" && !Array.isArray(input.source.fields)
     ? (input.source.fields as Record<string, unknown>).portraits : undefined;
-  if (input.archiveCopies) return resolveCurrentArchivePromptAssets(input, input.archiveCopies, field ?? input.source.portraits);
+  // Native DualArraySync can retain the canonical image URI only in the
+  // compiled prompt while leaving sibling field copies null. The exact URI
+  // still resolves against this run's byte-verified archive.
+  if (input.archiveCopies) {
+    const explicit = field ?? input.source.portraits;
+    const promptReferences = typeof input.source.prompt === "string"
+      ? [...input.source.prompt.matchAll(/image:\/\/characters\/[^\s,，;；、。()（）\[\]【】]+/gu)].map(match => match[0]!)
+      : [];
+    const raw = explicit === undefined || explicit === null || (typeof explicit === "string" && !explicit.trim())
+      ? promptReferences
+      : explicit;
+    const resolved = resolveCurrentArchivePromptAssets(input, input.archiveCopies, raw);
+    // Native field normalization can retain a stale sibling value while the
+    // same frozen shot prompt already carries exact canonical archive URIs.
+    // Only consult those complete, versioned URIs after the authored field has
+    // failed to resolve; role-only text and unknown identities still fail.
+    return resolved.length > 0 || raw === promptReferences
+      ? resolved
+      : resolveCurrentArchivePromptAssets(input, input.archiveCopies, promptReferences);
+  }
   const raw = input.source.portraits ?? field;
   const values = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];
   const maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
@@ -551,7 +641,7 @@ function semanticQuestions(upstream: Record<string, unknown> | undefined, shotId
   if (!hasCurrentG4Shot(upstream, shotId)) return SEMANTIC_QUALITY_QUESTION;
   return {
     ...SEMANTIC_QUALITY_QUESTION,
-    SQ5_PURPOSE: { question: "这一镜是否有明确叙事作用，且转场不违背本镜已审切点和末态动作？",
+    SQ5_PURPOSE: { question: "这一镜是否有明确叙事作用，且转场不违背本镜已审切点、硬切时长与末态自然微动？不得把自然微动改写成冻结或定格。",
       fields: [...SEMANTIC_QUALITY_QUESTION.SQ5_PURPOSE.fields, "transition"] },
   };
 }
@@ -729,6 +819,7 @@ function semanticPrompt(
   contract: PromptContract,
   source: Record<string, unknown>,
   upstreamContext?: Record<string, unknown>,
+  reviewScope?: Pick<SemanticReviewContext, "projectId" | "runId" | "stageRunId" | "attempt">,
 ): string {
   const fields = contract.bindings.map((binding) => {
     const value = fieldValueFromSource(source, binding.field);
@@ -744,17 +835,17 @@ function semanticPrompt(
     ...(upstreamContext?.approvedProductionPlan ? [
       "approvedProductionPlan 含当前 G4 批准并按镜号绑定的场景与核验计划。依据镜号核对本镜，不替其他镜头认领动作。客户冻结 Brief、现有镜号、顺序和时长仍有效。",
       "SQ1 必须核对本镜每个必做动作在画面中可见。只写动作已经完成、跳过关键前后状态、用结果代替过程或把动作移到另一镜，都判失败。缺动作指向 action；身份或姿态不符指向 character。",
-      "SQ2 必须检查时间轴是否逐项呈现本镜的动作和道具交接，按要求顺序发生。与 action 缺项或冲突时指向 timeline。SQ3 运镜各时间窗和镜位须对齐同一实际动作与时间轴。",
-      "SQ4 核对构图是否实际能看到 G4 明确要求的部位、护具、动作或可见细节；不能用无关特写、遮挡或通用形容词代替。SQ5 关键目的与相邻镜头交接必须有本镜的字段证据。",
+      "SQ2 必须检查时间轴是否用 T00:00–T00:xx 等显式连续区间从头到尾逐项呈现本镜的动作和道具交接。单点时间或省略时间窗不能证明顺序。与 action 缺项或冲突时指向 timeline。SQ3 运镜各时间窗和镜位须对齐同一实际动作与时间轴。",
+      "SQ4 核对构图是否实际能看到 G4 明确要求同框的部位、护具、动作或可见细节；如果 G4 只要求护具完整而未要求全部同框，明确说明不入近景画框的部分可由 consistency 的连续状态承载，不得把“完整”误判为“必须全同框”，也不能忽略明确同框要求。SQ5 关键目的与相邻镜头交接必须有本镜的字段证据。",
       ...(hasCurrentG4Shot(upstreamContext, contract.shotId) ? [
-        "SQ2 角色占用双手的道具必须实际放稳、交接或有明确可行的后续动作，不能从仍握住道具直接跳到双手使用另一道具。",
+        "SQ2 角色占用双手的道具必须实际放稳、交接或有明确可行的后续动作，不能从仍握住道具直接跳到双手使用另一道具。重复项必须有显式时间区间和段内动作，不使用孤立时点代替完整过程。",
         "已审规格要求连续多个关键动作时，逐个核对每次的起点、过程、完整完成和前一动作应保留的连续状态，不能用只写部分动作或成功结果代替。",
         "SQ4 必须为本镜已审明确要求的每一项可见细节单独找镜头内证据。仅证明光线、奖杯或脸部清楚，不能替代护具内的自然轮廓或规定的完整动作。",
         "SQ5 仅当本镜转场文字确有冲突时可指向 transition。按实际已审切点和末态复核：自然微动不能改成冻结或定格；稳定机位、自然微动和冻结画面是不同的制作行为。",
       ] : []),
       "用本镜真实字段片段作证据；缺项时摘录跳过该动作、只呈现完成状态或明确遮挡的原文，不得用 G4 文字冒充本镜证据。",
     ] : []),
-    JSON.stringify({ shotId: contract.shotId, fieldSchema: contract.fieldSchema, fields, upstreamContext: upstreamContext ?? null,
+    JSON.stringify({ ...(reviewScope ? { reviewScope } : {}), shotId: contract.shotId, fieldSchema: contract.fieldSchema, fields, upstreamContext: upstreamContext ?? null,
       questions: semanticQuestions(upstreamContext, contract.shotId) }, null, 2),
   ].join("\n");
 }
@@ -792,6 +883,7 @@ function repairPrompt(
   finalPromptFieldBudget?: FinalPromptFieldBudget,
   helmetCustodyFields?: SemanticRepairContext["helmetCustodyFields"],
   helmetCustodyArm?: SemanticRepairContext["helmetCustodyArm"],
+  reviewScope?: Pick<SemanticReviewContext, "projectId" | "runId" | "stageRunId" | "attempt">,
 ): string {
   const fields = contract.bindings.map(({ field }) => ({ field, value: fieldValueFromSource(source, field) }));
   const writable = new Set(allowedFields);
@@ -804,6 +896,7 @@ function repairPrompt(
       "没有语义缺陷的可写描述字段只精简同义重复，保留原有光向、色彩、构图、景深、情绪、可见环境、导演目的、节奏变化和妆容特征。不得截断、清空或把内容移到其他字段。",
     ] : []),
     ...(allowedFields.includes("transition") ? ["仅按独立评审指向的具体矛盾修复转场文字，保留原硬切、切点、原生末态与自然动作；不得增加过渡、延长时长或冻结画面。"] : []),
+    ...(allowedFields.includes("camera_movement") ? ["运镜只能保留一套实际可执行的速度、方向与起落幅计划；不得同时出现固定 m/s 与加速/减速阶段，也不得追加未定时的收尾定格模板。"] : []),
     ...(finalPromptFieldBudget ? [
       `实际编译中固定部分已占 ${finalPromptFieldBudget.fixedChars} 字；所有可写字段修复后的值总长（含未改可写字段）最多 ${finalPromptFieldBudget.maxEditableValueChars} 字，建议不超过 ${finalPromptFieldBudget.targetEditableValueChars} 字。请在本次响应内核算全部可写字段的总长，留出安全余量。`,
       `必须同时解决正式评审指出的语义缺陷。仅以下字段可按对应 findings 补齐或调整制作语义：${JSON.stringify(finalPromptFieldBudget.semanticFields)}；其余可写字段只能缩写。保持演员身份、资产、服装、声场、技术规格和每镜总时长；不得省略已审动作或增加段落。`,
@@ -819,10 +912,10 @@ function repairPrompt(
       "时间轴的交接写进实际发生的段内时窗，保留完整原时长、切点和已审动作顺序，运镜及动作字段须与之相容。",
     ] : []),
     ...(findings.some(check => check.eventWitness) ? [
-      "eventWitness 是宿主从当前已审计划及同版字段提取的有限事件见证。逐项落实对应演员、身体侧别、对手身份、事件顺序与时间窗，不得删除原事件或借用另一对手的完成状态来消除诊断。",
+      "eventWitness 是宿主从当前已审计划及同版字段提取的有限事件见证。逐项落实对应演员、身体侧别、对手身份、事件顺序与时间窗，不得删除原事件或借用另一对手的完成状态来消除诊断。若涉及 timeline，必须写成 T00:00–T00:xx 等显式、连续、无缝覆盖本镜总时长的区间，不能只写孤立时点。",
     ] : []),
     "只输出 JSON：changes[]，每项必须有 field、value、reason；至少产生一个变化。",
-    `镜头：${JSON.stringify({ shotId: contract.shotId, durationSec: contract.request.parameters.duration_sec,
+    `镜头：${JSON.stringify({ ...(reviewScope ? { reviewScope } : {}), shotId: contract.shotId, durationSec: contract.request.parameters.duration_sec,
       allowedFields: fields.filter(({ field }) => writable.has(field)),
       readOnlyFields: fields.filter(({ field }) => !writable.has(field)),
       findings, ...(finalPromptLength ? { finalPromptLength } : {}), ...(finalPromptFieldBudget ? { finalPromptFieldBudget } : {}),
@@ -832,7 +925,9 @@ function repairPrompt(
 
 function semanticReviewRequest(context: SemanticReviewContext) {
   const options: LLMReasonOptions = { scene: "preproduction", maxTokens: 2200, temperature: 0 };
-  return [semanticPrompt(context.contract, context.shot, context.upstreamContext), semanticSchema(context.contract.shotId), options] as const;
+  return [semanticPrompt(context.contract, context.shot, context.upstreamContext,
+    { projectId: context.projectId, runId: context.runId, stageRunId: context.stageRunId, attempt: context.attempt }),
+  semanticSchema(context.contract.shotId), options] as const;
 }
 
 function correctedSemanticReviewRequest(request: ReturnType<typeof semanticReviewRequest>, failure: SemanticReviewCorrection) {
@@ -878,7 +973,8 @@ export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine, verifyC
     async repair(context) {
       const result = await withCurrentSource(verifyCurrent, () => llm.reasonStructured(
         repairPrompt(context.contract, context.shot, context.findings, context.allowedFields, context.upstreamContext,
-          context.finalPromptLength, context.finalPromptFieldBudget, context.helmetCustodyFields, context.helmetCustodyArm),
+          context.finalPromptLength, context.finalPromptFieldBudget, context.helmetCustodyFields, context.helmetCustodyArm,
+          { projectId: context.projectId, runId: context.runId, stageRunId: context.stageRunId, attempt: context.attempt }),
         repairSchema(context),
         { scene: "preproduction", maxTokens: 1200, temperature: 0 },
       ), value => observeSemanticDispatch(llm, context.contract.shotId, "repair", value, observeDispatch));
@@ -1087,6 +1183,106 @@ export interface EvaluatePromptQualityInput {
   upstreamContext?: Record<string, unknown>;
   maxWallMs?: number;
   maxFinalPromptChars?: number;
+}
+
+function rescaleTimelineClock(value: unknown, fromSeconds: number, toSeconds: number): unknown {
+  if (typeof value !== "string" || !Number.isFinite(fromSeconds) || fromSeconds <= 0
+    || !Number.isFinite(toSeconds) || toSeconds <= 0 || fromSeconds === toSeconds) return value;
+  const factor = toSeconds / fromSeconds;
+  return value.replace(/(\d{1,2}):(\d{2}(?:\.\d+)?)/g, (_match, minutes: string, seconds: string) => {
+    const previous = Number(minutes) * 60 + Number(seconds);
+    const next = Math.min(toSeconds, previous * factor);
+    const precision = seconds.includes(".") ? seconds.split(".")[1]!.length : 0;
+    const rendered = (next % 60).toFixed(precision).padStart(precision ? precision + 3 : 2, "0");
+    return `${String(Math.floor(next / 60)).padStart(2, "0")}:${rendered}`;
+  });
+}
+
+function timelineClockMax(value: unknown): number | undefined {
+  if (typeof value !== "string") return undefined;
+  const times = [...value.matchAll(/(\d{1,2}):(\d{2}(?:\.\d+)?)/g)]
+    .map(([, minutes, seconds]) => Number(minutes) * 60 + Number(seconds))
+    .filter(Number.isFinite);
+  return times.length ? Math.max(...times) : undefined;
+}
+
+function clampShotTimelineFields(entry: EvaluatePromptQualityInput["shots"][number], duration: number) {
+  const source = entry.source as Record<string, unknown>;
+  const fields = source.fields && typeof source.fields === "object" && !Array.isArray(source.fields)
+    ? source.fields as Record<string, unknown> : undefined;
+  const clamp = (value: unknown) => {
+    const observed = timelineClockMax(value);
+    return observed !== undefined && observed > duration ? rescaleTimelineClock(value, observed, duration) : value;
+  };
+  return {
+    ...entry,
+    source: {
+      ...source,
+      ...(source.timeline !== undefined ? { timeline: clamp(source.timeline) } : {}),
+      ...(fields ? { fields: { ...fields, ...(fields.timeline !== undefined ? { timeline: clamp(fields.timeline) } : {}) } } : {}),
+    },
+  };
+}
+
+export function normalizePromptShotDurations(
+  shots: EvaluatePromptQualityInput["shots"],
+  requestedTargetSeconds?: number,
+): EvaluatePromptQualityInput["shots"] {
+  if (shots.length === 0) return shots;
+  const durations = shots.map(({ source }) => Number((source as Record<string, unknown>).duration
+    ?? ((source as Record<string, unknown>).timing as Record<string, unknown> | undefined)?.duration));
+  const minimums = shots.map(({ compile }) => compile.model.durationSec.min);
+  const maximums = shots.map(({ compile }) => compile.model.durationSec.max);
+  const minSeconds = Math.max(...minimums);
+  const maxSeconds = Math.min(...maximums);
+  const sourceTargetSeconds = durations.reduce((sum, duration) => sum + duration, 0);
+  const targetSeconds = Number.isSafeInteger(requestedTargetSeconds) && Number(requestedTargetSeconds) > 0
+    ? Number(requestedTargetSeconds) : sourceTargetSeconds;
+  if (!Number.isInteger(targetSeconds) || !Number.isInteger(minSeconds) || !Number.isInteger(maxSeconds)
+    || (durations.every(duration => Number.isInteger(duration) && duration >= minSeconds && duration <= maxSeconds)
+      && sourceTargetSeconds === targetSeconds)) {
+    return shots.map((entry, index) => clampShotTimelineFields(entry, durations[index]!));
+  }
+  const plan = projectShotDurations(shots.map(({ source }, index) => {
+    const record = source as Record<string, unknown>;
+    return {
+      shotId: String(record.shotId ?? record.shot_id ?? `S${String(index + 1).padStart(2, "0")}`),
+      duration: durations[index],
+      ...(record.timing && typeof record.timing === "object" && !Array.isArray(record.timing)
+        ? { timing: record.timing as { start?: number; duration?: number; end?: number } } : {}),
+      ...(record.dialogue !== undefined ? { dialogue: record.dialogue } : {}),
+      ...(typeof record.emotion === "string" ? { emotion: record.emotion }
+        : typeof record.mood === "string" ? { emotion: record.mood } : {}),
+      ...(typeof record.mood === "string" ? { mood: record.mood } : {}),
+      ...(typeof record.sceneType === "string" ? { sceneType: record.sceneType } : {}),
+    };
+  }), { targetSeconds, minSeconds, maxSeconds, enforceVoiceFloor: false });
+  if (!plan.ok) return shots;
+  const projected = applyProjectedDurations<Record<string, unknown>>(shots.map(({ source }, index) => {
+    const record = source as Record<string, unknown>;
+    return {
+      ...structuredClone(record),
+      shotId: String(record.shotId ?? record.shot_id ?? `S${String(index + 1).padStart(2, "0")}`),
+    };
+  }), plan.entries);
+  return shots.map((entry, index) => {
+    const previous = entry.source as Record<string, unknown>;
+    const next = projected[index]!;
+    const fromSeconds = durations[index]!;
+    const toSeconds = Number(next.duration);
+    const fields = previous.fields && typeof previous.fields === "object" && !Array.isArray(previous.fields)
+      ? { ...(previous.fields as Record<string, unknown>) } : {};
+    if (fields.timeline !== undefined) fields.timeline = rescaleTimelineClock(fields.timeline, fromSeconds, toSeconds);
+    return clampShotTimelineFields({
+      ...entry,
+      source: {
+        ...next,
+        ...(typeof previous.timeline === "string"
+          ? { timeline: rescaleTimelineClock(previous.timeline, fromSeconds, toSeconds) } : {}),
+        fields,
+      },
+    }, toSeconds);
+  });
 }
 
 export interface PromptContractSummary {
@@ -1359,7 +1555,14 @@ async function evaluateCompiledShots(
 }
 
 export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): Promise<PromptQualityResult> {
-  const input = { ...value, maxFinalPromptChars: checkedFinalPromptLimit(value.maxFinalPromptChars) };
+  const requestedBrief = value.upstreamContext?.brief;
+  const requestedDuration = requestedBrief && typeof requestedBrief === "object" && !Array.isArray(requestedBrief)
+    ? Number((requestedBrief as Record<string, unknown>).duration) : undefined;
+  const input = {
+    ...value,
+    shots: normalizePromptShotDurations(value.shots, requestedDuration),
+    maxFinalPromptChars: checkedFinalPromptLimit(value.maxFinalPromptChars),
+  };
   const approvedProductionPlanSha256 = input.upstreamContext?.approvedProductionPlan !== undefined
     ? sha256Json(input.upstreamContext.approvedProductionPlan) : undefined;
   const reviewer = input.reviewer ?? null;

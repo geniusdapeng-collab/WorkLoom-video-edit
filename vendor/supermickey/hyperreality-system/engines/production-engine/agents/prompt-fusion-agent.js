@@ -642,7 +642,11 @@ scene≥120, lighting≥150, composition≥100, action≥120, camera_movement≥
       const fillResult = await this._callLLM(fillPrompt, fillSchema, () => null, {
         maxRetries: 2,
         maxTokens: 4096,
-        timeoutMs: 180000 // 【v2.1.8-fix10】fill 180s,避免批量补齐超时
+        timeoutMs: 180000, // 【v2.1.8-fix10】fill 180s,避免批量补齐超时
+        // A blank final answer on a focused field fill is recoverable exactly
+        // once through the authority bridge's native same-route correction.
+        critical: true,
+        fieldFill: true
       });
       const fillFields = fillResult?.result?.fields || fillResult?.result?.[shot.shotId] || {};
       const normalized = normalizeFields(fillFields);
@@ -1314,7 +1318,11 @@ ${ctx}
 ## 本次只补齐以下字段,每个必须达到最低字符数
 ${missing.map(f => `- ${f}:${FIELD_DESCS[f]}`).join('\n')}
 
-只输出 JSON,不要解释。`;
+## 最终 JSON 结构
+必须严格输出以下单对象结构；fields 中只放本次列出的字段，每个字段都写非空中文正文。
+{"shotId":"${shot.shotId}","fields":{${missing.map(f => `"${f}":"<完整中文描述>"`).join(',')}}}
+
+完成必要推理后，把完整 JSON 写入最终答复。不要在最终 content 留空，不要输出 Markdown、解释、代码围栏、省略号或占位符。`;
   }
 
   /**

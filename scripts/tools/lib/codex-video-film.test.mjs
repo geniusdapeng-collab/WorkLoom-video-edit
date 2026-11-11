@@ -194,6 +194,29 @@ test("actual task budget relay verifies allowed cap, task, model and complete sh
   assert.equal(upstreamCalls, 0);
 });
 
+test("actual task budget relay admits approved non-uniform shots only when their exact total matches scope", async (t) => {
+  const f = fixture(t);
+  const clientToken = "local_budget_nonuniform_".padEnd(48, "x");
+  let upstreamCalls = 0;
+  const gateway = await startProviderBudgetGateway({ port: 0, task: "fixture-budget",
+    journalPath: join(dirname(f.input.receiptPath), "budget-nonuniform.jsonl"), clientToken,
+    deepSeekApiKey: "fixture-deepseek-no-external-credential", arkApiKey: "fixture-ark-no-external-credential", profile: "workflow",
+    scope: { video: { seconds: 30, allowedSeconds: [4, 5, 8], totalSeconds: 17, ratio: "9:16", resolution: "1080p" } },
+    fetchImpl: async () => { upstreamCalls++; throw new Error("test prohibits external calls"); },
+  });
+  t.after(() => gateway.close());
+  const args = { env: { LLM_BASE_URL: gateway.baseUrl, ARK_BASE_URL: gateway.baseUrl + "/api/v3",
+    WORKLOOM_BUDGET_GATEWAY_TOKEN: clientToken, WORKLOOM_BUDGET_TASK_ID: "fixture-budget" },
+  shotDurations: [4, 5, 8], aspect: "9:16", resolution: "1080p" };
+  const result = await admitFilmBudget(args);
+  assert.deepEqual(result.evidence.videoScope, {
+    seconds: 30, allowedSeconds: [4, 5, 8], totalSeconds: 17, ratio: "9:16", resolution: "1080p",
+  });
+  await assert.rejects(admitFilmBudget({ ...args, shotDurations: [4, 4, 8] }), /FILM_BUDGET_SCOPE_INSUFFICIENT/u);
+  await assert.rejects(admitFilmBudget({ ...args, shotDurations: [4, 6, 7] }), /FILM_BUDGET_SCOPE_INSUFFICIENT/u);
+  assert.equal(upstreamCalls, 0);
+});
+
 test("a Studio source that changes while budget is admitted cannot launch Film", async (t) => {
   const f = fixture(t);
   f.input.refreshSource = async () => ({ archive: f.input.archive, production: { ...f.input.production, sourceAttempt: 3 } });

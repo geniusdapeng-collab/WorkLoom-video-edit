@@ -276,6 +276,7 @@ export function prdAuthorityPrompt(authority: PrdAuthority, contract: Requiremen
     + (authority.portraitSources?.length ? `以下是已按本次原文、人物和既有所有者用途证据核对的源图；它们仍待本次 G5 执行复制与审核，不能填入项目 portraitPath：\n${JSON.stringify(authority.portraitSources)}\n` : "")
     + `制作规格 scenePlan.scenes 按合同节点顺序一一对应，sceneId 必须逐项等于合同 scenes[].id，duration 必须逐项等于该节点 duration。`
     + `不得合并、拆分、漏掉开场或结尾；总时长必须位于 ${authority.profile.targetDuration ?? contract.scenes.reduce((sum, scene) => sum + scene.duration, 0)}s 的 ±${TARGET_DURATION_TOLERANCE_SECONDS}s 内，且各节点时长必须继承已审 G3 合同。`
+    + `shotMapping.estimatedShots=1 时 shotBreakdownHint 必须恰好一个主景别；动作、景别、转场和时间轴须由同一主运镜在该生成片段内完成。`
     + `完整保留场景原目的、角色行为、可见道具与创作原文；叙事语言由本次模型创作。\n`
     + `下面是本次宿主真实非降级 G1 通过的完整原件，仅授权其中已接受 claims 及其限定用途，不批准本次 PRD。`
     + `必须遵守原件明确 restrictions。完整阅读嵌套 A1/A2/A3 support review 的 issues 和 suggestions，回应其中的事实不确定性、来源/报道日期/用途限定。`
@@ -482,6 +483,52 @@ function compactProductionExecutionArrays(value: unknown): void {
   }
 }
 
+/**
+ * Agent3 occasionally decorates a valid cast object with undeclared metadata.
+ * The effective schema is authoritative and downstream cannot consume those
+ * keys. Remove a small bounded set, while retaining every declared field and
+ * failing closed on a wholesale shape rewrite.
+ */
+export function projectUndeclaredPrdCharacterFields(value: RequirementRecord, effectiveSchema: RequirementRecord): string[] {
+  const properties = requirementRecord(effectiveSchema.properties, "生产规格 schema 字段");
+  const characterSystem = requirementRecord(requirementRecord(properties.characterSystem, "characterSystem schema").properties,
+    "characterSystem schema 字段");
+  const characterSchema = requirementRecord(requirementRecord(characterSystem.characters, "characters schema").items,
+    "character item schema");
+  const allowed = new Set(Object.keys(requirementRecord(characterSchema.properties, "character item schema 字段")));
+  const characterSystemValue = requirementRecord(value.characterSystem, "PRD characterSystem");
+  if (!Array.isArray(characterSystemValue.characters)) prdFail("PRD_CHARACTER_SHAPE_INVALID", "characterSystem.characters 必须是数组");
+  const removed: string[] = [];
+  for (const [index, raw] of characterSystemValue.characters.entries()) {
+    const character = requirementRecord(raw, `characterSystem.characters/${index}`);
+    const extras = Object.keys(character).filter(key => !allowed.has(key));
+    if (extras.length > 8) {
+      prdFail("PRD_CHARACTER_SHAPE_INVALID", `characterSystem.characters/${index} 有过多未声明字段`);
+    }
+    for (const key of extras) {
+      delete character[key];
+      removed.push(`/characterSystem/characters/${index}/${key}`);
+    }
+  }
+  return removed;
+}
+
+/**
+ * Agent3 can also decorate visualSpecification with a few undeclared keys.
+ * The effective schema remains authoritative, so remove only a bounded number
+ * of top-level extras and retain every declared nested field unchanged.
+ */
+export function projectUndeclaredPrdVisualFields(value: RequirementRecord, effectiveSchema: RequirementRecord): string[] {
+  const properties = requirementRecord(effectiveSchema.properties, "生产规格 schema 字段");
+  const visualSchema = requirementRecord(properties.visualSpecification, "visualSpecification schema");
+  const allowed = new Set(Object.keys(requirementRecord(visualSchema.properties, "visualSpecification schema 字段")));
+  const visual = requirementRecord(value.visualSpecification, "PRD visualSpecification");
+  const extras = Object.keys(visual).filter(key => !allowed.has(key));
+  if (extras.length > 8) prdFail("PRD_VISUAL_SHAPE_INVALID", "visualSpecification 有过多未声明字段");
+  for (const key of extras) delete visual[key];
+  return extras.map(key => `/visualSpecification/${key}`);
+}
+
 /** Validate the actual model payload before vendor parsers can manufacture missing modules. */
 export function validatePrdModelPayload(value: unknown, kind: "creative" | "production", schemaValue: RequirementRecord, contract: RequirementContract, profile: PrdProductionProfile): RequirementRecord {
   let parsed: unknown = value;
@@ -501,6 +548,8 @@ export function validatePrdModelPayload(value: unknown, kind: "creative" | "prod
     }
   } else {
     compactProductionExecutionArrays(result);
+    projectUndeclaredPrdCharacterFields(result, effective);
+    projectUndeclaredPrdVisualFields(result, effective);
   }
   // Retain the existing creative validation path and acceptance semantics.
   const schema = kind === "creative"
@@ -521,7 +570,8 @@ export function validatePrdProduction(value: unknown, contract: RequirementContr
   if (scenes.length !== contract.scenes.length || scenes.some((scene, index) => {
     const original = contract.scenes[index]!;
     return scene.sceneId !== original.id || scene.sequence !== index + 1 || typeof scene.duration !== "number"
-      || !Number.isFinite(scene.duration) || scene.duration <= 0 || Math.abs(scene.duration - original.duration) > sceneTolerance + 1e-9;
+      || !Number.isSafeInteger(scene.duration) || scene.duration <= 0
+      || Math.abs(scene.duration - original.duration) > sceneTolerance + 1e-9;
   }) || (profile.targetDuration !== undefined && !(
     Math.abs(scenes.reduce((total, scene) => total + Number(scene.duration), 0) - profile.targetDuration)
       <= Math.max(sceneTolerance, TARGET_DURATION_TOLERANCE_SECONDS) + 1e-9

@@ -10,6 +10,7 @@ import {
   logVendorCompatibility,
   type DurationProjectionEvent,
 } from "./vendor-compat.js";
+import { computeVoiceFloor } from "./duration-projection.js";
 
 /**
  * T-2026-0925-0001：时长投影桥的**真行为**回归。
@@ -130,7 +131,10 @@ describe("时长投影桥：vendor 侧不再产出越界/失衡时长", () => {
     const total = scenes.reduce((sum, s) => sum + Number(s.timing.duration), 0);
     expect(total).toBe(60);
     const long = scenes.find((s) => s.scene_id === "SC04")!;
-    expect(Number(long.timing.duration)).toBeGreaterThanOrEqual(18);
+    const voiceFloor = computeVoiceFloor({ shotId: "SC04", duration: 26,
+      dialogue: { lines: [{ text: LINE_48 }] } });
+    expect(voiceFloor.seconds).toBe(17);
+    expect(Number(long.timing.duration)).toBeGreaterThanOrEqual(voiceFloor.seconds);
     expect(events.some((e) => e.source === "dcm.constrain")).toBe(true);
   });
 

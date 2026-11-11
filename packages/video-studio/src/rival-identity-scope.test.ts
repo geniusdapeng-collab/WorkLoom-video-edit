@@ -4,7 +4,9 @@ import { bindRequirementContract, requirementCast, requirementRecord, type Requi
 import { preparePrdAuthority } from "./prd-authority.js";
 import { installPrdAuthorityBridge, installPrdProductionBridge, productionModelInput, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { PRDGenerator, PRDSchema, prdFixture } from "./prd-authority.test-support.js";
-import { bindRivalAuthorityIdentity, bindRivalFusionIdentity, bindRivalRepairIdentity, rivalIdentityRequirement } from "./rival-identity-scope.js";
+import {
+  bindRivalAuthorityIdentity, bindRivalFusionIdentity, bindRivalRepairIdentity, reviewedRivalIdentity, rivalIdentityRequirement,
+} from "./rival-identity-scope.js";
 
 type NativeConstructor = { new (...args: unknown[]): RequirementRecord; prototype: RequirementRecord };
 const nativeRequire = createRequire(import.meta.url);
@@ -184,6 +186,11 @@ afterEach(() => {
 });
 
 describe("current reviewed moving rivals keep the unique lead identity", () => {
+  it("does not assume frozen cuts exist for a silent field-repair scope", () => {
+    const value = raceFixture("RIVAL-NO-CUTS");
+    expect(reviewedRivalIdentity({ contract: value.contract, cuts: undefined, reviewedPrd: value.production,
+      shotId: "opening", duration: 10 })).toBeUndefined();
+  });
   it.each([0, 1])("the actual native FieldQuality run carries one reviewed rider identity through checking and costume-only repair for shot %i", async index => {
     const value = raceFixture(`RIVAL-NATIVE-FIELD-QUALITY-${index}`), accepted = nativeHarness(value);
     const captured: FieldQualityCapture[] = [];

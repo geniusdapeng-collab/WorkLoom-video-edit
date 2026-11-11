@@ -467,10 +467,8 @@ describe("PRD real model response and provenance", () => {
     expect(() => validatePrdModelPayload(model, "production", PRDSchema, value.contract, value.authority.profile)).toThrow();
     expect(model).toEqual(before);
   });
-  it("allows exactly one explicitly requested frame of deviation and rejects two", () => {
+  it("rejects fractional scene durations even when they are below the declared frame tolerance", () => {
     const value = fixture(), model = structuredClone(value.production);
-    model.scenePlan.scenes[0]!.duration += 1 / 30;
-    expect(() => validatePrdProduction(model, value.contract, value.authority.profile)).not.toThrow();
     model.scenePlan.scenes[0]!.duration += 1 / 30;
     expect(() => validatePrdProduction(model, value.contract, value.authority.profile)).toThrow("PRD_SCENE_DURATION_CONFLICT");
   });

@@ -427,15 +427,24 @@ class RuleChecker {
       }
     }
 
-    // 定妆照路径格式
+    // 定妆照路径格式：兼容宿主已核验的 image:// 引用与显式不适用。
     const pt = shot.portraits || '';
-    if (pt && !/\/characters\/[\w_]+\/portrait_v\d+\.(png|jpg)/.test(pt)) {
+    const portraitValues = (Array.isArray(pt) ? pt : [pt])
+      .flatMap(value => typeof value === 'string' ? value.split(/[,，;；]/) : [value]);
+    const portraitText = portraitValues.map(value => typeof value === 'string' ? value.trim() : '').filter(Boolean);
+    const portraitNotApplicable = portraitText.length > 0
+      && portraitText.every(value => /^(?:NONE|N\/A|NA|NOT_APPLICABLE|不适用|无角色出场|无角色|无人物)$/i.test(value));
+    const canonicalPortrait = /^image:\/\/characters\/[^,\s;，；]+(?:\/[^,\s;，；]+)+$/i;
+    const legacyPortrait = /^\/characters\/[^,\s]+\/portrait_v\d+\.(?:png|jpe?g)$/i;
+    const portraitFormatValid = portraitNotApplicable
+      || (portraitText.length > 0 && portraitText.every(value => canonicalPortrait.test(value) || legacyPortrait.test(value)));
+    if (portraitText.length > 0 && !portraitFormatValid) {
       issues.push(new Issue({
         fieldEn: 'portraits', fieldCn: '定妆照',
         severity: Severity.MAJOR, issueType: IssueType.FORMAT_ERROR,
-        description: `定妆照路径格式不规范：${safeSlice(pt, 0, 40)}`,
-        suggestion: '路径格式建议：/characters/{角色英文名}/portrait_v{版本号}.{png|jpg}',
-        currentValue: safeSlice(pt, 0, 40)
+        description: `定妆照路径格式不规范：${safeSlice(String(pt), 0, 40)}`,
+        suggestion: '接受已核验的 image://characters/... 路径，或明确写“不适用”',
+        currentValue: safeSlice(String(pt), 0, 40)
       }));
     }
 
