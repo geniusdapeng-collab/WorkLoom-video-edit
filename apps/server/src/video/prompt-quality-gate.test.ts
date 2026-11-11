@@ -196,6 +196,13 @@ it("uses only the ordered explicit selections from a verified native archive bin
       field: "portraits", role: "reference_image", sha256: outputs[0]!.sha256, bytes: outputs[0]!.bytes,
       mediaType: "image/png", sourceRef: `characters/P1/lead-archive-v2-front.png`,
     }]);
+  expect(resolvePromptAssets({ source: { fields: { portraits: "image://characters/lead" } },
+    workDir, charactersDir, archiveCopies })).toEqual([{
+      field: "portraits", role: "reference_image", sha256: outputs[0]!.sha256, bytes: outputs[0]!.bytes,
+      mediaType: "image/png", sourceRef: `characters/P1/lead-archive-v2-front.png`,
+    }]);
+  expect(resolvePromptAssets({ source: { fields: { portraits: "image://characters/other" } },
+    workDir, charactersDir, archiveCopies })).toEqual([]);
 });
 
 const repairedCamera = "固定机位，缓慢推近一个动作";

@@ -374,8 +374,9 @@ function resolveCurrentArchivePromptAssets(
   }
 
   // Native ShotNormalizer may list exact references under one actor label and
-  // may use full-width semicolons. A role-only URI, guessed v1 path, unknown or
-  // duplicate angle never picks a file.
+  // may use full-width semicolons. An exact selected identity URI means its
+  // canonical front identity anchor; guessed paths, unknown or duplicate
+  // angles still never pick a file.
   const rawValues = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];
   const values = rawValues.flatMap(value => typeof value === "string" ? value.split(/[,，;；]/u) : [value])
     .map(value => {
@@ -387,6 +388,7 @@ function resolveCurrentArchivePromptAssets(
   const angleFromReference = (value: string): number | undefined => {
     const nativePrefix = `image://characters/${character.id}/`;
     const namePrefix = `image://characters/${character.name}/`;
+    if ([`image://characters/${character.id}`, `image://characters/${character.name}`].includes(value)) return 0;
     if (!value.startsWith(nativePrefix) && !value.startsWith(namePrefix)) return undefined;
     const versions = [...value.matchAll(/\/v(\d+)(?=\/|$)/gu)].map(match => Number(match[1]));
     if (versions.some(version => version !== selectionReceipt.selectedVersion)) return undefined;

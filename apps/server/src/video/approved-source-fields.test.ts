@@ -82,6 +82,16 @@ function authorInput(reply: string, patch: Record<string, unknown> = {}) {
 afterEach(() => { resetCircuit("preproduction"); vi.restoreAllMocks(); });
 
 describe("canonical source-contract recovery", () => {
+  it("does not treat downstream-only hard findings as replayed compiler errors", () => {
+    const { fields, bytes } = fixture();
+    const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [
+      { shotId: "scene-a", field: null, code: "HARD_FINAL_PROMPT_TOO_LONG", detail: "下游最终长度门",
+        blocking: true, repairClass: "deterministic" },
+      { shotId: "scene-a", field: "director_intent", code: "HARD_FIELD_UNKNOWN", detail: "非规范字段由重建丢弃",
+        blocking: true, repairClass: "deterministic" },
+    ] });
+    expect(recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [report] }).fields).toEqual(fields);
+  });
   it("reconstructs all fields, arrays and UTF-16 spans with exact full compiler identity", () => {
     const { recovered, fields, compiled } = fixture();
     expect(recovered.fields).toEqual(fields);

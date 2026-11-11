@@ -123,6 +123,7 @@ function sourceMissingDiagnoses(evidence: readonly VerifiedFieldArtifact[], shot
     for (const raw of parsed.findings) {
       const finding = record(raw);
       if (finding.shotId === shotId && finding.blocking === true && typeof finding.code === "string"
+        && !["HARD_FINAL_PROMPT_TOO_LONG", "HARD_FIELD_UNKNOWN"].includes(finding.code)
         && (finding.code.startsWith("HARD_") || ["deterministic", "local_patch"].includes(String(finding.repairClass)))) {
         allowedHardErrors.add(`${finding.code}:${typeof finding.field === "string" ? finding.field : "stage"}`);
         hardErrorUsed = true;
