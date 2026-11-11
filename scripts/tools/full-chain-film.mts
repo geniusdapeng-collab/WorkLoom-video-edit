@@ -2750,9 +2750,9 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     corrections.push("single-opponent-and-post-text-scope");
   }
   const supportedNearStop = next
-    .replace(/赛车沿减速区低矮边线直线滑行到近乎停住/g, "赛车沿边线滑行减速，右脚点地、左脚撑车")
-    .replace(/随车停住后收住/g, "随车减速后收住")
-    .replace(/车速降至近乎停住/g, "降至步行、双脚撑地");
+    .replace(/赛车沿减速区低矮边线直线滑行到近乎停住/g, "赛车沿边线滑行减速，停稳后左脚前掌点地、右脚留脚踏")
+    .replace(/随车停住后收住/g, "随车停稳后收住")
+    .replace(/车速降至近乎停住/g, "停稳后左脚前掌点地");
   if (supportedNearStop !== next) {
     next = supportedNearStop;
     corrections.push("near-stop-support");
