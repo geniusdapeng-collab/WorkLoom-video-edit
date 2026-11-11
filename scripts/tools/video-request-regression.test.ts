@@ -576,7 +576,8 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     sourceDocument: { character: { id: "fictional-adult", name: "原创成年人物" }, shots: [shot] },
     usePortraitRefs: true, portraitReferenceClause: "【人物参考】图1图2是同一虚构成年人，图3是商品。", REVISION_CONTEXT: "",
     productLibrary: { archives: [] }, selectProductArchive: () => ({ archive: null }), arg: (_name: string, fallback = "") => fallback, flag: () => false,
-    isMaterialShot: () => kind === "material", isAssetShot: () => kind === "asset", isAssetRefLocal: (path: string) => path.startsWith("asset://"), assetRefOf: () => "asset://authorized-fixture-id",
+    isMaterialShot: () => kind === "material", isProductMaterialShot: (value: Card) => Boolean(value.productRef),
+    isAssetShot: () => kind === "asset", isAssetRefLocal: (path: string) => path.startsWith("asset://"), assetRefOf: () => "asset://authorized-fixture-id",
     hasRenderedSource: () => false, pendingShots: () => [shot], shots: [shot], abs: (path: string) => path,
     readMaterialSpec: () => ({ photo, usage: "generation-reference", focus: { x: 0.5, y: 0.5 } }),
     run: (_binary: string, args: string[]) => writeFileSync(args.at(-1)!, Buffer.alloc(60_009, 8)), FFMPEG: "isolated-no-process",
@@ -728,6 +729,19 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
     expect(corrected.prompt).toContain("黑色低束马尾");
     expect(corrected.prompt).not.toContain("高马尾");
     expect(corrected.corrections).toEqual(expect.arrayContaining(["helmet-seam-without-shell-hole", "helmet-shell-negative"]));
+  });
+  it("素材镜按镜头声明的支撑方式归一停车状态，不把起车架擅改为侧撑", () => {
+    const prompt = "08.【动作】车身停稳后，她左手抬起摘盔。\n19.【角色约束】只出现李英子一人。";
+    const shot = { shotId: "scene-4", sceneId: "scene-4", duration: 4, supportMode: "maintenance-stand",
+      fields: { scene: "安全区，车辆已停稳", character: "李英子站在车侧摘盔", action: "车身停稳后，她左手抬起摘盔" } };
+    const functions = ["shotAuthoredText", "correctFilmPlausibilityConflicts"].map(currentCliParts().fn).join("\n");
+    const corrected = evaluateCurrent(`${functions}; correctFilmPlausibilityConflicts(${JSON.stringify(prompt)}, ${JSON.stringify(shot)})`, { String }) as {
+      prompt: string;
+      corrections: string[];
+    };
+    expect(corrected.prompt).toContain("后轮起车架稳固承托");
+    expect(corrected.prompt).not.toContain("车辆由侧撑尖");
+    expect(corrected.corrections).toContain("stopped-vehicle-maintenance-stand");
   });
   it("商品人物镜实际material分支提交人物双角度+商品多角度reference，补丁最终prompt与G-MAT1摘要一致", async () => {
     const f = currentSubmissionFixture("material"); await f.execute();

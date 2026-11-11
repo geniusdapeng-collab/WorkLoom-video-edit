@@ -2718,6 +2718,7 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   const actionText = fieldText("action");
   const sceneText = `${fieldText("scene")}；${fieldText("sceneDescription")}`;
   const sceneIdentity = String((shot as Record<string, unknown>).sceneId ?? shot.shotId ?? "");
+  const supportMode = String((shot as Record<string, unknown>).supportMode ?? "").trim();
   if (/面罩闭合|不露脸|面部.*不可见/.test(characterText) && !/面部清晰可辨|摘盔后.*面部/.test(characterText)) {
     const corrected = next.replace(/[，。；\s]*面部无阴影明亮清晰/g, "；全盔外壳、肩背轮廓与路面明亮，禁止生成面部");
     if (corrected !== next) {
@@ -2772,14 +2773,17 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   if (/(?:完全停稳|已停稳)/.test(characterText + sceneText)
     && /(?:双手|左手|右手).*(?:摘盔|提盔|解扣带|头盔)/.test(actionText)
     && !/下车站在车侧|左脚.*撑住|侧撑放下后，她已下车/.test(next)) {
+    const supportClause = supportMode === "maintenance-stand"
+      ? "车辆由可见的后轮起车架稳固承托，前轮与后轮着地"
+      : "车辆由侧撑尖、前轮与后轮三点着地";
     next = next
-      .replace(/肩背打开、上身直立坐在已完全停稳的车上/g, "肩背打开、上身直立站在侧撑已放下的车侧")
-      .replace(/她的赛车已停稳，静止在画面右后方/g, "她的赛车已停稳，侧撑放下并静止在画面右后方");
+      .replace(/肩背打开、上身直立坐在已完全停稳的车上/g, `肩背打开、上身直立站在已完成支撑的车辆侧面`)
+      .replace(/她的赛车已停稳，静止在画面右后方/g, `她的赛车已停稳，${supportClause}并静止在画面右后方`);
     next = next.replace(/^(\s*\d{1,2}\.\s*【动作】)([^\n]*)$/m,
       (_line, head: string, body: string) => `${head}${body.startsWith("车身停稳后，")
-        ? body.replace(/^车身停稳后，/, "车身完全停稳、侧撑放下后，她已下车站在车侧，双脚落地承重；")
-        : `侧撑已放下，她已下车站在车侧，双脚落地承重；${body}`}`);
-    corrections.push("stopped-vehicle-side-stand");
+        ? body.replace(/^车身停稳后，/, `${supportClause}；她已下车站在车侧，双脚落地承重；`)
+        : `${supportClause}；她已下车站在车侧，双脚落地承重；${body}`}`);
+    corrections.push(supportMode === "maintenance-stand" ? "stopped-vehicle-maintenance-stand" : "stopped-vehicle-side-stand");
   }
   const supportedParking = next
     .replace(/她的赛车已停稳，侧撑放下并静止在画面右后方/g,
@@ -2906,7 +2910,12 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
       .replace(/冠军奖杯为双手托起的示意外形/g, "冠军奖杯连底座高约35厘米、底座直径约12厘米，为双手在胸口以上托起的示意外形");
     endingContinuity = endingContinuity.replace(
       /^(\s*\d{1,2}\.\s*【动作】)([^\n]*)$/m,
-      (_line, head: string, body: string) => `${head}起幅第一帧，全盔已放在领奖台台面右侧、盔口朝上，左腰无盔；奖杯由双手在腰侧承托、不悬空；${body}`,
+      (_line, head: string, body: string) => {
+        const continuity: string[] = [];
+        if (!/全盔已放在领奖台台面/.test(body)) continuity.push("全盔已放在领奖台台面右侧、盔口朝上，左腰无盔");
+        if (!/(?:奖杯.*台面|从台面.*奖杯|台面.*奖杯)/.test(body)) continuity.push("奖杯由双手在腰侧承托、不悬空");
+        return `${head}${continuity.length ? `起幅第一帧，${continuity.join("；")}；` : ""}${body}`;
+      },
     );
     if (endingContinuity !== next) {
       next = endingContinuity;
@@ -4517,8 +4526,11 @@ if (STAGES.has("material-gen")) {
     try {
       // Preparation is deterministic and cheap; regenerate from the current reference instead of trusting an old file.
       {
+        const referenceFilter = isProductMaterialShot(shot)
+          ? `scale=${pw}:${ph}:force_original_aspect_ratio=decrease,pad=${pw}:${ph}:(ow-iw)/2:(oh-ih)/2:color=white`
+          : `scale=${pw}:${ph}:force_original_aspect_ratio=increase,crop=${pw}:${ph}:(iw-${pw})*${focus.x}:(ih-${ph})*${focus.y}`;
         run(FFMPEG, ["-y", "-i", photo,
-          "-vf", `scale=${pw}:${ph}:force_original_aspect_ratio=increase,crop=${pw}:${ph}:(iw-${pw})*${focus.x}:(ih-${ph})*${focus.y}`,
+          "-vf", referenceFilter,
           "-q:v", "2", prepared]);
       }
       /**
