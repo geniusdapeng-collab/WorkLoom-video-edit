@@ -2705,17 +2705,37 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     corrections.push("unified-color-temperature");
   }
   if (/(?:完全停稳|已停稳)/.test(characterText + sceneText)
-    && /双手.*(?:摘盔|提盔|解扣带)/.test(actionText)
+    && /(?:双手|左手|右手).*(?:摘盔|提盔|解扣带|头盔)/.test(actionText)
     && !/落地撑住|侧撑|起车架/.test(next)) {
+    next = next
+      .replace(/肩背打开、上身直立坐在已完全停稳的车上/g, "肩背打开、上身直立站在侧撑已放下的车侧")
+      .replace(/她的赛车已停稳，静止在画面右后方/g, "她的赛车已停稳，侧撑放下并静止在画面右后方");
     next = next.replace(/^(\s*\d{1,2}\.\s*【动作】)([^\n]*)$/m,
-      (_line, head: string, body: string) => `${head}左脚掌落地撑住车身，车身重量略靠左腿，右腿跨在车上；${body}`);
-    corrections.push("stopped-vehicle-support");
+      (_line, head: string, body: string) => `${head}${body.startsWith("车身停稳后，")
+        ? body.replace(/^车身停稳后，/, "车身完全停稳、侧撑放下后，她已下车站在车侧，双脚落地承重；")
+        : `侧撑已放下，她已下车站在车侧，双脚落地承重；${body}`}`);
+    corrections.push("stopped-vehicle-side-stand");
   }
-  const releasedHair = next.replace(/马尾顺势松开垂落/g, "发圈不解开，压束马尾顺势释放并垂落");
+  const releasedHair = next
+    .replace(/马尾顺势松开垂落/g, "发圈不解开，压束马尾顺势释放并垂落")
+    .replace(/马尾松开顺肩背垂落/g, "发圈保持扎紧，发束自然垂落至肩背");
   if (releasedHair !== next) {
     next = releasedHair;
     corrections.push("ponytail-release-not-unfastened");
   }
+  const sceneIdentity = String((shot as Record<string, unknown>).sceneId ?? shot.shotId ?? "");
+  if (sceneIdentity && next.includes('"scene_id":"opening"') && sceneIdentity !== "opening") {
+    next = next.replaceAll('"scene_id":"opening"', `"scene_id":"${sceneIdentity}"`);
+    corrections.push("scene-id");
+  }
+  const singleOpponent = next
+    .replace(/两台对手车缩到画幅后侧/g, "被超越的第二台对手车缩到画幅右后方")
+    .replace(/全段烧录『创意演绎 · 赛道专用不可上路』/g, "合规字幕与片尾商品名仅由正式后期字幕层叠加，不进入生成画面");
+  if (singleOpponent !== next) {
+    next = singleOpponent;
+    corrections.push("single-opponent-and-post-text-scope");
+  }
+  next = next.replace(/6000K冷白(?!补光)/g, "5600K冷白");
   return { prompt: next, corrections };
 }
 function submissionReceiptArtifacts(submitted: VideoSubmissionResult): VideoSubmissionArtifact[] {
@@ -3801,7 +3821,10 @@ async function runPlausibilityGate(stage: "pre-render" | "pre-submit", reviewSho
     log(`实体与物理常识审核返回 ${outOfScopePatches.length} 条范围外补丁；${result.verdict === "pass" ? "通过结论不允许应用" : "当前结论为拦截，补丁不应用"}`);
   }
   if (result.verdict === "pass" && outOfScopePatches.length) throw new Error("PLAUSIBILITY_PATCH_SCOPE_INVALID");
-  if (result.verdict === "pass" && result.promptPatches.length > 0) {
+  const approvedSource = (sourceDocument.source as { kind?: unknown } | undefined)?.kind === "approved-source-prompt-repair";
+  if (result.verdict === "pass" && result.promptPatches.length > 0 && approvedSource) {
+    log(`实体与物理常识审核通过；${result.promptPatches.length} 条 warning 补丁仅留建议，不改写已审批源提示词`);
+  } else if (result.verdict === "pass" && result.promptPatches.length > 0) {
     const prompts = new Map(reviewShots.filter((shot) => existsSync(join(PROMPT_DIR, `${shot.shotId}.txt`))).map((shot) => [String(shot.shotId), readFileSync(join(PROMPT_DIR, `${shot.shotId}.txt`), "utf8")]));
     const patched = applyPromptPatches(result.promptPatches, prompts);
     for (const [shotId, text] of patched) if (text !== prompts.get(shotId)) {
