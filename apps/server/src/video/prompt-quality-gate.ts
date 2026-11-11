@@ -322,6 +322,23 @@ function resolveCurrentArchivePromptAssets(
 ): PromptCompileAsset[] {
   const { character, selectionReceipt, sources, outputs } = archive;
   const bindings = input.source.portraitBindings;
+  const maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
+  const equivalentProjectOutput = (file: unknown, index: number): boolean => {
+    if (typeof file !== "string" || !file.trim()) return false;
+    const expected = outputs[index]!;
+    try {
+      const root = realpathSync(input.charactersDir);
+      const candidate = realpathSync(file);
+      const rel = path.relative(root, candidate);
+      if (rel === "" || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return false;
+      const stat = statSync(candidate);
+      if (!stat.isFile() || stat.size !== expected.bytes || expected.bytes <= 0 || expected.bytes > maxBytes) return false;
+      const bytes = readFileSync(candidate);
+      return bytes.length === expected.bytes && digest(bytes) === expected.sha256;
+    } catch {
+      return false;
+    }
+  };
   // Native normalization may retain only the canonical image URI and drop the
   // sibling portraitBindings object. When the current archive is already
   // byte-verified, an exact canonical character+angle URI is sufficient to
@@ -330,11 +347,14 @@ function resolveCurrentArchivePromptAssets(
   if (bindings !== undefined && bindings !== null && (!Array.isArray(bindings) || bindings.length > 0)) {
     if (!Array.isArray(bindings) || bindings.length !== 1) return [];
     const binding = bindings[0];
+    const portraits = Array.isArray(binding?.portraits)
+      ? binding.portraits as Array<{ angle?: unknown; outputFile?: unknown }> : [];
     if (binding?.mode !== "studio" || binding.character !== character.name
       || ![character.id, character.name].some(value => binding.source === `portrait-set://${value}`)
-      || !Array.isArray(binding.portraits) || binding.portraits.length !== outputs.length
-      || !character.angles.every((angle, index) => binding.portraits.some((portrait: { angle?: unknown; outputFile?: unknown }) =>
-        portrait?.angle === angle && portrait.outputFile === outputs[index]?.path))) return [];
+      || portraits.length !== outputs.length
+      || !character.angles.every((angle, index) => portraits.some(portrait =>
+        portrait?.angle === angle && (portrait.outputFile === outputs[index]?.path
+          || equivalentProjectOutput(portrait.outputFile, index))))) return [];
   }
 
   const uriPath = (root: string, file: string) => path.relative(root, file).split(path.sep).join("/");
@@ -393,7 +413,6 @@ function resolveCurrentArchivePromptAssets(
     const embedded = embeddedNativeIndices(text);
     return embedded.length ? embedded : [undefined];
   });
-  const maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
   if (indices.length === 0 || indices.some(index => index === undefined || !Number.isInteger(index)
     || index < 0 || index >= outputs.length || outputs[index]!.bytes > maxBytes)
     || new Set(indices).size !== indices.length) return [];

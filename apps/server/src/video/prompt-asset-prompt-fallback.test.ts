@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolvePromptAssets } from "./prompt-quality-gate.js";
 
@@ -77,6 +81,44 @@ describe("G6 archive assets from a compiled prompt", () => {
         charactersDir,
         archiveCopies,
       })).toEqual([]);
+    }
+  });
+
+  it("accepts a same-identity archived alias only when its current bytes equal the canonical copy", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "prompt-alias-assets-"));
+    try {
+      const projectDir = path.join(root, "characters", "P1");
+      const canonicalDir = path.join(projectDir, "lead", "portraits", "v2");
+      const aliasDir = path.join(projectDir, "林夏", "portraits");
+      mkdirSync(canonicalDir, { recursive: true });
+      mkdirSync(aliasDir, { recursive: true });
+      const outputs = angles.map((angle, index) => {
+        const bytes = Buffer.from(`portrait-${angle}-${index}`.repeat(24));
+        const file = path.join(canonicalDir, `lead-${angle}.png`);
+        writeFileSync(file, bytes);
+        return {
+          path: file, realPath: file, sha256: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length,
+        };
+      });
+      const aliasPortraits = angles.map((angle, index) => {
+        const file = path.join(aliasDir, `林夏-${angle}.png`);
+        writeFileSync(file, Buffer.from(`portrait-${angle}-${index}`.repeat(24)));
+        return { angle, outputFile: file };
+      });
+      const realArchive = { ...archiveCopies, character: { ...archiveCopies.character, name: "林夏" }, outputs };
+      const binding = { character: "林夏", mode: "studio", source: "portrait-set://lead", portraits: aliasPortraits };
+      const source = {
+        portraits: "image://characters/lead/portraits/v2/front.png",
+        fields: { portraits: "image://characters/lead/portraits/v2/front.png" },
+        portraitBindings: [binding],
+      };
+      expect(resolvePromptAssets({ source, workDir: root, charactersDir: projectDir, archiveCopies: realArchive }))
+        .toEqual([expect.objectContaining({ field: "portraits", sha256: outputs[0]!.sha256, bytes: outputs[0]!.bytes })]);
+
+      writeFileSync(aliasPortraits[0]!.outputFile, "different-current-bytes");
+      expect(resolvePromptAssets({ source, workDir: root, charactersDir: projectDir, archiveCopies: realArchive })).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 });
