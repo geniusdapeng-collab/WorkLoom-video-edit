@@ -311,6 +311,7 @@ export interface AllowedFieldPlan {
   sourceContextSha256: string;
   sourceShotsSha256: string;
   maxFinalPromptChars?: number;
+  deferPortraitAssetBinding?: boolean;
   shots: RecoveredPromptShot[];
   diagnoses: AllowedFieldDiagnosis[];
   fieldsByShot: Record<string, string[]>;
@@ -320,6 +321,7 @@ export interface PlanFieldAuthoringInput {
   shots: readonly RecoveredPromptShot[];
   sourceContextSha256: string;
   maxFinalPromptChars?: number;
+  deferPortraitAssetBinding?: boolean;
   /** Complete, hash-verified G6 reports or host field-diagnostic artifacts; never a client field list. */
   diagnosedFindings: readonly VerifiedFieldArtifact[];
   truncationEvidence?: readonly VerifiedFieldArtifact[];
@@ -411,6 +413,7 @@ export function planFieldAuthoring(input: PlanFieldAuthoringInput): AllowedField
   if (shots.some(shot => shot.unboundFields.some(field => !fieldsByShot[shot.shotId]!.includes(field.field)))) return fail("MISSING_DIAGNOSIS_REQUIRED");
   const body = { schemaVersion: APPROVED_SOURCE_FIELDS_VERSION, sourceContextSha256: input.sourceContextSha256,
     ...(input.maxFinalPromptChars === undefined ? {} : { maxFinalPromptChars: input.maxFinalPromptChars }),
+    ...(input.deferPortraitAssetBinding ? { deferPortraitAssetBinding: true } : {}),
     sourceShotsSha256: sha256Json(shots), shots, diagnoses, fieldsByShot };
   return { ...body, sha256: sha256Json(body) };
 }
@@ -510,6 +513,7 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       && !shot.unboundFields.some(item => item.field === field)) || immutableFields.has(field))) return fail("AUTHORING_SCOPE_INVALID");
     const writable = new Set(allowed);
     const diagnoses = input.plan.diagnoses.filter(entry => entry.shotId === shot.shotId);
+    const sourceCompileErrors = compilePromptShot(shot, shot.compileOptions).hardErrors;
     const timelineDiagnosed = writable.has("timeline") && diagnoses.some(entry => entry.field === "timeline" && entry.origin === "g6-semantic");
     const witnessInput = (fields: JsonRecord) => ({ approvedProductionPlan: input.sourceContext.approvedProductionPlan,
       shotId: shot.shotId, duration: shot.duration, action: fields.action, timeline: fields.timeline,
@@ -582,7 +586,10 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
         && !isDeepStrictEqual(shot.fields[field], priorFields[field])) return fail("AUTHORING_READONLY_DRIFT");
       const authoredAt = new Date().toISOString();
       const compiled = compilePromptShot(shot, { ...shot.compileOptions, createdAt: authoredAt });
-      if (compiled.hardErrors.length || !isDeepStrictEqual(compiled.fieldValues, shot.fields)) return fail("AUTHORING_COMPILE_INVALID");
+      const remainingHardErrors = compiled.hardErrors.filter(error => !(input.plan.deferPortraitAssetBinding === true
+        && error.code === "HARD_ASSET_MISSING" && error.field === "portraits"
+        && sourceCompileErrors.some(source => source.code === error.code && source.field === error.field)));
+      if (remainingHardErrors.length || !isDeepStrictEqual(compiled.fieldValues, shot.fields)) return fail("AUTHORING_COMPILE_INVALID");
       if (input.plan.maxFinalPromptChars !== undefined
         && diagnoses.some(entry => entry.kind === "truncation")
         && compiled.contract.prompt.length > input.plan.maxFinalPromptChars) return fail("AUTHORING_PROMPT_STILL_TOO_LONG");

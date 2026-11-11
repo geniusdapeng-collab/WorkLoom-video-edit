@@ -207,6 +207,25 @@ describe("host diagnostic field authoring plan", () => {
       shots: [expect.objectContaining({ fields: expect.objectContaining(shortened) })],
     });
   });
+  it("defers the verified G5 portrait rebinding while authoring a shorter prompt", async () => {
+    const fields = { ...fixture().fields, color_palette: "色".repeat(3200) };
+    const compiled = compilePromptShot({ shotId: "scene-a", duration: 10, fields }, { ...options, assets: [] });
+    expect(compiled.hardErrors).toEqual([expect.objectContaining({ code: "HARD_ASSET_MISSING", field: "portraits" })]);
+    const bytes = Buffer.from(JSON.stringify(compiled.contract));
+    const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [
+      { shotId: "scene-a", field: "portraits", code: "HARD_ASSET_MISSING", detail: "G5 后重新绑定", blocking: true, repairClass: "deterministic" },
+      { shotId: "scene-a", field: null, code: "HARD_FINAL_PROMPT_TOO_LONG",
+        detail: `完整提示词 ${compiled.contract.prompt.length} 字符超过最终上限 3000`, blocking: true, repairClass: "deterministic" },
+    ] });
+    const recovered = recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [report] });
+    const plan = planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      maxFinalPromptChars: 3000, deferPortraitAssetBinding: true, diagnosedFindings: [report] });
+    const shortened = Object.fromEntries(plan.fieldsByShot[recovered.shotId]!.map(field => [field, `${field}短版`]));
+    const authored = authorInput(JSON.stringify({ shotId: recovered.shotId, fields: shortened }), {}, plan);
+    await expect(authorRepairFields(authored.input)).resolves.toMatchObject({
+      shots: [expect.objectContaining({ fields: expect.objectContaining(shortened) })],
+    });
+  });
   it("derives current fields from verified G6 findings and preserves every other field", () => {
     const recovered = fixture().recovered, plan = fieldPlan(recovered, ["action", "timeline"]);
     expect(plan.fieldsByShot).toEqual({ "scene-a": ["action", "timeline"] });
