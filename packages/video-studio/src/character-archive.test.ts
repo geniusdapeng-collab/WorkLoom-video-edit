@@ -12,6 +12,7 @@ import {
   loadCharacterLibrary,
   loadCharacterEntry, activatePortraitVersion, resolveShotCast,
   resolveShotCharacters,
+  resolveSingleSourceCast,
   type CharacterProfile
 } from "./character-archive.js";
 
@@ -99,6 +100,18 @@ describe("镜头选角（1–10 人）", () => {
   it("文本里出现库外角色名时给出 unmatched（提示建档）", () => {
     const cast = resolveShotCharacters({ characters: ["陌生演员"] }, library);
     expect(cast.unmatched).toContain("陌生演员");
+  });
+
+  it("严格源选角只解析唯一且已在库内的人物，多人或库外 ID 不猜", () => {
+    expect(resolveSingleSourceCast({ mode: "builtin", characters: [{ id: "presenter" }] }, library)?.id)
+      .toBe("presenter");
+    expect(resolveSingleSourceCast({
+      mode: "builtin",
+      characters: [{ id: "presenter" }, { id: "manager" }],
+    }, library)).toBeUndefined();
+    expect(resolveSingleSourceCast({ mode: "builtin", characters: [{ id: "missing" }] }, library))
+      .toBeUndefined();
+    expect(resolveSingleSourceCast({ mode: "none", characters: [] }, library)).toBeUndefined();
   });
 });
 

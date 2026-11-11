@@ -156,6 +156,23 @@ describe("字段规范真源", () => {
     expect(report.prompt).toContain("【台词】");
   });
 
+  it("嵌套 fields 会参与规范；“无台词”不生成对象占位，时间轴与可见情绪可原位修复", () => {
+    const fields = {
+      ...contentCard("S9"),
+      dialogue: "无台词。",
+      mood: "tense, restrained",
+    };
+    const nested = { shotId: "S9", duration: 5, fields };
+    const report = prepareShotPrompt(nested, { ratio: "9:16", resolution: "1080p", fps: 30 });
+    expect(report.prompt).not.toContain("[object Object]");
+    expect(report.missingSpecFields).not.toContain("timeline");
+    expect(report.prompt).toContain("【时间轴】");
+    expect(report.prompt).toContain("【无台词】");
+    expect(report.prompt).not.toContain("【台词】");
+    expect(report.prompt).toMatch(/【情绪】[^\n]*(眼|手|指尖|呼吸|肩|背)/);
+    expect(report.delivery.pass).toBe(true);
+  });
+
   /** 产品口径（2026-09-23）：镜头内只允许台词/旁白/音效，禁止 BGM；配乐统一在后期加 */
   it("音频纪律：每镜提示词都带禁 BGM 子句与英文负面词", () => {
     for (const card of [contentCard(), openingCard()]) {

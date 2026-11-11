@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   DIALOGUE_CONTRACT_VERSION,
   dialogueContractFindings,
+  dialogueLines,
   exactDialogueClause,
   inferShotSpeechLanguage,
+  isNoSpeechDeclaration,
   noSpeechClause,
   resolveFilmSpeechLanguage,
   speechLanguageClause,
@@ -56,6 +58,12 @@ describe("台词合同判据（dialogue-contract）", () => {
   it("动作里声明说话但没登记 dialogue → 高风险（模型会自行编词）", () => {
     const findings = dialogueContractFindings({ shotId: "SC-05", action: "她望向赛道后说出一句台词" });
     expect(findings.map((f) => f.id)).toContain("dialogue-missing");
+  });
+
+  it("整字段“无台词”是静默声明，不是待念的脚本行", () => {
+    expect(isNoSpeechDeclaration("无台词。")).toBe(true);
+    expect(dialogueLines({ dialogue: "无台词。" })).toEqual([]);
+    expect(dialogueLines({ dialogue: ["无台词。", "人声：欢迎。"] })).toEqual(["人声：欢迎。"]);
   });
 
   it("有引号台词但没有登记 dialogue → 中风险（台词未进合同）", () => {

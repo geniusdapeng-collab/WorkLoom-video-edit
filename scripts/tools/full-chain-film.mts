@@ -54,7 +54,7 @@ import { acceptRenderedShot, findRenderedShotAcceptance, RENDERED_SHOT_ACCEPTANC
 import { buildProducerReviewContract, type ProducerGateOptions } from "../../packages/video-studio/src/producer-gate.js";
 import { assessPortraitDecision, selectPortraitDecisionRecord } from "../../packages/video-studio/src/portrait-decision.js";
 import { hasExplicitPortraitAuthorization, verifyPortraitOwnerAuthorization, type PortraitOwnerAuthorization } from "../../packages/video-studio/src/portrait-owner-authorization.js";
-import { loadCharacterEntry, readPortraitArtifact, resolveShotCast } from "../../packages/video-studio/src/character-archive.js";
+import { loadCharacterEntry, readPortraitArtifact, resolveShotCast, resolveSingleSourceCast } from "../../packages/video-studio/src/character-archive.js";
 import { buildVideoSubmissionRequest, type VideoSubmissionImage, type VideoSubmissionRequest } from "../../packages/video-studio/src/video-submission-request.js";
 import { runVideoSubmission, readVideoSubmissionRecovery, verifyVideoSubmissionArtifacts, type VideoSubmissionArtifact, type VideoSubmissionResult } from "../../packages/video-studio/src/video-submission-task.js";
 import { executeRevision } from "../../packages/video-studio/src/revision-executor.js";
@@ -2246,6 +2246,12 @@ if (strictSourceCast && needsNewRender && (!sourceCast || !Array.isArray(sourceC
   || sourceCast.characters.some(({ id }) => typeof id !== "string" || !characters.has(id)))) {
   throw new Error("SOURCE_CAST_LIBRARY_MISMATCH");
 }
+const sourceCharacter = (() => {
+  const explicit = sourceDocument.character as { id?: unknown; name?: unknown; appearanceInShots?: unknown } | undefined;
+  if (typeof explicit?.id === "string" || typeof explicit?.name === "string") return explicit;
+  const selected = strictSourceCast ? resolveSingleSourceCast(sourceCast, characters) : undefined;
+  return selected ? { id: selected.id, name: selected.name } : undefined;
+})();
 /**
  * 选角（2026-09-24 规则）：
  *   ① 镜头卡/项目显式指定 → 用指定的；
@@ -2259,11 +2265,13 @@ let portraitReferenceAuthorization: PortraitOwnerAuthorization | null = null;
 let portraitReferenceAuthorizationPaths: string[] = [];
 const lead = (() => {
   const list = [...characters.values()];
-  const explicitId = shotlist.character?.id ?? "";
-  const explicitName = shotlist.character?.name ?? "";
+  const explicitId = sourceCharacter?.id ?? "";
+  const explicitName = sourceCharacter?.name ?? "";
   const byExplicit = list.find((c) => c.id === explicitId || (!strictSourceCast && c.name === explicitName));
   if (byExplicit) return byExplicit;
   if (strictSourceCast) {
+    const byVerifiedSource = resolveSingleSourceCast(sourceCast, characters);
+    if (byVerifiedSource) return byVerifiedSource;
     if (sourceCast?.mode !== "none" && needsNewRender) throw new Error("SOURCE_CAST_LIBRARY_MISMATCH");
     return undefined;
   }
@@ -2577,7 +2585,7 @@ function leadVisibleInShot(shot: ShotCard): boolean {
   if (!usePortraitRefs || !lead || isAssetShot(shot)) return false;
   const original = sourceDocument.shots!.find((item) => String(item.shotId) === String(shot.shotId));
   if (!original) throw new Error(`PORTRAIT_SHOT_SOURCE_MISSING: ${shot.shotId}`);
-  const appearance = (sourceDocument.character as { appearanceInShots?: unknown } | undefined)?.appearanceInShots;
+  const appearance = sourceCharacter?.appearanceInShots;
   const declared = Array.isArray(appearance) && appearance.map(String).includes(String(shot.shotId));
   const identities = [...characters.values()].map((candidate) => ({ ...candidate,
     aliases: characterRegistry.aliases.find((entry) => entry.id === candidate.id)?.names ?? [] }));
@@ -2599,7 +2607,19 @@ function leadVisibleInShot(shot: ShotCard): boolean {
   }
   // An explicit project appearance is affirmative casting, but cannot override a contrary original card.
   const candidate = declared && !hasIdentity && !hasOffscreenOnly ? { ...originalSource, characterId: lead.id } : originalSource;
-  const resolved = resolveShotCast(candidate, identities);
+  const verifiedSingleSource = strictSourceCast ? sourceCharacter : undefined;
+  const castCandidate = verifiedSingleSource?.id === lead.id ? (() => {
+    const clean = { ...candidate } as Record<string, unknown>;
+    for (const key of ["cast", "characters", "characterId", "character", "character_ref", "characterRef"]) delete clean[key];
+    if (clean.fields && typeof clean.fields === "object" && !Array.isArray(clean.fields)) {
+      const fields = { ...(clean.fields as Record<string, unknown>) };
+      for (const key of ["cast", "characters", "characterId", "character", "character_ref", "characterRef"]) delete fields[key];
+      clean.fields = fields;
+    }
+    clean.characterId = lead.id;
+    return clean;
+  })() : candidate;
+  const resolved = resolveShotCast(castCandidate, identities);
   if (resolved.status === "not_applicable") {
     if (declared) throw new Error(`PORTRAIT_VISIBILITY_CONFLICT: ${shot.shotId}; ${resolved.notes.join(";")}`);
     return false;
@@ -2614,7 +2634,7 @@ function leadVisibleInShot(shot: ShotCard): boolean {
 }
 function portraitVideoInputs(shot: ShotCard): { images: VideoSubmissionImage[]; paths: string[] } {
   if (!leadVisibleInShot(shot)) return { images: [], paths: [] };
-  if (!lead || (sourceDocument.character as { id?: string } | undefined)?.id !== lead.id || !portraitReferenceAuthorization) throw new Error(`PORTRAIT_REFERENCE_AUTHORIZATION_REQUIRED: ${shot.shotId}; explicit source character and verified current owner authorization required`);
+  if (!lead || sourceCharacter?.id !== lead.id || !portraitReferenceAuthorization) throw new Error(`PORTRAIT_REFERENCE_AUTHORIZATION_REQUIRED: ${shot.shotId}; explicit source character and verified current owner authorization required`);
   const current = loadCharacterEntry(lead.dir);
   const requestedVersion = arg("--portrait-version");
   if (!current || current.id !== lead.id || current.activeSet?.version !== lead.version || current.verification.status !== "passed"
@@ -2653,7 +2673,7 @@ function portraitVideoInputs(shot: ShotCard): { images: VideoSubmissionImage[]; 
   });
   return { images, paths };
 }
-const portraitReferenceClause = "【人物参考】图1与图2为同一原创虚构成年人物的正面全身和头肩近景，二图共同锚定同一人，不得生成两个人；若有图3，图3仅作商品外观与比例依据。预生产构图稿不作为视频首帧提交。";
+const portraitReferenceClause = "【人物参考】同人参考；图3商品；非首帧。";
 function portraitReferenceClauseFor(shot: ShotCard): string {
   const plan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
   return plan.applicable && plan.valid ? bulletTimeReferenceClause(plan.angles) : portraitReferenceClause;
@@ -3184,6 +3204,7 @@ if (STAGES.has("spec")) {
   const started = Date.now();
   const checks: Array<{ id: string; pass: boolean; detail: string; hard?: boolean }> = [];
   let rateFail = 0;
+  const approvedSourcePrompt = (sourceDocument.source as { kind?: unknown } | undefined)?.kind === "approved-source-prompt-repair";
   /** post-only 字段闸用：声明了主角出镜的镜号（`shotlist.character.appearanceInShots`，缺省为空） */
   const leadAppearanceShotIds = (() => {
     const raw = (shotlist as unknown as { character?: { appearanceInShots?: unknown } }).character?.appearanceInShots;
@@ -3236,16 +3257,24 @@ if (STAGES.has("spec")) {
       { label: "导演意图", value: (shot as Record<string, unknown>).director_instruction },
       { label: "灯光设计", aliases: ["灯光/照明", "照明"], value: (shot as Record<string, unknown>).lighting },
     ];
-    const contractFixed = restoreCardFieldText(normalized.prompt, contractFields);
+    const contractFixed = approvedSourcePrompt
+      ? { prompt: normalized.prompt, restored: [] }
+      : restoreCardFieldText(normalized.prompt, contractFields);
     /** 时间轴补全（vendor 组装器会截断末段节拍，实测 6/6 镜） */
-    const timelineFixed = restoreTimelineField(contractFixed.prompt, (shot as Record<string, unknown>).timeline);
+    const timelineFixed = approvedSourcePrompt
+      ? { prompt: contractFixed.prompt, restored: false, segments: 0 }
+      : restoreTimelineField(contractFixed.prompt, (shot as Record<string, unknown>).timeline);
     /**
      * 台词窗归一到真实镜头时长（2026-09-28 T1 真机监制打回）：
      * vendor `_renderDialogueBlocks` 用 `Math.round(duration)` 算窗，4.5s 镜头被写成 `[00s-05s]`，
      * 与合同「每镜 4.5 秒」冲突，生成端可能照 5s 拉长口播。这里按真实小数时长重排。
      */
     const dialogueFixed = normalizeDialogueWindow(timelineFixed.prompt, duration);
-    const finalPrompt = appendCinematicContract(dialogueFixed.prompt, buildCinematicContract(shot as unknown as Record<string, unknown>))
+    const compiledDisciplinePresent = /【编译纪律】|【音频纪律】/.test(dialogueFixed.prompt);
+    const promptWithCinematic = compiledDisciplinePresent
+      ? dialogueFixed.prompt
+      : appendCinematicContract(dialogueFixed.prompt, buildCinematicContract(shot as unknown as Record<string, unknown>));
+    const finalPrompt = promptWithCinematic
       + (leadVisibleInShot(shot) ? `\n${portraitReferenceClauseFor(shot)}` : "")
       + (REVISION_CONTEXT ? `\n【本次返修验收】保持原镜头主体与意图，仅修复下列已归因问题：${REVISION_CONTEXT}` : "");
     const finalBulletTimeAudit = validateBulletTimePrompt(finalPrompt, shot as unknown as Record<string, unknown>, { capabilities: BULLET_TIME_CAPABILITIES });
