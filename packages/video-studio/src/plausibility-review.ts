@@ -311,7 +311,10 @@ export async function reviewPlausibility(
           : []),
         "对每个镜头逐条回答下列问题；不能确定的写进 warning 并说明缺什么证据，不要编造。",
         ...(input.reviewScope === "physical-execution"
-          ? [0, 1, 2, 3, 4, 5, 9, 10].map((index) => PLAUSIBILITY_RUBRIC[index]!)
+          ? [
+              ...[0, 1, 2, 3, 4, 5, 10].map((index) => PLAUSIBILITY_RUBRIC[index]!),
+              "只核对相邻镜的实体状态、支撑、数量和接触是否连续；不得用连续性名义重审或删除已批准的虚构赛事、领奖台、奖杯等创意。",
+            ]
           : PLAUSIBILITY_RUBRIC
         ).map((line, index) => `${index + 1}. ${line}`),
         input.stage === "pre-submit"

@@ -2682,9 +2682,13 @@ function portraitReferenceClauseFor(shot: ShotCard): string {
 function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { prompt: string; corrections: string[] } {
   let next = prompt;
   const corrections: string[] = [];
-  const characterText = String(shot.character ?? "");
-  const actionText = String(shot.action ?? "");
-  const sceneText = String(shot.scene ?? "");
+  const nestedFields = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
+    ? shot.fields as Record<string, unknown>
+    : {};
+  const fieldText = (key: string): string => String(shot[key] ?? nestedFields[key] ?? "");
+  const characterText = fieldText("character");
+  const actionText = fieldText("action");
+  const sceneText = `${fieldText("scene")}；${fieldText("sceneDescription")}`;
   if (/面罩闭合|不露脸|面部.*不可见/.test(characterText) && !/面部清晰可辨|摘盔后.*面部/.test(characterText)) {
     const corrected = next.replace(/[，。；\s]*面部无阴影明亮清晰/g, "；全盔外壳、肩背轮廓与路面明亮，禁止生成面部");
     if (corrected !== next) {
@@ -2698,7 +2702,7 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     corrections.push("scene-duration-label");
   }
   const unifiedLight = next
-    .replace(/5600K漫射主光/g, "6500K漫射主光")
+    .replace(/5600K漫射(?:主光|天光)/g, "6500K漫射主光")
     .replace(/6000K冷白补光/g, "5600K冷白补光");
   if (unifiedLight !== next) {
     next = unifiedLight;
@@ -2706,7 +2710,7 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   }
   if (/(?:完全停稳|已停稳)/.test(characterText + sceneText)
     && /(?:双手|左手|右手).*(?:摘盔|提盔|解扣带|头盔)/.test(actionText)
-    && !/落地撑住|侧撑|起车架/.test(next)) {
+    && !/下车站在车侧|左脚.*撑住|侧撑放下后，她已下车/.test(next)) {
     next = next
       .replace(/肩背打开、上身直立坐在已完全停稳的车上/g, "肩背打开、上身直立站在侧撑已放下的车侧")
       .replace(/她的赛车已停稳，静止在画面右后方/g, "她的赛车已停稳，侧撑放下并静止在画面右后方");
@@ -2736,9 +2740,9 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     corrections.push("single-opponent-and-post-text-scope");
   }
   const supportedNearStop = next
-    .replace(/赛车沿减速区低矮边线直线滑行到近乎停住/g, "赛车沿减速区低矮边线滑行至步行速度；右脚点地配前刹、左脚撑车")
+    .replace(/赛车沿减速区低矮边线直线滑行到近乎停住/g, "赛车沿减速区边线滑行至步行速度；右脚点地、左脚撑车")
     .replace(/随车停住后收住/g, "随车降至步行速度后收住")
-    .replace(/车速降至近乎停住/g, "末帧降至步行速度、双脚落地支撑");
+    .replace(/车速降至近乎停住/g, "降至步行速度、双脚落地支撑");
   if (supportedNearStop !== next) {
     next = supportedNearStop;
     corrections.push("near-stop-support");
