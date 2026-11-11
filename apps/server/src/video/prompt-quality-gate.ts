@@ -390,6 +390,11 @@ function resolveCurrentArchivePromptAssets(
     if (!value.startsWith(nativePrefix) && !value.startsWith(namePrefix)) return undefined;
     const versions = [...value.matchAll(/\/v(\d+)(?=\/|$)/gu)].map(match => Number(match[1]));
     if (versions.some(version => version !== selectionReceipt.selectedVersion)) return undefined;
+    // FieldQuality can retain the old generic, versioned portrait token. Only
+    // the exact selected identity and version qualify, and the generic token
+    // deterministically means the canonical front identity anchor.
+    const genericPortrait = /^portrait-v(\d+)\.(?:png|jpe?g|webp|bmp|tiff?|heic?)$/iu.exec(value.split("/").at(-1) ?? "");
+    if (genericPortrait && Number(genericPortrait[1]) === selectionReceipt.selectedVersion) return 0;
     const matches = character.angles.flatMap((angle, index) => new RegExp(
       `(?:^|[-_/])${angle}(?:\\.(?:png|jpe?g|webp|bmp|tiff?|heic?))?$`, "i",
     ).test(value) ? [index] : []);

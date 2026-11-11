@@ -73,6 +73,28 @@ describe("G6 archive assets from a compiled prompt", () => {
     }]);
   });
 
+  it("maps the exact selected generic portrait-v2 token to the canonical front anchor only", () => {
+    const source = {
+      portraits: "image://characters/lead/portrait-v2.png",
+      fields: { portraits: "image://characters/lead/portrait-v2.png" },
+      prompt: "17.【定妆照】image://characters/lead/portrait-v2.png",
+    };
+    expect(resolvePromptAssets({ source, workDir: "/synthetic/workspace", charactersDir, archiveCopies })).toEqual([{
+      field: "portraits",
+      role: "reference_image",
+      sha256: archiveCopies.outputs[0]!.sha256,
+      bytes: archiveCopies.outputs[0]!.bytes,
+      mediaType: "image/png",
+      sourceRef: "characters/P1/lead-archive-v2-front.png",
+    }]);
+    expect(resolvePromptAssets({
+      source: { ...source, portraits: "image://characters/lead/portrait-v3.png",
+        fields: { portraits: "image://characters/lead/portrait-v3.png" },
+        prompt: "17.【定妆照】image://characters/lead/portrait-v3.png" },
+      workDir: "/synthetic/workspace", charactersDir, archiveCopies,
+    })).toEqual([]);
+  });
+
   it("does not infer an asset from a role-only or no-person prompt", () => {
     for (const prompt of ["12.【角色】林夏走入画面。", "12.【角色】无角色出场。\n17.【定妆照】无角色出场，无定妆照。"]) {
       expect(resolvePromptAssets({
