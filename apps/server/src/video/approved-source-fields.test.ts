@@ -6,7 +6,7 @@ import {
 } from "@hyperreality/video-studio";
 import { DEFAULT_MODEL_POLICY, OpenAiCompatibleProvider, resetCircuit } from "@workloom/base/model-router";
 import {
-  authorRepairFields, planFieldAuthoring, recoverContractFields,
+  authorRepairFields, marketingFinalFactFieldArtifact, planFieldAuthoring, recoverContractFields,
   type FieldAuthoringArchiveInput, type FieldAuthoringBudgetEvent, type FieldAuthoringSourceContext,
 } from "./approved-source-fields.js";
 
@@ -331,8 +331,35 @@ describe("host diagnostic field authoring plan", () => {
     if (kind === "field-proof") shot.fieldProofs[0]!.valueSha256 = "f".repeat(64);
     expect(() => fieldPlan(shot)).toThrow("APPROVED_SOURCE_FIELDS_");
   });
-  it.each(["baseline", "dialogue", "negative", "consistency", "bright_constraint", "audio"])("keeps the existing request channel for %s immutable", field => {
+  it.each(["baseline", "dialogue", "negative", "consistency", "bright_constraint"])("keeps the existing request channel for %s immutable", field => {
     expect(() => fieldPlan(fixture().recovered, [field])).toThrow("DIAGNOSIS_SCOPE_INVALID");
+  });
+  it("keeps audio immutable for ordinary diagnoses but locates the exact final BGM conflict", () => {
+    expect(() => fieldPlan(fixture().recovered, ["audio"])).toThrow("DIAGNOSIS_SCOPE_INVALID");
+    const recovered = fixture({ audio: "现场发动机声；BGM 连续铺底。" }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "音频BGM与编译纪律冲突",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    });
+    expect(artifact).toBeDefined();
+    expect(planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact!] }).fieldsByShot).toEqual({ "scene-a": ["audio"] });
+  });
+  it("locates final livery and performance wording only in fact-mutable fields", () => {
+    const recovered = fixture({
+      director_instruction: "高燃竞速广告。",
+      props: "主角赛车为无贴花示意整车。",
+      action: "主角车贴外线加速完成超越。",
+    }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "存在无贴花外观与来源涂装冲突，以及缺少来源支持的车辆性能暗示",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    });
+    const plan = planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact!] });
+    expect(plan.fieldsByShot["scene-a"]).toEqual(expect.arrayContaining(["director_instruction", "props", "action"]));
   });
 });
 
@@ -488,6 +515,20 @@ describe("normal native dispatcher authoring with complete controlled artifacts"
     const prior = input.plan.shots[0]!.sourceContract.request;
     expect(result.shots[0]!.currentContract!.request).toEqual({ ...prior, technical: { ...prior.technical, timeline } });
     expect(result.receipts[0]!.mutableRequestTextPaths).toEqual(["technical.timeline"]);
+  });
+  it("removes generated-layer BGM through the exact final marketing diagnosis", async () => {
+    const shot = fixture({ audio: "现场发动机声；高BPM器乐连续铺底。" }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({ failureMessage: "音频BGM与编译纪律冲突",
+      shots: [shot], sourceContextSha256: sha256Json(sourceContext) })!;
+    const plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact] });
+    const audio = "只保留现场发动机、换挡、胎噪与风切；无台词、无旁白、无可辨识人声；BGM 仅由正式后期音轨加入。";
+    const { input } = authorInput(JSON.stringify({ shotId: shot.shotId, fields: { audio } }), {}, plan);
+    const result = await authorRepairFields(input);
+    const prior = shot.sourceContract.request;
+    expect(result.shots[0]!.currentContract!.request).toEqual({ ...prior,
+      technical: { ...prior.technical, audio } });
+    expect(result.receipts[0]!.mutableRequestTextPaths).toEqual(["technical.audio"]);
   });
   it("cannot change camera_fixed while correcting camera prose", async () => {
     const { input, requests } = authorInput(JSON.stringify({ shotId: "scene-a", fields: { camera_movement: "固定机位，保留原动作与时长。" } }));

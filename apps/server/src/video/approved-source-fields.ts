@@ -13,6 +13,7 @@ type JsonRecord = Record<string, unknown>;
 const hashPattern = /^[a-f0-9]{64}$/u;
 const newFieldSchemaExample = "从完整已审来源新创作本字段的非空文本";
 const FINAL_LENGTH_EDITABLE_FIELDS = ["lighting", "composition", "color_palette", "depth_of_field", "mood"] as const;
+const MARKETING_FINAL_AUDIO_BGM_CODE = "MARKETING_FINAL_AUDIO_BGM_CONFLICT";
 // G6 semantic checks may also use upper-case HARD_* failure codes. Only the
 // compiler's exact vocabulary can describe a replayed compiler error.
 const PROMPT_COMPILER_ERROR_CODES: ReadonlySet<string> = new Set([
@@ -340,6 +341,74 @@ export interface PlanFieldAuthoringInput {
   truncationEvidence?: readonly VerifiedFieldArtifact[];
 }
 const immutableFields = new Set(["portraits", "constraint", "baseline", "dialogue", "negative", "consistency", "bright_constraint", "audio"]);
+function allowsDiagnosedField(field: string, code: unknown): boolean {
+  return !immutableFields.has(field) || field === "audio" && code === MARKETING_FINAL_AUDIO_BGM_CODE;
+}
+
+const MARKETING_FINAL_MUTABLE_FIELDS = new Set([
+  "director_instruction", "scene", "lighting", "camera_movement", "character", "action", "composition",
+  "color_palette", "depth_of_field", "timeline", "mood", "costume", "props", "pacing", "makeup",
+]);
+
+/**
+ * Turn the current shot-level marketing rejection into exact, hash-bound field
+ * diagnostics. The review therefore remains the authority; this function only
+ * locates fields affected by the categories named in that complete verdict.
+ */
+export function marketingFinalFactFieldArtifact(input: {
+  failureMessage: string;
+  shots: readonly RecoveredPromptShot[];
+  sourceContextSha256: string;
+}): VerifiedFieldArtifact | undefined {
+  checkedHash(input.sourceContextSha256);
+  if (!input.shots.length || !input.failureMessage.trim()) return undefined;
+  const diagnoses: JsonRecord[] = [], seen = new Set<string>();
+  const add = (shot: RecoveredPromptShot, field: string, code: string, reason: string) => {
+    if (!allowsDiagnosedField(field, code) || !Object.hasOwn(shot.fields, field)) return;
+    const key = `${shot.shotId}:${field}:${code}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    diagnoses.push({ shotId: shot.shotId, field, kind: "conflict", code, reason,
+      sourceContractSha256: shot.sourceContractSha256, valueSha256: sha256Json(shot.fields[field]),
+      evidenceRefs: [`marketing-final-fact-review:${code}`] });
+  };
+  const message = input.failureMessage;
+  if (/音频\s*BGM|BGM.*编译纪律|音乐.*编译纪律/u.test(message)) {
+    for (const shot of input.shots) {
+      const audio = shot.fields.audio;
+      if (typeof audio === "string" && /BGM|背景音乐|配乐|器乐|音乐|BPM/iu.test(audio)) add(shot, "audio",
+        MARKETING_FINAL_AUDIO_BGM_CODE,
+        "最终事实审核指出生成镜头音频与“禁止镜头外 BGM”编译纪律冲突。只保留现场发动机、机械、胎噪、风切、礼炮与呼吸等原生声，删除生成层 BGM/配乐描述；BGM 仅由正式后期音轨加入，不在本镜生成请求中宣称。");
+    }
+  }
+  if (/无贴花|涂装/u.test(message)) {
+    for (const shot of input.shots) {
+      for (const field of MARKETING_FINAL_MUTABLE_FIELDS) {
+        const value = shot.fields[field];
+        if (typeof value === "string" && /无贴花|无任何贴花/u.test(value)) add(shot, field,
+          "MARKETING_FINAL_UNVERIFIED_LIVERY_ABSENCE",
+          "来源明确写有同款外观涂装风格，镜头不能断言商品本身“无贴花”。改为“本片不复制来源涂装与可读标识，商品外观仅作权利安全示意”，保留创意画面，但不对官方涂装作事实否定或精确还原主张。");
+      }
+    }
+  }
+  if (/性能|加速|极速|速度/u.test(message)) {
+    const performance = /(?:加速|速度差|高转|极速|狂飙|峰值|追近第[一二三四五六七八九十\d]+台|拉开(?:半个|一个|两个|\d+(?:\.\d+)?个)?车身|发动机转速)/u;
+    for (const shot of input.shots) {
+      add(shot, "director_instruction", "MARKETING_FINAL_PERFORMANCE_DISCLAIMER",
+        "在导演指令中明确：赛道竞速、超越与冲线为广告创意演绎，不以画面或文字宣称极速、加速时间、圈速、功率、扭矩、赛道成绩或厂商背书；不得新增来源未支持的性能数字。");
+      for (const field of MARKETING_FINAL_MUTABLE_FIELDS) {
+        const value = shot.fields[field];
+        if (typeof value === "string" && performance.test(value)) add(shot, field,
+          "MARKETING_FINAL_UNSUPPORTED_PERFORMANCE_HINT",
+          "来源只支持已列客观规格，不支持本片具体的速度、加速或竞速效果。将表述限定为广告创意演绎中的画内位次、动作和剪辑节奏，不构成车辆性能宣称；保留叙事动作，不新增任何数字或成绩。");
+      }
+    }
+  }
+  if (!diagnoses.length) return undefined;
+  const bytes = Buffer.from(canonicalJson({ schemaVersion: "workloom.approved-source-field-diagnostics/v1",
+    sourceContextSha256: input.sourceContextSha256, diagnoses }));
+  return { bytes, expectedSha256: hashBytes(bytes) };
+}
 function validateRecoveredShot(shot: RecoveredPromptShot): RecoveredPromptShot {
   const recovered = recoverContractFields({ contractBytes: Buffer.from(shot.sourceContractText),
     expectedSha256: shot.sourceContractSha256, archivedFields: shot.fields,
@@ -373,7 +442,8 @@ export function planFieldAuthoring(input: PlanFieldAuthoringInput): AllowedField
     const shot = typeof entry.shotId === "string" ? byId.get(entry.shotId) : undefined;
     const field = typeof entry.field === "string" ? entry.field : undefined;
     const unbound = shot?.unboundFields.find(item => item.field === field);
-    if (!shot || !field || (!Object.hasOwn(shot.fields, field) && !unbound) || immutableFields.has(field)) return fail("DIAGNOSIS_SCOPE_INVALID");
+    if (!shot || !field || (!Object.hasOwn(shot.fields, field) && !unbound)
+      || !allowsDiagnosedField(field, entry.code)) return fail("DIAGNOSIS_SCOPE_INVALID");
     if (unbound && (origin !== "g6-missing" || kind !== "missing" || entry.code !== "HARD_FIELD_VALUE_MISSING"
       || !unbound.diagnosisEvidenceSha256.includes(evidenceSha256))) return fail("MISSING_DIAGNOSIS_UNBOUND");
     if (!unbound && origin === "g6-missing") return fail("MISSING_DIAGNOSIS_NOT_ABSENT");
@@ -520,7 +590,7 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
   if (!isDeepStrictEqual(expectedFields, input.plan.fieldsByShot) || input.plan.diagnoses.some(entry => {
     const shot = input.plan.shots.find(shot => shot.shotId === entry.shotId);
     const unbound = shot?.unboundFields.find(field => field.field === entry.field);
-    return !shot || (!Object.hasOwn(shot.fields, entry.field) && !unbound) || immutableFields.has(entry.field)
+    return !shot || (!Object.hasOwn(shot.fields, entry.field) && !unbound) || !allowsDiagnosedField(entry.field, entry.code)
       || entry.sourceContractSha256 !== shot.sourceContractSha256
       || (unbound ? entry.valueSha256 !== null || entry.sourceBinding !== "unbound" || entry.origin !== "g6-missing"
         || entry.kind !== "missing" || entry.code !== "HARD_FIELD_VALUE_MISSING" || !unbound.diagnosisEvidenceSha256.includes(entry.evidenceSha256)
@@ -548,7 +618,8 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
     const allowed = input.plan.fieldsByShot[shot.shotId] ?? [];
     if (!allowed.length) continue;
     if (new Set(allowed).size !== allowed.length || allowed.some(field => (!Object.hasOwn(shot.fields, field)
-      && !shot.unboundFields.some(item => item.field === field)) || immutableFields.has(field))) return fail("AUTHORING_SCOPE_INVALID");
+      && !shot.unboundFields.some(item => item.field === field)) || !allowsDiagnosedField(field,
+        input.plan.diagnoses.find(entry => entry.shotId === shot.shotId && entry.field === field)?.code))) return fail("AUTHORING_SCOPE_INVALID");
     const writable = new Set(allowed);
     const diagnoses = input.plan.diagnoses.filter(entry => entry.shotId === shot.shotId);
     const sourceCompileErrors = compilePromptShot(shot, shot.compileOptions).hardErrors;
@@ -577,7 +648,10 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       requiredReductionChars: Math.max(0, promptOverflowChars + 8),
       availableGrowthChars: Math.max(0, input.plan.maxFinalPromptChars! - shot.prompt.length - 8),
     };
-    const timelineDiagnosed = writable.has("timeline") && diagnoses.some(entry => entry.field === "timeline" && entry.origin === "g6-semantic");
+    const timelineDiagnosed = writable.has("timeline") && diagnoses.some(entry => entry.field === "timeline"
+      && ["g6-semantic", "host-diagnostic"].includes(entry.origin));
+    const audioDiagnosed = writable.has("audio") && diagnoses.some(entry => entry.field === "audio"
+      && entry.code === MARKETING_FINAL_AUDIO_BGM_CODE);
     const witnessInput = (fields: JsonRecord) => ({ approvedProductionPlan: input.sourceContext.approvedProductionPlan,
       shotId: shot.shotId, duration: shot.duration, action: fields.action, timeline: fields.timeline,
       cameraMovement: fields.camera_movement, characterConstraint: fields.character_constraint });
@@ -752,11 +826,13 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       const { priorFields, fields: nextFields, newFields } = selected.candidate;
       const { authoredAt, compiled } = evaluation;
       shot.fields = nextFields;
-      const mutableRequestTextPaths = [...(timelineDiagnosed ? ["technical.timeline"] : []),
+    const mutableRequestTextPaths = [...(timelineDiagnosed ? ["technical.timeline"] : []),
+      ...(audioDiagnosed ? ["technical.audio"] : []),
         ...(rivalWitness ? ["technical.character_constraint"] : [])];
       const immutableRequest = (contract: PromptContract) => {
         const request = structuredClone(contract.request);
         if (timelineDiagnosed) delete request.technical.timeline;
+      if (audioDiagnosed) delete request.technical.audio;
         if (rivalWitness) delete request.technical.character_constraint;
         return request;
       };

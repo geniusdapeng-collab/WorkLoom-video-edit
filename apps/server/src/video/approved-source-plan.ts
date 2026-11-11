@@ -22,7 +22,7 @@ import {
 import { loadPortraitReuseManifest, readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 import { readApprovedProductionPlan } from "./approved-production-plan.js";
 import {
-  planFieldAuthoring, recoverContractFields,
+  marketingFinalFactFieldArtifact, planFieldAuthoring, recoverContractFields,
   type AllowedFieldPlan, type RecoveredPromptShot, type VerifiedFieldArtifact,
 } from "./approved-source-fields.js";
 
@@ -457,9 +457,18 @@ async function loadApprovedSourcePlan(
     marketing: marketingAuthority, proof: approvedGates.G4_PRD.proof, shots: contracts.map(shot => ({ shotId: shot.shotId, duration: shot.duration })) });
   const sourceContext = { brief: request.metadata.brief ?? null, gates: { G1: g1.artifact.content,
     G2: approvedGates.G2_THEME.artifact.content, G3: approvedGates.G3_INSIGHT.artifact.content, G4: g4Content }, approvedProductionPlan };
-  const fieldPlan = planFieldAuthoring({ shots: contracts, sourceContextSha256: sha256Json(sourceContext),
+  const sourceContextSha256 = sha256Json(sourceContext);
+  const marketingFailure = output.marketingFinalFactsFailure === undefined
+    ? undefined : record(output.marketingFinalFactsFailure, "SOURCE_MARKETING_FINAL_FAILURE_INVALID");
+  const marketingDiagnosis = marketingFailure
+    ? marketingFinalFactFieldArtifact({ failureMessage: String(marketingFailure.message ?? ""), shots: contracts, sourceContextSha256 })
+    : undefined;
+  if (marketingFailure && !marketingDiagnosis) {
+    return fail("SOURCE_MARKETING_FINAL_DIAGNOSIS_UNBOUND", "最终营销事实拒绝没有可定位到当前字段的完整证据，未生成猜测性修复计划。");
+  }
+  const fieldPlan = planFieldAuthoring({ shots: contracts, sourceContextSha256,
     maxFinalPromptChars: fieldSpec().lengths.hardMax, deferPortraitAssetBinding: true,
-    diagnosedFindings: [reportArtifact], truncationEvidence: [] });
+    diagnosedFindings: [reportArtifact, ...(marketingDiagnosis ? [marketingDiagnosis] : [])], truncationEvidence: [] });
   const manifestSetting = process.env.HR_PORTRAIT_REUSE_MANIFEST?.trim();
   if (!manifestSetting) return fail("SOURCE_PORTRAITS_UNAVAILABLE", "当前宿主没有受控的既有角色图片选择，不能重新生成或猜测图片来源。");
   const portraits = loadPortraitReuseManifest(path.resolve(repoRoot, manifestSetting));
