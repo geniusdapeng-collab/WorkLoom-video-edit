@@ -132,6 +132,17 @@ async function retainReviewedFailedDraft(original: VerifiedApprovedSourcePlan) {
 }
 
 describe("verified approved-source planning", () => {
+  it("accepts a same-byte approved profile alias without inventing a dual-profile witness", async () => {
+    fixture = await approvedSourceFixture({ workDir, scope: fixture.scope, createdAt, sameHashProfileAlias: true }); rows = [fixture.row];
+    const plan = await prepareApprovedSourcePlan(scope, projectId);
+    const manifest = JSON.parse(await readFile(fixture.portraitManifest.path, "utf8"));
+    const catalogPath = (plan.selection.exportCharacters[0] as Record<string, any>).builtinCharacterSource.profilePath as string;
+    expect(catalogPath).not.toBe(manifest.characters[0].profile.path);
+    expect(await readFile(catalogPath)).toEqual(await readFile(manifest.characters[0].profile.path));
+    await writeFile(catalogPath, "changed same-hash alias");
+    await expect(plan.verifyCurrent()).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("derives ordered intervals from the approved G4 scenes for a silent plan without a segment contract", async () => {
     const metadata = structuredClone(fixture.request.metadata) as Record<string, any>;
     delete metadata.brief.segmentContract;

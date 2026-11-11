@@ -28,6 +28,7 @@ export async function approvedSourceFixture(input: {
   castState?: "missing" | "profile-mismatch";
   platformState?: "missing" | "conflict";
   dualProfile?: boolean;
+  sameHashProfileAlias?: boolean;
   reverseContractAssets?: boolean;
   mutatePortraitWitness?: (planning: Json) => void | Promise<void>;
 }) {
@@ -76,6 +77,8 @@ export async function approvedSourceFixture(input: {
       via: "owner-acceptance", sourceStage: "owner-acceptance", approved: true, evidence: { basis: owner.basis,
         characterId: actorId, version: 2, ownerAcceptance: "reviews/fixture-owner-acceptance.json", ownerAcceptanceSha256: ownerReceipt.sha256,
         authorization: owner } }) + "\n");
+  } else if (input.sameHashProfileAlias) {
+    catalogProfile = await put(path.join(workDir, "fixtures", "catalog", "profile.json"), await readFile(profile.path));
   }
   const outputs: Record<string, Awaited<ReturnType<typeof put>>> = {}, receipts: Record<string, Json> = {}, files: Record<string, string> = {};
   for (const angle of angles) {

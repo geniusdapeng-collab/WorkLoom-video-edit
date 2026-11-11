@@ -482,12 +482,28 @@ async function loadApprovedSourcePlan(
     }
     return structuredClone(character);
   });
-  const needsDualProfileWitness = selectedCastCharacters.some((value, index) => {
+  const sameHashProfileCopies = selectedCastCharacters.flatMap((value, index) => {
     const choice = record(value), portrait = portraits.characters[index]!;
-    return choice.profileSha256 !== portrait.profile.sha256
-      || choice.profilePath !== null && choice.profilePath !== portrait.profile.path;
+    return choice.profileSha256 === portrait.profile.sha256
+      && typeof choice.profilePath === "string" && choice.profilePath !== portrait.profile.path
+      ? [{ path: choice.profilePath, sha256: portrait.profile.sha256, archivePath: portrait.profile.path }]
+      : [];
   });
-  const verifyDualProfileWitness = (): void => {
+  const needsDualProfileWitness = selectedCastCharacters.some((value, index) =>
+    record(value).profileSha256 !== portraits.characters[index]!.profile.sha256);
+  const verifyDualProfileWitness = async (): Promise<void> => {
+    try {
+      // A different approved profile path is harmless only when both current
+      // files are byte-identical. Keep both paths in the freshness closure.
+      for (const copy of sameHashProfileCopies) {
+        const catalog = await read(path.dirname(copy.path), copy.path, copy.sha256);
+        const archive = await read(path.dirname(copy.archivePath), copy.archivePath, copy.sha256);
+        if (!catalog.equals(archive)) return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "同一人物的双档案路径字节不一致。");
+      }
+    } catch (error) {
+      if (error instanceof ApprovedSourcePlanError) throw error;
+      return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "同一人物的双档案路径无法完整核验。");
+    }
     if (!needsDualProfileWitness) return;
     try {
       // Reuse the same native owner/asset verifier that produced the original G4 annex.
@@ -518,7 +534,7 @@ async function loadApprovedSourcePlan(
       return fail("SOURCE_CAST_PORTRAIT_MISMATCH", "原 G4 双档案见证、所有者用途授权或原图字节无法核验，未启动修复。");
     }
   };
-  verifyDualProfileWitness();
+  await verifyDualProfileWitness();
   // Old failed G6 attempts have no formal shotlist. Reuse their reviewed cast and explicit platform,
   // rather than inventing a past handoff or selecting a new default from current prose.
   const explicitPlatforms = [rootRequest.metadata.platform, frozenProfile.targetPlatform]
@@ -568,7 +584,7 @@ async function loadApprovedSourcePlan(
     await restoreApprovedMarketingFactsSource({ root: archive.root, scope: rootApprovalSource.scope,
       g1Content: g1.artifact.content, g1ContentSha256: g1.artifact.sha256, proof: g1.proof, g1ArtifactPath: g1.artifact.ref });
     const currentPortraits = loadPortraitReuseManifest(portraitBinding.manifestPath, portraitBinding.manifestSha256);
-    verifyDualProfileWitness();
+    await verifyDualProfileWitness();
     const currentCopies = readCurrentPortraitArchiveCopies({ workDir: runWorkDir, projectId,
       manifest: { path: currentPortraits.manifestPath, sha256: currentPortraits.manifestSha256 },
       allowAdditionalAngles: true, allowProductArchive: true });
