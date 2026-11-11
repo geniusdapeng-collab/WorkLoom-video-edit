@@ -400,6 +400,14 @@ export async function reviewPlausibility(
         log(`[plausibility][${input.stage}] 将缺少补充护具描述的陪体骑手细节降为 warning：${finding.id}`);
         return { ...finding, severity: "warning" as const };
       }
+      const partialScopeCompleteness = /未出现|缺失|未覆盖|未包含/.test(finding.issue)
+        && /必拍|节拍|镜头|场景|片尾|总时长/.test(finding.issue)
+        && /当前|分镜|四镜|现有|后续|项目/.test(finding.issue)
+        && !/穿模|悬空|无人驾驶|接触|支撑|比例|换人|第二个人/.test(finding.issue);
+      if (finding.severity === "blocker" && partialScopeCompleteness) {
+        log(`[plausibility][${input.stage}] 将局部镜头范围的完整性提示降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
       return finding;
     });
     const blockers = findings.filter((finding) => finding.severity === "blocker");

@@ -251,7 +251,7 @@ describe("实体与物理常识审核 agent", () => {
     expect(result.findings[0]).toMatchObject({ id: "temporal-helmet", severity: "warning" });
   });
 
-  it("非物理性的措辞与补充装备细节降为 warning，穿模或支撑失效仍保持 blocker", async () => {
+  it("非物理性的措辞、补充装备与局部范围完整性提示降为 warning，穿模或支撑失效仍保持 blocker", async () => {
     const result = await reviewPlausibility({
       ...baseContext,
       shots: [{ ...baseContext.shots[0]!, promptText: "上一镜后已完成停车、支侧撑与下车；本镜起幅为既定静止状态。" }],
@@ -265,6 +265,7 @@ describe("实体与物理常识审核 agent", () => {
           { id: "hair-override", severity: "blocker", shotId: "SC-01", issue: "角色档案写高马尾，逐镜发型写后颈低束马尾", why: "档案与镜头覆盖不一致", fix: "以逐镜为准" },
           { id: "declared-jump", severity: "blocker", shotId: "SC-01", issue: "相邻镜 scene-3 到 scene-4 的侧撑与下车未在上一镜呈现", why: "跨镜状态跳跃", fix: "已在下一镜声明画外完成" },
           { id: "opponent-gear-detail", severity: "blocker", shotId: "SC-01", issue: "匿名对手骑手缺赛车服、手套与赛车靴细节", why: "装备描述不足", fix: "补齐具体装备" },
+          { id: "partial-scope", severity: "blocker", shotId: "SC-01", issue: "已批准的必拍领奖台节拍未出现在当前分镜", why: "当前只复核未完成镜头", fix: "已完成镜头不在本轮范围" },
           { id: "physical", severity: "blocker", shotId: "SC-01", issue: "右肩悬空且穿模", why: "支撑失效", fix: "重做姿态" },
         ],
         promptPatches: [], reason: "混合问题",
@@ -276,6 +277,7 @@ describe("实体与物理常识审核 agent", () => {
     expect(result.findings.find((finding) => finding.id === "hair-override")).toMatchObject({ severity: "warning" });
     expect(result.findings.find((finding) => finding.id === "declared-jump")).toMatchObject({ severity: "warning" });
     expect(result.findings.find((finding) => finding.id === "opponent-gear-detail")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "partial-scope")).toMatchObject({ severity: "warning" });
     expect(result.findings.find((finding) => finding.id === "physical")).toMatchObject({ severity: "blocker" });
   });
 
