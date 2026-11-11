@@ -30,6 +30,14 @@ const { SceneDesignAgent } = require("../../../vendor/supermickey/hyperreality-s
     setDeadline(at: number): void;
   };
 };
+const { AudioDesignAgent } = require("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/audio-design-agent.js") as {
+  AudioDesignAgent: new (options?: RequirementRecord) => {
+    process(shots: RequirementRecord[], blueprint: RequirementRecord): Promise<{ shots: RequirementRecord[]; degraded: boolean }>;
+    enabled: boolean;
+    _llmEngineLoaded: boolean;
+    _llmEngine: WorkloomLLMEngine;
+  };
+};
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
@@ -126,7 +134,7 @@ function fixture(replies: Reply[], frozen = false, onDispatch?: (ordinal: number
   agent._llmEngine = engine;
   const alt = vi.fn(() => undefined); agent._getAltLLMEngine = alt;
   const fallback = vi.spyOn(agent, "_fallback");
-  return { run, value, wires, agent, alt, fallback };
+  return { run, value, wires, engine, agent, alt, fallback };
 }
 
 describe("host-bound Studio production with the native SceneDesignAgent", () => {
@@ -191,6 +199,33 @@ describe("host-bound Studio production with the native SceneDesignAgent", () => 
     }
     expect(f.fallback).not.toHaveBeenCalled();
     expect(f.alt).not.toHaveBeenCalled();
+  });
+
+  it("uses one measured same-route correction when AudioDesign returns a blank final JSON message", async () => {
+    const blank = Response.json({
+      id: "synthetic-audio-blank", object: "chat.completion", model: "deepseek-flash",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: null } }],
+      usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 },
+    });
+    const accepted = JSON.stringify({ shots: [{
+      shotId: "SC-01",
+      backgroundSound: {
+        environment: "封闭赛道", description: "前景胎噪、中景发动机与远景风切", intensity: "high",
+        spatialLayer: "full-spectrum", frequencySignature: "full-spectrum",
+      },
+      backgroundSoundString: "前景胎噪、中景发动机与远景风切随动作同步",
+    }] });
+    const f = fixture([blank, accepted], true);
+    const agent = new AudioDesignAgent({ llmTimeout: 15_000 });
+    agent._llmEngineLoaded = true;
+    agent._llmEngine = f.engine;
+    const result = await f.run(() => agent.process([{ shotId: "SC-01", scene: "封闭赛道" }], blueprint));
+    expect(result).toMatchObject({ degraded: false, shots: [{ shotId: "SC-01" }] });
+    expect(f.wires).toHaveLength(2);
+    const first = f.wires[0]!.messages.at(-1)!.content;
+    const second = f.wires[1]!.messages.at(-1)!.content;
+    expect(second).not.toBe(first);
+    expect(second).toContain("本次制作 JSON 最终交付");
   });
 
   it.each(["malformed", "wrong-shape"])("repairs a settled %s response using the complete original prompt and same schema", async kind => {

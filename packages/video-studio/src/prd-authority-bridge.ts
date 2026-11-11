@@ -1376,6 +1376,7 @@ function retiredTitleIssue(value: string): boolean {
 }
 
 const FUSION_BLANK_JSON_CORRECTION = "## 本镜头最终 JSON 交付\n完成必要推理后，把完整结果写入最终答复，只输出一个合法 JSON 对象。严格保留上文原始镜头、镜头编号、全部字段、时长、事实与制作约束。按同一结构正确转义字符串中的引号和换行。不要输出 Markdown、解释、占位符或省略号。";
+const PRODUCTION_BLANK_JSON_CORRECTION = "## 本次制作 JSON 最终交付\n完成必要推理后，把完整结果写入最终答复，只输出一个合法且非空的 JSON 对象。按原镜号和顺序返回全部要求字段，保留原事实、动作、声音、时长、人物与已审约束。不要输出 Markdown、解释、占位符或省略号。";
 const SCENE_DESIGN_JSON_PRESENTATION = "## 本次场景设计 JSON 自检\n最终答复只输出一个非空的完整 JSON 对象。按原镜号和顺序写满 shots 数组，核对引号、逗号、括号和全部必需字段。";
 const SCENE_DESIGN_BLANK_JSON_CORRECTION = "## 本次场景设计最终 JSON 交付\n完成必要推理后，把完整设计写入最终答复，只输出一个合法且非空的 JSON 对象。按原镜号和顺序逐镜返回全部字段，保留原动作、时长、人物、连续性与已审约束。不要输出 Markdown、解释、占位符或省略号。";
 
@@ -1730,6 +1731,7 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   // semantic refinement share the receiver but cannot inherit another slot.
   const primaryFusion = new AsyncLocalStorage<{ scope: Scope; receiver: RequirementRecord; shotId: string; started: boolean }>();
   const blankCorrectionUsed = new WeakSet<Scope>(); // one blank correction per approved run
+  const productionBlankCorrectionUsed = new WeakMap<Scope, Set<string>>();
   const sceneDesignPrototype = deps.sceneDesignPrototype;
   const sceneDesignValidator = sceneDesignPrototype && Object.getOwnPropertyDescriptor(sceneDesignPrototype, "_validateSchema");
   const primarySceneDesign = new AsyncLocalStorage<{
@@ -1862,11 +1864,16 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         && typeof first.content === "string" && Boolean(first.content.trim());
       const completed = nativeReasonCompleted(first) || measuredSuccess || (measured(first)
         && nativeReasonFailure(first) === "json-syntax" && typeof first.content === "string" && Boolean(first.content.trim()));
-      const blank = (primary || sceneDesign || focusedFusionFill) && options.critical === true
-        && !first.success && !completed && nativeReasonBlankJson(first);
+      const blank = !first.success && !completed && Boolean(nativeReasonBlankJson(first))
+        && nativeBlankJsonRouteCurrent(engine, first)
+        // SceneDesign blank correction is legal only inside the exact frozen
+        // shot contract. A mismatched input never owns that async scope.
+        && (name !== "SceneDesignAgent" || Boolean(sceneDesign));
       const sceneBlank = blank ? sceneDesign : undefined;
       if (!completed && !blank) {
-        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 未取得已完成且有计量的原生模型回复`);
+        const failure = nativeReasonFailure(first) ?? (first.success ? "success-without-proof" : "unknown");
+        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED",
+          `${name} 未取得已完成且有计量的原生模型回复（failure=${failure}，usage=${measured(first) ? "metered" : "unmetered"}，content=${typeof first.content === "string" && first.content.trim() ? "present" : "blank"}，blankProof=${nativeReasonBlankJson(first) ? "present" : "missing"}）`);
       }
       const strictObject = (answer: LLMReasonResult) => {
         const parsed = typeof answer.content === "string" ? parseStrictSceneJsonObject(answer.content) : undefined;
@@ -1877,12 +1884,25 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         return { result: first.data, degraded: false, degradeReason: null, attempts: 1 };
       }
       const used = sceneBlank ? sceneDesignBlankCorrectionUsed : blankCorrectionUsed;
-      if (maxAttempts < 2 || (blank ? used.has(scope) : !first.success && nativeReasonFailure(first) !== "json-syntax")) {
+      const otherBlankUsed = blank && !sceneBlank && !primary
+        ? productionBlankCorrectionUsed.get(scope)?.has(name) === true : false;
+      const blankUsed = sceneBlank ? sceneDesignBlankCorrectionUsed.has(scope)
+        : primary ? used.has(scope) : otherBlankUsed;
+      if (maxAttempts < 2 || (blank ? blankUsed : !first.success && nativeReasonFailure(first) !== "json-syntax")) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 的原生制作响应未通过校验`);
       }
-      if (blank) used.add(scope);
+      if (blank) {
+        if (sceneBlank) sceneDesignBlankCorrectionUsed.add(scope);
+        else if (primary) blankCorrectionUsed.add(scope);
+        else {
+          const names = productionBlankCorrectionUsed.get(scope) ?? new Set<string>();
+          names.add(name);
+          productionBlankCorrectionUsed.set(scope, names);
+        }
+      }
       const correction = first.success ? "原回复缺失或不符合目标字段结构。" : "原回复不是合法 JSON。";
-      const instruction = sceneBlank ? SCENE_DESIGN_BLANK_JSON_CORRECTION : blank ? FUSION_BLANK_JSON_CORRECTION
+      const instruction = sceneBlank ? SCENE_DESIGN_BLANK_JSON_CORRECTION
+        : blank ? (primary ? FUSION_BLANK_JSON_CORRECTION : PRODUCTION_BLANK_JSON_CORRECTION)
         : `## 完整结构修正\n${correction}重新按上文完整任务和同一目标结构生成一次完整 JSON。保留每个镜头、事实与约束；不要引用原错误内容，不要缩减任务或字段。`;
       const second = await invoke(`${fullPrompt}\n\n${instruction}`, blank ? first : undefined, sceneBlank ? sceneDeadline : deadline);
       const secondValidation = validation(second.data);
