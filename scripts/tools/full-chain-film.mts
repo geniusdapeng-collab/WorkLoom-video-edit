@@ -1810,12 +1810,6 @@ function productReferencePaths(shot: ShotCard): string[] {
     .map((photo) => photo && typeof photo === "object" ? String((photo as Record<string, unknown>).path ?? "").trim() : "")
     .filter((file) => file && existsSync(file)))];
 }
-function productNeedsMultiAngleReferences(shot: ShotCard): boolean {
-  const productRef = (shot as Record<string, unknown>).productRef as Record<string, unknown> | undefined;
-  return /^(?:vehicle|motorcycle|motorbike|motor|car|automobile)$|摩托车|机车|汽车/i.test(
-    `${String(productRef?.category ?? "")} ${String(productRef?.displayName ?? "")}`.trim()
-  );
-}
 /** 需要提示词文生关键帧/台词的人镜两类：生成镜 + 授权真人素材镜（素材镜另有动效提示词） */
 const promptShots = (): ShotCard[] => pendingShots().filter((shot) => !isMaterialShot(shot));
 const assetShots = (): ShotCard[] => shots.filter((shot) => isAssetShot(shot) && !isMaterialShot(shot));
@@ -4109,17 +4103,32 @@ function buildCurrentMaterialPrompt(shot: ShotCard): string {
   const productArchive = plausibilityArchiveFor(shot);
   const productReference = /^(?:vehicle|motorcycle|motorbike|motor|car|automobile)$|摩托车|机车|汽车/i
     .test(String(productArchive?.category ?? "").trim());
-  let prompt = buildMaterialScenePrompt(card, {
-    aspect: ASPECT,
-    resolution: SOURCE_RESOLUTION,
-    durationSec: duration,
-    title: shotlist.title,
-    referenceMode: productReference ? "product" : "place",
-    ...(productReference ? {
-      injection: "【参考件环境排除】商品参考件中的纯白背景、影棚柔光、展台、起车架、支撑滚轮、拍摄水印和任何后期遮挡均不属于商品本身，成片必须全部移除；只提取商品结构、比例、配色和已有涂装标识，并把商品放回镜头卡描述的真实赛道、真实光照和真实承重关系中。",
-    } : {}),
-  });
-  prompt = appendCinematicContract(prompt, buildCinematicContract(card));
+  const productReferenceFiles = productReferencePaths(shot);
+  const materialTask = productReference
+    ? `【素材参考任务】以参考资产集合为身份、外观、比例与必要实景依据，构建一段 ${duration} 秒实拍视频；参考图不是首帧，不得复刻参考图的构图，影棚背景、展示架、海报文字和可读 logo 必须移除。`
+    : `【素材参考任务】以实景参考资产为依据，构建一段 ${duration} 秒真实拍摄视频；参考图不是首帧，不得复刻参考图的构图。`;
+  const referenceDiscipline = "【参考资产集合】必须完整使用本次绑定的全部参考图；禁止贴图式运动、禁止画面全程静止；有镜头位移时必须有真实三维视差。";
+  const canonicalPrompt = String(card.prompt ?? "").trim();
+  const productSafePrompt = productReference
+    ? canonicalPrompt
+        .replace(/本片不复制来源涂装[^。；]*/g, "本片以本次绑定的多角度商品参考锁定车型身份，不输出可读赞助文字")
+        .replace(/商品外观仅作权利安全示意/g, "商品外观以本次绑定参考为准")
+        .replace(/不宣称精确还原官方车型/g, "不得替换成其他车型")
+    : canonicalPrompt;
+  let prompt = canonicalPrompt
+    ? `${materialTask}\n${productSafePrompt}\n${referenceDiscipline}`
+    : buildMaterialScenePrompt(card, {
+        aspect: ASPECT,
+        resolution: SOURCE_RESOLUTION,
+        durationSec: duration,
+        title: shotlist.title,
+        referenceMode: productReference ? "product" : "place",
+      });
+  const plausibilityCorrections = correctFilmPlausibilityConflicts(prompt, shot);
+  prompt = plausibilityCorrections.prompt;
+  if (plausibilityCorrections.corrections.length) {
+    log(`  ${shot.shotId}: 素材镜合同归一 ${plausibilityCorrections.corrections.join("、")}`);
+  }
   const extraLines: string[] = [REALISM_CLAUSE, REALISM_NEGATIVE_TERMS];
   const materialDialogue = dialogueLines(card as never);
   if (materialDialogue.length > 0) {
@@ -4128,16 +4137,16 @@ function buildCurrentMaterialPrompt(shot: ShotCard): string {
     extraLines.push(noSpeechClause());
   }
   extraLines.push(speechNegativeTerms(FILM_SPEECH_LANGUAGE));
-  const productReferenceFiles = productReferencePaths(shot);
   if (productReferenceFiles.length > 0) {
-    extraLines.push(`商品身份硬约束：商品主体必须同时对齐本次提交的 ${productReferenceFiles.length} 张同型号参考图；`
-      + "保持参考图对应的外形轮廓、配色分区与已登记结构关系一致；"
-      + "参考图中的纯白影棚、展示架、滚轮架、海报文字、价格、赞助商文字与可读 logo 全部移除，不得把参考图当作静态首帧");
-  }
-  if (productNeedsMultiAngleReferences(shot)) {
-    extraLines.push("车型身份硬约束：画面中主角车、前车和每一辆对手车都必须是两轮摩托车；"
-      + "严禁出现汽车、轿车、SUV、跑车、GT 赛车、四轮车或封闭座舱；"
-      + "每辆对手摩托车都由全盔成年骑手跨坐操控，必须呈现油箱、座垫、车把、前叉、前后轮与骑行姿态");
+    const appearance = String(productArchive?.specs?.appearance ?? "").trim();
+    const dimensions = productArchive?.specs?.dimensions;
+    const scale = dimensions
+      ? [dimensions.wheelbaseMm ? `轴距约 ${(dimensions.wheelbaseMm / 1000).toFixed(2)} m` : "",
+        dimensions.seatHeightMm ? `座高约 ${(dimensions.seatHeightMm / 1000).toFixed(2)} m` : ""].filter(Boolean).join("、")
+      : "";
+    extraLines.push(`商品身份硬约束：${String(productArchive?.displayName ?? "").trim() || "已绑定商品"}，`
+      + `本次 ${productReferenceFiles.length} 张参考图共同锁定外观；${appearance ? `可见外观：${appearance}；` : ""}`
+      + `${scale ? `比例锚：${scale}；` : ""}不得替换车型或重新设计轮廓，不得输出参考中的海报文字、价格、赞助商文字与可读 logo`);
   }
   prompt += ` | ${extraLines.filter((line) => line.trim()).join(" | ")}`;
   const portrait = portraitVideoInputs(shot);
@@ -4520,7 +4529,8 @@ if (STAGES.has("material-gen")) {
       let prompt = buildCurrentMaterialPrompt(shot);
       const portrait = portraitVideoInputs(shot);
       const productReferenceFiles = productReferencePaths(shot);
-      const requiredProductReferences = productNeedsMultiAngleReferences(shot) ? 2 : 1;
+      const productReferenceDeclaration = (card.productRef as Record<string, unknown> | undefined)?.photos;
+      const declaredProductReferences = Array.isArray(productReferenceDeclaration) ? productReferenceDeclaration.length : 0;
       const plausibility = !DRY_RUN ? await runPlausibilityGate("pre-submit", [shot]) : null;
       prompt = readFileSync(promptFile, "utf8");
       const submissionPlan = videoPlan({ prompt, refs: [
@@ -4564,9 +4574,9 @@ if (STAGES.has("material-gen")) {
           { id: "video-inputs", pass: submissionPlan.mode === "reference-image" && (!leadVisibleInShot(shot) || portrait.images.length === 2), hard: true, detail: `reference_image ${submissionPlan.inputs.length} 张；人物原图 ${portrait.images.length} 张；无 first_frame` },
           {
             id: "product-reference-inputs",
-            pass: productReferenceFiles.length >= requiredProductReferences,
+            pass: declaredProductReferences > 0 && productReferenceFiles.length === declaredProductReferences,
             hard: true,
-            detail: `同型号商品参考 ${productReferenceFiles.length} 张（要求 ≥${requiredProductReferences}，来源为已绑定商品档案的真实角度图）`
+            detail: `商品参考 ${productReferenceFiles.length}/${declaredProductReferences} 张（必须把镜头卡绑定的参考资产完整提交，缺失或当前字节不可读即拒绝）`
           }
         ],
         inputPaths, exactInputPaths: true,

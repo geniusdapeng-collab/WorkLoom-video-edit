@@ -537,7 +537,7 @@ function evaluateCurrent(code: string, context: Record<string, unknown>): unknow
 }
 const fixtureSha = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
 
-function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict: "pass" | "block" | "unverified" = "pass", providerStatus = "succeeded") {
+function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict: "pass" | "block" | "unverified" = "pass", providerStatus = "succeeded", canonicalPrompt = "") {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "seedance-current-cli-"))); temporary.push(dir);
   const promptDir = join(dir, "prompts"), plateDir = join(dir, "plates"), clips = join(dir, "clips");
   for (const path of [promptDir, plateDir, clips]) mkdirSync(path);
@@ -547,7 +547,7 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
   writeFileSync(front, Buffer.alloc(60_003, 5)); writeFileSync(closeup, Buffer.alloc(60_005, 6));
   const images = [front, closeup].map((path, index) => ({ url: `data:image/png;base64,${readFileSync(path).toString("base64")}`, purpose: index ? "portrait-closeup" : "portrait-front",
     characterId: "fictional-adult", characterVersion: 2, angle: index ? "closeup" : "front", artifact: { path, sha256: mediaSha256(path), bytes: readFileSync(path).length, mime: "image/png" } }));
-  const shot = { shotId: "S1", duration: 13, character: "原创成年人物",
+  const shot = { shotId: "S1", duration: 13, character: "原创成年人物", ...(canonicalPrompt ? { prompt: canonicalPrompt } : {}),
     ...(kind === "material" ? { photo, productRef: { category: "vehicle", displayName: "演示摩托车", photos: [
       { path: photo, angle: "side" }, { path: sidePhoto, angle: "three-quarter" },
     ] } } : {}),
@@ -605,7 +605,7 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     retryInstruction: () => { throw new Error("PAID_POST_MUST_NOT_RETRY"); }, motionPolicyForShot: () => ({ intent: "ordinary" }),
     applySpeedRamp: () => { throw new Error("UNREQUESTED_RETIME"); }, applyCameraMovePunchCut: () => { throw new Error("UNREQUESTED_CAMERA_MOVE"); },
   };
-  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "shotAuthoredText", "renderSecondsFor", "plausibilityArchiveFor", "productReferencePaths", "productNeedsMultiAngleReferences", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
+  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "shotAuthoredText", "correctFilmPlausibilityConflicts", "renderSecondsFor", "plausibilityArchiveFor", "productReferencePaths", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
   const execute = () => evaluateCurrent(`(async()=>{${functions}\n${kind === "material" ? parts.material : parts.videos}\n})()`, context) as Promise<void>;
   return { dir, execute, context, gates, paidBodies, rows, accepted, reviews, get posts() { return posts; }, get gets() { return gets; }, images, productRefs: [photo, sidePhoto], front, closeup };
 }
@@ -743,6 +743,18 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
     expect(evidence.productReferenceFiles).toEqual(f.productRefs);
     expect((f.reviews[0]!.images as Array<Card>)[0]!.path).toBe(join(f.dir, "plates/S1-material.jpg"));
     expect(f.accepted.length).toBe(2); expect(JSON.stringify(f.accepted)).toContain("ack.json");
+  });
+  it("material分支优先复用完整25字段标准提示词，不退回稀疏字段重拼", async () => {
+    const canonical = `${Array.from({ length: 25 }, (_, index) => `${String(index + 1).padStart(2, "0")}.【字段${index + 1}】完整镜头卡内容`).join("\n")}\n${"保持人物、动作、构图、时间轴与一致性。".repeat(30)}\n【素材契约】9:16；实景依据；构建一段视频；不得复刻参考图的构图；禁止贴图式运动与画面全程静止。`;
+    const f = currentSubmissionFixture("material", "pass", "succeeded", canonical);
+    await f.execute();
+    if (f.posts !== 1) throw new Error(JSON.stringify({ gates: f.gates, rows: f.rows }, null, 2));
+    const body = f.paidBodies[0]!;
+    const prompt = String((body.content as Array<Card>)[0]!.text);
+    expect(prompt).toContain("01.【字段1】完整镜头卡内容");
+    expect(prompt).toContain("25.【字段25】完整镜头卡内容");
+    expect(prompt).toContain("【素材参考任务】");
+    expect(prompt).toContain("【参考资产集合】");
   });
   it.each(["block", "unverified"] as const)("material常识%s在付费前停止，0视频POST", async (verdict) => {
     const f = currentSubmissionFixture("material", verdict); await expect(f.execute()).rejects.toThrow("PLAUSIBILITY_BLOCKED"); expect(f.posts).toBe(0);

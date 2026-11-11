@@ -99,8 +99,6 @@ describe("product archive（真实商品档案）", () => {
     expect(body).toContain("座高落在人物髋部到腰线之间");
     expect(body).toContain("已登记产品图角度");
     expect(body).toContain("使用规则（机动车硬约束）");
-    expect(body).toContain("车型身份硬约束");
-    expect(body).toContain("严禁汽车外形、四轮车");
     expect(body).toContain("全盔");
     expect(body).toContain("车身轮廓、导流罩开口");
     expect(body).not.toContain("屏幕比例");

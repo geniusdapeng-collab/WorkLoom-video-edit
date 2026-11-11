@@ -497,21 +497,44 @@ export function buildMaterialDialogueBlock(
  */
 export function buildMaterialScenePrompt(shot: Record<string, unknown>, options: MaterialScenePromptOptions = {}): string {
   const spec = readMaterialSpec(shot);
+  const nestedFields = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
+    ? shot.fields as Record<string, unknown> : {};
+  /** The standard shot-card keeps authored fields under `fields`; material generation must compile that exact shape, not a sparse sibling projection. */
+  const authored = { ...nestedFields, ...shot };
   const aspect = options.aspect ?? "9:16";
   const resolution = options.resolution ?? "1080p";
   const duration = Number(options.durationSec ?? shot.duration ?? 5);
-  const scene = String(shot.scene ?? spec.description ?? "").trim();
-  const sceneDescription = String(shot.sceneDescription ?? "").trim();
-  const lighting = String(shot.lighting ?? "").trim();
-  const colorPalette = String(shot.color_palette ?? "").trim();
-  const propsLine = String(shot.props ?? "").trim();
-  const negative = String(shot.negative ?? "").trim();
-  const motionIntent = spec.motion ?? String(shot.camera_movement ?? "").trim();
+  const scene = String(authored.scene ?? spec.description ?? "").trim();
+  const sceneDescription = String(authored.sceneDescription ?? "").trim();
+  const directorInstruction = String(authored.director_instruction ?? "").trim();
+  const baseline = String(authored.baseline ?? "").trim();
+  const lighting = String(authored.lighting ?? "").trim();
+  const colorPalette = String(authored.color_palette ?? "").trim();
+  const depthOfField = String(authored.depth_of_field ?? "").trim();
+  const propsLine = String(authored.props ?? "").trim();
+  const negative = String(authored.negative ?? "").trim();
+  const character = String(authored.character ?? "").trim();
+  const action = String(authored.action ?? "").trim();
+  const composition = String(authored.composition ?? "").trim();
+  const timeline = String(authored.timeline ?? "").trim();
+  const consistency = String(authored.consistency ?? "").trim();
+  const costume = String(authored.costume ?? "").trim();
+  const portraits = String(authored.portraits ?? "").trim();
+  const mood = String(authored.mood ?? "").trim();
+  const pacing = String(authored.pacing ?? "").trim();
+  const audio = String(sanitizeAudioField(authored.audio).value ?? "").trim();
+  const makeup = String(authored.makeup ?? "").trim();
+  const transition = String(authored.transition ?? "").trim();
+  const broadcastConstraints = [
+    String(authored.character_constraint ?? "").trim(),
+    String(authored.bright_constraint ?? "").trim(),
+  ].filter(Boolean).join("；");
+  const motionIntent = spec.motion ?? String(authored.camera_movement ?? "").trim();
   /**
    * 台词段（material-dialogue/v1）：素材镜此前没有这一段，模型只出环境声——
    * 与文生镜（`prepareShotPrompt` 会渲染【台词】块）口径对齐，两条出片路径都必须"台词由渲染直接产出"。
    */
-  const dialogueBlock = buildMaterialDialogueBlock(shot, { durationSec: duration });
+  const dialogueBlock = buildMaterialDialogueBlock(authored, { durationSec: duration });
   const productReference = options.referenceMode === "product";
   const mustKeep = (options.mustKeep ?? (productReference
     ? ["商品结构、比例与涂装分区", "已出现的品牌标识位置", "人物身份与保护装备", "真实材质与光比"]
@@ -523,10 +546,20 @@ export function buildMaterialScenePrompt(shot: Record<string, unknown>, options:
         + `注意：参考图只用于确认商品结构与人物身份，**不是首帧、不是要你复刻参考图构图或把参考图动起来**。`
       : `【任务】以提供的实拍参考素材为**实景依据**，构建一段 ${duration} 秒的真实拍摄感视频场景。`
         + `注意：参考图只用于确认实景要素，**不是首帧、不是要你把它动起来**——你要拍的是这个真实场景里的一段视频。`,
+    directorInstruction ? `【导演指令】${directorInstruction}` : "",
     `【${productReference ? "参考一致性" : "实景依据·保持一致"}】${mustKeep}。参考素材与场景说明：${scene || (productReference ? "按镜头卡构建真实场景" : "实拍地标")}${sceneDescription ? `；${sceneDescription}` : ""}`,
+    baseline ? `【基础】${baseline}` : "",
+    character ? `【角色】${character}` : "",
+    action ? `【动作】${action}` : "",
+    costume ? `【服装】${costume}` : "",
+    portraits ? `【参考图字段】${portraits}` : "",
     "【必须由你构建的部分】机位与取景遵循镜头卡，不得用参考照片平移缩放冒充视频；有镜头位移时应有真实三维视差，固定机位则保持取景稳定。环境与主体仅按场景中实际存在的元素自然变化，不新增云、水、人群或道具。补全画面应遵守真实空间，不能出现参考图的边界或黑边。",
     motionIntent ? `【镜头运动（本镜意图）】${motionIntent}` : "【镜头运动（本镜意图）】缓速推进后稳住。",
-    motionDirection(shot, options.motionStrength === "assertive"),
+    motionDirection(authored, options.motionStrength === "assertive"),
+    composition ? `【构图】${composition}` : "",
+    timeline ? `【时间轴】${timeline}` : "",
+    consistency ? `【连续性与一致性】${consistency}` : "",
+    broadcastConstraints ? `【画面约束】${broadcastConstraints}` : "",
     /**
      * 与出片闸门 G-MAT1 逐字对齐（真机 2026-09-29）：闸门要求提示词里出现
      * 「实景依据 / 构建一段 / 不得复刻参考图的构图 / 贴图式运动 / 画面全程静止」五处字面，
@@ -537,7 +570,13 @@ export function buildMaterialScenePrompt(shot: Record<string, unknown>, options:
     "【画面质感】写实电影摄影：真实镜头语言、自然景深与运动模糊、真实材质与光比；无 AI 绘画感、无塑料感、无穿模。",
     lighting ? `【光线】${lighting}` : "",
     colorPalette ? `【色调】${colorPalette}` : "",
+    depthOfField ? `【景深】${depthOfField}` : "",
+    mood ? `【情绪】${mood}` : "",
+    pacing ? `【节奏】${pacing}` : "",
+    audio ? `【声音】${audio}` : "",
+    makeup ? `【妆发】${makeup}` : "",
     propsLine ? `【画面元素】${propsLine}` : "",
+    transition ? `【转场】${transition}` : "",
     dialogueBlock,
     `【约束】${aspect} 画幅 ${resolution}；无水印、无字幕、无标题字、无边框；`
       + (productReference ? "不新增第三方标识或贴花文字，真实商品已有标识必须保留且不得改写" : "无 LOGO；画面内不出现任何新增文字")
