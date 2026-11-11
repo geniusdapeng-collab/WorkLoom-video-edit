@@ -463,7 +463,10 @@ async function loadApprovedSourcePlan(
   const marketingDiagnosis = marketingFailure
     ? marketingFinalFactFieldArtifact({ failureMessage: String(marketingFailure.message ?? ""), shots: contracts, sourceContextSha256 })
     : undefined;
-  if (marketingFailure && !marketingDiagnosis) {
+  const marketingFactsPassedWithSuggestions = marketingFailure
+    && /无未支持或夸大[^。；\n]{0,40}准予通过|准予通过并附整改建议/u.test(String(marketingFailure.message ?? ""))
+    && !/截断|违反[^。；\n]{0,16}纪律|须修复后再渲染|不能批准|不通过/u.test(String(marketingFailure.message ?? ""));
+  if (marketingFailure && !marketingDiagnosis && !marketingFactsPassedWithSuggestions) {
     return fail("SOURCE_MARKETING_FINAL_DIAGNOSIS_UNBOUND", "最终营销事实拒绝没有可定位到当前字段的完整证据，未生成猜测性修复计划。");
   }
   const fieldPlan = planFieldAuthoring({ shots: contracts, sourceContextSha256,

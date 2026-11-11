@@ -397,6 +397,14 @@ describe("host diagnostic field authoring plan", () => {
       diagnosedFindings: [artifact!] });
     expect(plan.fieldsByShot["scene-a"]).toEqual(expect.arrayContaining(["negative", "director_instruction", "action"]));
   });
+  it("does not rewrite fields when the fact verdict explicitly passed with only production suggestions", () => {
+    const recovered = fixture().recovered;
+    expect(marketingFinalFactFieldArtifact({
+      failureMessage: "本镜无未支持或夸大主张，准予通过并附整改建议：8K与1080p、补光方位等技术建议不影响事实结论。",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    })).toBeUndefined();
+  });
   it("repairs exact final production-consistency suggestions without weakening request channels", async () => {
     const shot = fixture({
       baseline: "8K级细节，电影级画质。",

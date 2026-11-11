@@ -373,6 +373,9 @@ export function marketingFinalFactFieldArtifact(input: {
 }): VerifiedFieldArtifact | undefined {
   checkedHash(input.sourceContextSha256);
   if (!input.shots.length || !input.failureMessage.trim()) return undefined;
+  const factualPassWithSuggestions = /无未支持或夸大[^。；\n]{0,40}准予通过|准予通过并附整改建议/u.test(input.failureMessage)
+    && !/截断|违反[^。；\n]{0,16}纪律|须修复后再渲染|不能批准|不通过/u.test(input.failureMessage);
+  if (factualPassWithSuggestions) return undefined;
   const diagnoses: JsonRecord[] = [], seen = new Set<string>();
   const add = (shot: RecoveredPromptShot, field: string, code: string, reason: string) => {
     if (!allowsDiagnosedField(field, code) || !Object.hasOwn(shot.fields, field)) return;
