@@ -1831,7 +1831,7 @@ function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: st
   const hasDoc = /身份证|证件|护照|单据|票据/.test(text);
   const docOk = /(不可辨|背面|无证件文字|无身份证|不出现)/.test(text);
   if (hasDoc && !docOk) issues.push("证件类道具未声明不可辨认/背面/不入画——会出现可辨字迹与号码（隐私红线，真机返修 5 次）");
-  const freezeLanguage = /定住|稳住|定格/.test(text);
+  const freezeLanguage = /定住|定格|稳住(?:画面|机位|构图)/.test(text);
   const cameraMoveLanguage = /推|拉|移|摇|环绕/.test(text);
   const explicitPullbackToRest = /极缓慢单轴后拉/.test(text)
     && /收至静止|落幅静止|落幅停在/.test(text)

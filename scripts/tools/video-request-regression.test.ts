@@ -616,6 +616,8 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
     };
     const endingPrompt = "【运镜】极缓慢单轴后拉，不摇、不移；T00:03–T00:04 后拉收至静止，落幅定格。";
     expect(() => evaluateCurrent(`${fn}; preflightSubmitGuard({shotId:"ending",stage:"videos",prompt:${JSON.stringify(endingPrompt)},fps:30,attempt:1,prevFingerprint:null,shot:{}})`, context)).not.toThrow();
+    const storyPacingPrompt = "后追随稳住被压局势，出弯时把车身拉直并保持线路。";
+    expect(() => evaluateCurrent(`${fn}; preflightSubmitGuard({shotId:"scene-1",stage:"videos",prompt:${JSON.stringify(storyPacingPrompt)},fps:30,attempt:1,prevFingerprint:null,shot:{}})`, context)).not.toThrow();
     const conflictPrompt = "固定机位让终点定格，同时继续推近。";
     expect(() => evaluateCurrent(`${fn}; preflightSubmitGuard({shotId:"bad",stage:"videos",prompt:${JSON.stringify(conflictPrompt)},fps:30,attempt:1,prevFingerprint:null,shot:{}})`, context)).toThrow("落幅必漂");
   });
