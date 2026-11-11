@@ -408,6 +408,13 @@ export async function reviewPlausibility(
         log(`[plausibility][${input.stage}] 将局部镜头范围的完整性提示降为 warning：${finding.id}`);
         return { ...finding, severity: "warning" as const };
       }
+      const incidentalHelmetAttachment = /头盔/.test(finding.issue)
+        && /仍在鞍座|在鞍座上/.test(finding.issue)
+        && !/穿模|悬空|第二顶|两个头盔|脱离头部|头盔落地/.test(finding.issue);
+      if (finding.severity === "blocker" && incidentalHelmetAttachment) {
+        log(`[plausibility][${input.stage}] 将代词附着造成的头盔状态误读降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
       return finding;
     });
     const blockers = findings.filter((finding) => finding.severity === "blocker");
