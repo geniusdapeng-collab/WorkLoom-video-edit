@@ -404,7 +404,8 @@ export function marketingFinalFactFieldArtifact(input: {
         "最终事实审核指出场景字段保留被截断的 JSON 片段。把 scene 重写为完整、可读的中文场景描述：删除残缺的对象前缀与半句，保留已审地点、时间、空间、材质、天气、光向和禁止项；不得恢复或编造未保存的旧原文。");
     }
   }
-  if (/缺少来源支持[^。；\n]{0,40}性能|性能暗示|未支持[^。；\n]{0,24}性能/u.test(message)) {
+  const rivalConflict = /竞品证据|竞品对比|竞品劣势|未支持[^。；\n]{0,30}竞品|可视化竞品/u.test(message);
+  if (!rivalConflict && /缺少来源支持[^。；\n]{0,40}性能|性能暗示|未支持[^。；\n]{0,24}性能/u.test(message)) {
     const performance = /(?:加速|速度差|高转|极速|狂飙|峰值|追近第[一二三四五六七八九十\d]+台|拉开(?:半个|一个|两个|\d+(?:\.\d+)?个)?车身|发动机转速)/u;
     for (const shot of input.shots) {
       add(shot, "director_instruction", "MARKETING_FINAL_PERFORMANCE_DISCLAIMER",
@@ -417,9 +418,13 @@ export function marketingFinalFactFieldArtifact(input: {
       }
     }
   }
-  if (/竞品证据|竞品对比|竞品劣势|未支持[^。；\n]{0,30}竞品|可视化竞品/u.test(message)) {
+  if (rivalConflict) {
     const rivalContext = /(?:对手|对方|前车|并排|超车|超越|拉开[^。；\n]{0,10}车身|位次)/u;
     for (const shot of input.shots) {
+      if (!MARKETING_FINAL_RIVAL_FIELDS.some(field => {
+        const value = shot.fields[field];
+        return typeof value === "string" && rivalContext.test(value);
+      })) continue;
       add(shot, "director_instruction", "MARKETING_FINAL_FICTIONAL_RIVAL_CONTEXT",
         "明确本片需要出现的前方车辆均为无品牌、非商品化运动陪体，不对应任何真实竞品或车型；连续超车与位次变化仅为广告创意演绎，不比较或贬低任何竞品，也不主张市场领先、车辆性能或竞品劣势。");
       for (const field of MARKETING_FINAL_RIVAL_FIELDS) {
