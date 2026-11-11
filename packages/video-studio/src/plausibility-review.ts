@@ -362,6 +362,13 @@ export async function reviewPlausibility(
         log(`[plausibility][${input.stage}] 将非物理性的左右位置措辞冲突降为 warning：${finding.id}`);
         return { ...finding, severity: "warning" as const };
       }
+      const repeatedSequenceWordingOnly = /两次|重复|第二次/.test(finding.issue)
+        && /摘|离头|上提|取下/.test(finding.issue)
+        && !/穿模|悬空|接触|支撑|断裂|换人|第二顶|两个头盔/.test(finding.issue);
+      if (finding.severity === "blocker" && repeatedSequenceWordingOnly) {
+        log(`[plausibility][${input.stage}] 将非物理性的重复动作措辞降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
       return finding;
     });
     const blockers = findings.filter((finding) => finding.severity === "blocker");

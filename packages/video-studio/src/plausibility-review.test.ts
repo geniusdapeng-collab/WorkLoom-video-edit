@@ -231,13 +231,14 @@ describe("实体与物理常识审核 agent", () => {
     expect(result.findings[0]).toMatchObject({ id: "temporal-helmet", severity: "warning" });
   });
 
-  it("纯左右位置措辞冲突降为 warning，穿模或支撑失效仍保持 blocker", async () => {
+  it("纯左右位置或重复动作措辞降为 warning，穿模或支撑失效仍保持 blocker", async () => {
     const result = await reviewPlausibility(baseContext, {
       env: llmEnv,
       fetchImpl: (async () => jsonResponse({
         verdict: "block",
         findings: [
           { id: "position-copy", severity: "blocker", shotId: "SC-01", issue: "动作写左侧，构图写右侧", why: "措辞不一致", fix: "统一方位" },
+          { id: "sequence-copy", severity: "blocker", shotId: "SC-01", issue: "摘盔被写成两次离头", why: "重复动作措辞", fix: "合并一次" },
           { id: "physical", severity: "blocker", shotId: "SC-01", issue: "右肩悬空且穿模", why: "支撑失效", fix: "重做姿态" },
         ],
         promptPatches: [], reason: "混合问题",
@@ -245,6 +246,7 @@ describe("实体与物理常识审核 agent", () => {
     });
     expect(result.verdict).toBe("block");
     expect(result.findings.find((finding) => finding.id === "position-copy")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "sequence-copy")).toMatchObject({ severity: "warning" });
     expect(result.findings.find((finding) => finding.id === "physical")).toMatchObject({ severity: "blocker" });
   });
 
