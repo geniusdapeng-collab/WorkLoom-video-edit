@@ -6,6 +6,7 @@ import {
 
 const baseContext = {
   projectId: "VID-TEST",
+  reviewId: "VID-TEST:pre-render:run-1:1",
   platform: "TikTok",
   locale: "en",
   aspect: "9:16",
@@ -14,6 +15,8 @@ const baseContext = {
   character: { name: "陈卓", appearance: "身高约 166cm" },
   products: [{
     id: "demo-product", displayName: "演示商品", category: "vehicle",
+    appearanceMode: "rights-safe-conceptual-silhouette", exactAppearanceRequired: false,
+    allowedClaims: ["演示商品"], forbiddenClaims: ["不得要求未授权外观精确还原"],
     dimensions: { lengthMm: 2050, seatHeightMm: 825 }, photoAngles: ["three-quarter", "side"],
   }],
   shots: [{
@@ -60,6 +63,9 @@ describe("实体与物理常识审核 agent", () => {
     expect(serialized).toContain("three-quarter");
     expect(serialized).toContain("Track only.");
     expect(serialized).toContain("身高约 166cm");
+    expect(serialized).toContain("rights-safe-conceptual-silhouette");
+    expect(serialized).toContain("VID-TEST:pre-render:run-1:1");
+    expect((context.products as Array<Record<string, unknown>>)[0]).toMatchObject({ exactAppearanceRequired: false });
     const large = buildPlausibilityContext({
       ...baseContext,
       shots: Array.from({ length: 40 }, (_, index) => ({ shotId: `S-${index}`, scene: "长".repeat(2000) })),

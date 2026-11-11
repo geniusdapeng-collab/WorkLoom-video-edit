@@ -67,6 +67,10 @@ export interface PlausibilityProductFacts {
   displayName?: string;
   brand?: string;
   category?: string;
+  appearanceMode?: string;
+  exactAppearanceRequired?: boolean;
+  allowedClaims?: string[];
+  forbiddenClaims?: string[];
   sourceKind?: string;
   reviewStatus?: string;
   dimensions?: Record<string, unknown>;
@@ -145,7 +149,10 @@ export function buildPlausibilityContext(input: PlausibilityContextInput): Recor
     character: input.character ?? null,
     products: (input.products ?? []).map((product) => ({
       id: product.id, displayName: product.displayName ?? null, brand: product.brand ?? null,
-      category: product.category ?? null, sourceKind: product.sourceKind ?? null, reviewStatus: product.reviewStatus ?? null,
+      category: product.category ?? null, appearanceMode: product.appearanceMode ?? null,
+      exactAppearanceRequired: product.exactAppearanceRequired ?? null,
+      allowedClaims: product.allowedClaims ?? [], forbiddenClaims: product.forbiddenClaims ?? [],
+      sourceKind: product.sourceKind ?? null, reviewStatus: product.reviewStatus ?? null,
       dimensions: product.dimensions ?? null, photoAngles: product.photoAngles ?? [], appearance: product.appearance ?? null,
       features: product.features ?? [], parameters: product.parameters ?? [],
     })),

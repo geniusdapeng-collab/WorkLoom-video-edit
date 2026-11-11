@@ -2678,6 +2678,46 @@ function portraitReferenceClauseFor(shot: ShotCard): string {
   const plan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
   return plan.applicable && plan.valid ? bulletTimeReferenceClause(plan.angles) : portraitReferenceClause;
 }
+/** Resolve only contradictions proven by the current card; never invent a new scene or claim. */
+function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { prompt: string; corrections: string[] } {
+  let next = prompt;
+  const corrections: string[] = [];
+  const characterText = String(shot.character ?? "");
+  const actionText = String(shot.action ?? "");
+  const sceneText = String(shot.scene ?? "");
+  if (/面罩闭合|不露脸|面部.*不可见/.test(characterText) && !/面部清晰可辨|摘盔后.*面部/.test(characterText)) {
+    const corrected = next.replace(/[，。；\s]*面部无阴影明亮清晰/g, "；全盔外壳、肩背轮廓与路面明亮，禁止生成面部");
+    if (corrected !== next) {
+      next = corrected;
+      corrections.push("masked-face-brightness");
+    }
+  }
+  const duration = Number(shot.duration ?? 0);
+  if (duration > 0 && /四秒内不换场地/.test(next) && duration !== 4) {
+    next = next.replace(/四秒内不换场地/g, `${duration}秒内不换场地`);
+    corrections.push("scene-duration-label");
+  }
+  const unifiedLight = next
+    .replace(/5600K漫射主光/g, "6500K漫射主光")
+    .replace(/6000K冷白补光/g, "5600K冷白补光");
+  if (unifiedLight !== next) {
+    next = unifiedLight;
+    corrections.push("unified-color-temperature");
+  }
+  if (/(?:完全停稳|已停稳)/.test(characterText + sceneText)
+    && /双手.*(?:摘盔|提盔|解扣带)/.test(actionText)
+    && !/落地撑住|侧撑|起车架/.test(next)) {
+    next = next.replace(/^(\s*\d{1,2}\.\s*【动作】)([^\n]*)$/m,
+      (_line, head: string, body: string) => `${head}左脚掌落地撑住车身，车身重量略靠左腿，右腿跨在车上；${body}`);
+    corrections.push("stopped-vehicle-support");
+  }
+  const releasedHair = next.replace(/马尾顺势松开垂落/g, "发圈不解开，压束马尾顺势释放并垂落");
+  if (releasedHair !== next) {
+    next = releasedHair;
+    corrections.push("ponytail-release-not-unfastened");
+  }
+  return { prompt: next, corrections };
+}
 function submissionReceiptArtifacts(submitted: VideoSubmissionResult): VideoSubmissionArtifact[] {
   return [submitted.receipt.preparedFile, submitted.receipt.ackFile].filter(Boolean).map(fingerprintArtifact);
 }
@@ -3274,9 +3314,14 @@ if (STAGES.has("spec")) {
     const promptWithCinematic = compiledDisciplinePresent
       ? dialogueFixed.prompt
       : appendCinematicContract(dialogueFixed.prompt, buildCinematicContract(shot as unknown as Record<string, unknown>));
-    const finalPrompt = promptWithCinematic
+    const composedPrompt = promptWithCinematic
       + (leadVisibleInShot(shot) ? `\n${portraitReferenceClauseFor(shot)}` : "")
       + (REVISION_CONTEXT ? `\n【本次返修验收】保持原镜头主体与意图，仅修复下列已归因问题：${REVISION_CONTEXT}` : "");
+    const plausibilityCorrection = correctFilmPlausibilityConflicts(composedPrompt, shot);
+    const finalPrompt = plausibilityCorrection.prompt;
+    if (plausibilityCorrection.corrections.length) {
+      log(`  ${shot.shotId}: 逻辑冲突归一 ${plausibilityCorrection.corrections.join("、")}`);
+    }
     const finalBulletTimeAudit = validateBulletTimePrompt(finalPrompt, shot as unknown as Record<string, unknown>, { capabilities: BULLET_TIME_CAPABILITIES });
     specReports.push({
       shotId: shot.shotId, charCount: finalPrompt.length, promptSource: report.promptSource,
@@ -3284,6 +3329,7 @@ if (STAGES.has("spec")) {
       missingSpecFields: report.missingSpecFields, missingP0Fields: report.missingP0Fields,
       redlines: report.redlines, degraded: report.degraded,
       sceneSubstituted: report.sceneSubstituted, sceneSubstitution: report.sceneSubstitution,
+      plausibilityCorrections: plausibilityCorrection.corrections,
       languageNormalized: {
         replacements: normalized.replacements, dedupedRefs: normalized.dedupedRefs,
         remainingLatin: normalized.remainingLatin, timelineRestored: timelineFixed.restored,
@@ -3645,7 +3691,10 @@ function recordFinalPromptGate(shot: ShotCard, verdict: ProducerVerdict): void {
     inputPaths: [file], exactInputPaths: true, evidence: { mode: "final-prompt", promptSha256: sha256FileSync(file), reviewContractHash: verdict.contractHash ?? null, bulletTime } });
 }
 function plausibilityArchiveFor(shot: ShotCard): NonNullable<ReturnType<typeof selectProductArchive>["archive"]> | null {
-  const selector = String((shot as Record<string, unknown>).product ?? "").trim();
+  const selector = String((shot as Record<string, unknown>).product
+    ?? policyBrief?.productId
+    ?? policyBrief?.product
+    ?? "").trim();
   if (!selector) return null;
   return selectProductArchive(productLibrary.archives, selector).archive ?? null;
 }
@@ -3682,6 +3731,17 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
     } : null,
     products: archives.map((archive) => ({
       id: archive.id, displayName: archive.displayName, brand: archive.brand, category: archive.category,
+      appearanceMode: "rights-safe-conceptual-silhouette",
+      exactAppearanceRequired: false,
+      allowedClaims: [
+        String(archive.displayName ?? ""),
+        "赛道专用车辆，不具备道路行驶资质",
+      ].filter(Boolean),
+      forbiddenClaims: [
+        "不得要求或宣称未授权公开图片的精确外观还原",
+        "不得新增 G1 未核实的外观部件、涂装、贴花或赞助商标识",
+        "不得宣称真实赛事成绩、冠军、性能优势或厂商背书",
+      ],
       sourceKind: archive.source?.kind, reviewStatus: archive.source?.reviewStatus,
       dimensions: archive.specs?.dimensions as Record<string, unknown> | undefined,
       photoAngles: [...new Set((archive.photos ?? []).map((photo) => photo.angle).filter(Boolean) as string[])],
