@@ -539,13 +539,14 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
     const writable = new Set(allowed);
     const diagnoses = input.plan.diagnoses.filter(entry => entry.shotId === shot.shotId);
     const sourceCompileErrors = compilePromptShot(shot, shot.compileOptions).hardErrors;
-    const hasTruncationDiagnosis = diagnoses.some(entry => entry.kind === "truncation");
     const allowedFieldChars = (fields: JsonRecord) => allowed.reduce((sum, field) => {
       const value = fields[field];
       if (typeof value !== "string") return fail("AUTHORING_PROMPT_BUDGET_INVALID");
       return sum + value.length;
     }, 0);
-    const sourceAllowedFieldChars = hasTruncationDiagnosis && input.plan.maxFinalPromptChars !== undefined
+    const charBudgetApplicable = input.plan.maxFinalPromptChars !== undefined
+      && allowed.every(field => typeof shot.fields[field] === "string");
+    const sourceAllowedFieldChars = charBudgetApplicable
       ? allowedFieldChars(shot.fields) : null;
     const promptOverflowChars = sourceAllowedFieldChars === null ? 0
       : Math.max(0, shot.prompt.length - input.plan.maxFinalPromptChars!);
@@ -554,13 +555,14 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
     // an integer field-value budget that is strictly easier than the final
     // prompt postcondition.
     const maxAllowedFieldChars = sourceAllowedFieldChars === null ? null
-      : Math.max(1, sourceAllowedFieldChars - promptOverflowChars - 8);
+      : Math.max(1, sourceAllowedFieldChars + input.plan.maxFinalPromptChars! - shot.prompt.length - 8);
     const promptBudget = maxAllowedFieldChars === null ? null : {
       maxFinalPromptChars: input.plan.maxFinalPromptChars!,
       sourceFinalPromptChars: shot.prompt.length,
       sourceAllowedFieldChars: sourceAllowedFieldChars!,
       maxAllowedFieldChars,
       requiredReductionChars: Math.max(0, promptOverflowChars + 8),
+      availableGrowthChars: Math.max(0, input.plan.maxFinalPromptChars! - shot.prompt.length - 8),
     };
     const timelineDiagnosed = writable.has("timeline") && diagnoses.some(entry => entry.field === "timeline" && entry.origin === "g6-semantic");
     const witnessInput = (fields: JsonRecord) => ({ approvedProductionPlan: input.sourceContext.approvedProductionPlan,
@@ -672,9 +674,9 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
         && error.code === "HARD_ASSET_MISSING" && error.field === "portraits"
         && sourceCompileErrors.some(source => source.code === error.code && source.field === error.field)));
       if (remainingHardErrors.length || !isDeepStrictEqual(compiled.fieldValues, fields)) return fail("AUTHORING_COMPILE_INVALID");
-      const authoredFieldChars = hasTruncationDiagnosis ? allowedFieldChars(fields) : null;
+      const authoredFieldChars = charBudgetApplicable ? allowedFieldChars(fields) : null;
       return { authoredAt, compiled, authoredFieldChars,
-        tooLong: input.plan.maxFinalPromptChars !== undefined && hasTruncationDiagnosis
+        tooLong: input.plan.maxFinalPromptChars !== undefined
           && compiled.contract.prompt.length > input.plan.maxFinalPromptChars };
     };
     const first = await dispatchCandidate(prompt, false);

@@ -249,6 +249,23 @@ describe("host diagnostic field authoring plan", () => {
       "before", "dispatch", "after", "before", "dispatch", "after",
     ]);
   });
+  it("also bounds a semantic field repair that would push an otherwise legal prompt over the limit", async () => {
+    const shot = fixture().recovered, maxFinalPromptChars = shot.prompt.length + 10;
+    const plan = reviewedFieldPlan(shot, maxFinalPromptChars);
+    const first = authorInput([
+      JSON.stringify({ shotId: shot.shotId, fields: { action: "长".repeat(80) } }),
+      JSON.stringify({ shotId: shot.shotId, fields: { action: "完整的短动作。" } }),
+    ], {}, plan);
+    const result = await authorRepairFields(first.input);
+    expect(first.requests).toHaveLength(2);
+    expect(result.shots[0]!.prompt.length).toBeLessThanOrEqual(maxFinalPromptChars);
+    expect(result.receipts[0]!.correction).toMatchObject({
+      reason: "final-prompt-length",
+      maxFinalPromptChars,
+      rejectedPromptChars: expect.any(Number),
+      acceptedPromptChars: expect.any(Number),
+    });
+  });
   it("defers the verified G5 portrait rebinding while authoring a shorter prompt", async () => {
     const fields = { ...fixture().fields, color_palette: "色".repeat(3200) };
     const compiled = compilePromptShot({ shotId: "scene-a", duration: 10, fields }, { ...options, assets: [] });
