@@ -210,6 +210,23 @@ describe("实体与物理常识审核 agent", () => {
     expect(JSON.stringify(content)).toContain("不消费标注为非实际画面的预生产构图稿");
   });
 
+  it("只保留当前送审镜头范围内的提示词补丁", async () => {
+    const result = await reviewPlausibility(baseContext, {
+      env: llmEnv,
+      fetchImpl: (async () => jsonResponse({
+        verdict: "pass",
+        findings: [],
+        promptPatches: [
+          { shotId: "SC-01", clauses: ["当前镜头补丁"] },
+          { shotId: "SC-DONE", clauses: ["已完成镜头不得被改写"] },
+        ],
+        reason: "通过并附建议",
+      })) as unknown as typeof fetch,
+    });
+    expect(result.verdict).toBe("pass");
+    expect(result.promptPatches).toEqual([{ shotId: "SC-01", clauses: ["当前镜头补丁"] }]);
+  });
+
   it("有明确摘除动作时，头盔不得仍戴在头上的终态否定降为 warning", async () => {
     const result = await reviewPlausibility({
       ...baseContext,

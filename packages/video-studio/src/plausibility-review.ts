@@ -348,6 +348,12 @@ export async function reviewPlausibility(
       retries: 1,
     });
     const parsed = parsePlausibilityAnswer(result.text);
+    const scopeShotIds = new Set(input.shots.map((shot) => shot.shotId));
+    const promptPatches = parsed.promptPatches.filter((patch) => scopeShotIds.has(patch.shotId));
+    const omittedPatchCount = parsed.promptPatches.length - promptPatches.length;
+    if (omittedPatchCount > 0) {
+      log(`[plausibility][${input.stage}] 忽略 ${omittedPatchCount} 条当前送审范围外的提示词补丁`);
+    }
     const promptText = input.shots.map((shot) => shot.promptText ?? "").join("\n");
     const removalAction = /摘盔|摘下|解扣带|卸下|take\s*off|remove(?:d|s)?\s+(?:the\s+)?helmet/i.test(promptText);
     const declaredTimeOmission = /上一镜后已完成|镜外完成|时间跳切|硬切后的时间跳跃|起幅前已完成/.test(promptText);
@@ -392,7 +398,7 @@ export async function reviewPlausibility(
     const verdict = parsed.verdict === "block" && blockers.length > 0 ? "block" : "pass";
     log(`[plausibility][${input.stage}] ${verdict}：blocker ${blockers.length} · warning ${findings.length - blockers.length}`);
     return {
-      ...base, verdict, findings, promptPatches: parsed.promptPatches,
+      ...base, verdict, findings, promptPatches,
       reason: parsed.reason, model: result.modelId, ms: Date.now() - started,
       attempts: 1 + result.attempts.length,
       receipt: {
