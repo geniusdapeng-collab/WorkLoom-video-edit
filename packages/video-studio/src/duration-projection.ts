@@ -278,8 +278,8 @@ export function projectShotDurations(shots: ProjectionShotInput[], options: Proj
   const floors = shots.map((shot) => {
     const floor = computeVoiceFloor(shot, shot.emotion ?? shot.mood);
     const plan = Math.round(Number(shot.duration ?? shot.timing?.duration ?? floor.seconds) || 0);
-    const bound = options.enforceVoiceFloor === false ? Math.max(plan, 0) : floor.seconds;
-    return { shot, floor, lower: Math.max(min, options.enforceVoiceFloor === false ? Math.min(max, bound) : bound) };
+    const bound = options.enforceVoiceFloor === false ? min : floor.seconds;
+    return { shot, floor, lower: Math.max(min, Math.min(max, bound)) };
   });
   const lowerSum = floors.reduce((sum, f) => sum + f.lower, 0);
   const capacity = shots.length * max;
@@ -289,13 +289,42 @@ export function projectShotDurations(shots: ProjectionShotInput[], options: Proj
     return {
       shotId: shot.shotId,
       planSeconds: plan,
-      seconds: lower,
+      seconds: Math.max(lower, Math.min(max, plan)),
       voiceFloorSeconds: floor.seconds,
       floorDriver: floor.driver,
       raised: false,
       lowered: false,
     };
   });
+  let currentSum = entries.reduce((sum, entry) => sum + entry.seconds, 0);
+  if (currentSum > target) {
+    let excess = currentSum - target;
+    const reducible = entries
+      .map((entry, index) => ({ entry, lower: floors[index]!.lower }))
+      .filter(({ entry, lower }) => entry.seconds > lower)
+      .sort((left, right) => right.entry.planSeconds - left.entry.planSeconds
+        || left.entry.shotId.localeCompare(right.entry.shotId));
+    for (const { entry, lower } of reducible) {
+      if (excess <= 0) break;
+      const delta = Math.min(excess, entry.seconds - lower);
+      entry.seconds -= delta;
+      excess -= delta;
+    }
+    currentSum = entries.reduce((sum, entry) => sum + entry.seconds, 0);
+    if (currentSum > target) {
+      return {
+        ok: false,
+        error: "INFEASIBLE",
+        reason: "voice-floor-exceeds-target",
+        overloadSeconds: currentSum - target,
+        entries,
+        suggestions: [
+          `台词硬下限合计 ${currentSum}s > 目标 ${target}s（超载 ${currentSum - target}s）`,
+          `可执行修复：① 精简台词（约删 ${Math.ceil((currentSum - target) * loadSpeechRate().NORMAL)} 字）；② 目标总时长加至 ${currentSum}s；③ 减少镜头数`,
+        ],
+      };
+    }
+  }
 
   const oversizedVoices = entries.filter((entry) => options.enforceVoiceFloor !== false && entry.voiceFloorSeconds > max);
   if (oversizedVoices.length > 0) {
@@ -340,7 +369,7 @@ export function projectShotDurations(shots: ProjectionShotInput[], options: Proj
     };
   }
 
-  let remaining = target - lowerSum;
+  let remaining = target - currentSum;
   // 按"计划缺口"分配余量；缺口为 0 的镜头进入等权补充轮次
   const order = entries
     .map((entry, index) => ({ entry, index }))

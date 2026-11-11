@@ -75,6 +75,7 @@ describe("SceneArchitect bounded separator recovery", () => {
     ['{"opening":{"duration":10 ', '"purpose":"风雪"} ', '"ending":true}'],
     [' \t{"scenes":[{"a":"引号：\\""}', '{"a":"🏍️"} ', '{"a":"\\u5934"}] ', '"timing":[1,2,3]}\r\n'],
     ['{"timing":[-1.25e2 \r\n', '2 ', '3 ', '4]}'],
+    ['{"values":[1 ', '2 ', '3 ', '4 ', '5 ', '6 ', '7 ', '8 ', '9]}'],
   ])("restores exact UTF-8 source at %j", (...parts: string[]) => {
     const raw = parts.join("");
     const content = parts.join(",");
@@ -104,7 +105,7 @@ describe("SceneArchitect bounded separator recovery", () => {
 
   it.each([
     ["no insertion", '{"a":1,"b":[2,3]}'],
-    ["four missing separators", '{"a":[1 2 3 4 5]}'],
+    ["nine missing separators", '{"a":[1 2 3 4 5 6 7 8 9 10]}'],
     ["closing array missing after two omissions", '{"a":[1 2 3}'],
     ["closing object missing after two omissions", '{"a":1 "b":[2 3]'],
     ["late trailing comma", '{"a":1 "b":[2 3],}'],

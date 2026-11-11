@@ -291,13 +291,23 @@ function completionUsage(data: OpenAiResponse, thinkingEnabled: boolean, outputC
   return { promptTokens, completionTokens, reasoningTokens: reasoningTokens ?? 0 };
 }
 
-function isNativeChatJsonMessage(data: OpenAiResponse): data is OpenAiResponse & { id: string } {
+function isNativeChatJsonMessage(
+  data: OpenAiResponse,
+  contentMode: "text" | "blank" = "text",
+): data is OpenAiResponse & { id: string } {
   const choice = data.choices?.[0];
   const message = objectRecord(choice?.message);
   const usage = objectRecord(data.usage);
+  const content = message?.content;
+  const contentValid = contentMode === "text"
+    ? typeof content === "string"
+    // Some OpenAI-compatible providers encode an absent final JSON message as
+    // null instead of an empty string. It remains blank only inside the same
+    // complete native envelope and is never accepted as a successful answer.
+    : content === null || typeof content === "string";
   if (data.object !== "chat.completion" || data.error != null || typeof data.id !== "string" || !data.id.trim()
     || !Array.isArray(data.choices) || data.choices.length !== 1 || choice?.index !== 0 || choice.finish_reason !== "stop"
-    || message?.role !== "assistant" || typeof message.content !== "string"
+    || message?.role !== "assistant" || !contentValid
     || message.refusal != null || message.function_call != null
     || (message.tool_calls != null && (!Array.isArray(message.tool_calls) || message.tool_calls.length !== 0))
     || !usage || (usage.completion_tokens_details != null && !objectRecord(usage.completion_tokens_details))) return false;
@@ -746,8 +756,8 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         // Chat JSON wire may supply evidence of a complete, measured failure.
         if (!structuredRequest && this.modelId === DEEPSEEK_FLASH_MODEL_ID && responseFormat?.type === "json_object" && attempt === 1
           && response.status === 200 && !response.redirected && !signal.aborted
-          && isNativeEndpoint(transport.endpoint, DEEPSEEK_CHAT_PATH) && isNativeChatJsonMessage(data)
-          && !/[^ ]/u.test(choice.message?.content as string)) {
+          && isNativeEndpoint(transport.endpoint, DEEPSEEK_CHAT_PATH) && isNativeChatJsonMessage(data, "blank")
+          && (choice.message?.content === null || !/[^ ]/u.test(choice.message?.content as string))) {
           try {
             const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
             const receipt = Object.freeze({ ...usage, modelId: this.modelId, responseId: data.id, requestHash, responseHash });

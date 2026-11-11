@@ -22,6 +22,8 @@ import {
   nativeChatJsonSyntaxRouteCurrent,
   nativeReasonFailure,
   nativeReasonCompleted,
+  applyProjectedDurations,
+  projectShotDurations,
   type CompiledPromptShot,
   type PromptCompileAsset,
   type PromptCompileOptions,
@@ -320,13 +322,20 @@ function resolveCurrentArchivePromptAssets(
 ): PromptCompileAsset[] {
   const { character, selectionReceipt, sources, outputs } = archive;
   const bindings = input.source.portraitBindings;
-  if (!Array.isArray(bindings) || bindings.length !== 1) return [];
-  const binding = bindings[0];
-  if (binding?.mode !== "studio" || binding.character !== character.name
-    || ![character.id, character.name].some(value => binding.source === `portrait-set://${value}`)
-    || !Array.isArray(binding.portraits) || binding.portraits.length !== outputs.length
-    || !character.angles.every((angle, index) => binding.portraits.some((portrait: { angle?: unknown; outputFile?: unknown }) =>
-      portrait?.angle === angle && portrait.outputFile === outputs[index]?.path))) return [];
+  // Native normalization may retain only the canonical image URI and drop the
+  // sibling portraitBindings object. When the current archive is already
+  // byte-verified, an exact canonical character+angle URI is sufficient to
+  // resolve the same project copy. A supplied binding is still checked and any
+  // malformed or conflicting binding fails closed.
+  if (bindings !== undefined && bindings !== null && (!Array.isArray(bindings) || bindings.length > 0)) {
+    if (!Array.isArray(bindings) || bindings.length !== 1) return [];
+    const binding = bindings[0];
+    if (binding?.mode !== "studio" || binding.character !== character.name
+      || ![character.id, character.name].some(value => binding.source === `portrait-set://${value}`)
+      || !Array.isArray(binding.portraits) || binding.portraits.length !== outputs.length
+      || !character.angles.every((angle, index) => binding.portraits.some((portrait: { angle?: unknown; outputFile?: unknown }) =>
+        portrait?.angle === angle && portrait.outputFile === outputs[index]?.path))) return [];
+  }
 
   const uriPath = (root: string, file: string) => path.relative(root, file).split(path.sep).join("/");
   const aliases = new Map<string, number>();
@@ -337,20 +346,56 @@ function resolveCurrentArchivePromptAssets(
     const angleFile = `${angle}${path.extname(original.path)}`;
     for (const reference of [original.path, copy.path, `image://${uriPath(input.workDir, copy.path)}`,
       `image://characters/${uriPath(input.charactersDir, copy.path)}`,
+      `image://characters/${character.id}-${angleFile}`,
+      `image://characters/${character.name}-${angleFile}`,
       `${nativeRoot}/${version}/${angleFile}`, `${nativeRoot}/portraits/${version}/${angleFile}`,
       `${nativeRoot}/portraits/${version}/${path.basename(original.path)}`,
       `portrait-set://${character.id}/${version}/${angle}`]) aliases.set(reference, index);
   }
 
-  // Native ShotNormalizer may list the exact references under one actor label.
-  // A role-only URI, guessed v1 path, unknown or duplicate angle never picks a file.
-  const text = typeof raw === "string" ? raw.trim() : "";
-  const labelled = /^([^:：]+)[:：]\s*(.+)$/u.exec(text);
-  const explicitList = labelled && [character.id, character.name].includes(labelled[1]!.trim()) ? labelled[2]! : text;
-  const values = Array.isArray(raw) ? raw : explicitList.split(/[,，]/u);
-  const indices = values.map(value => typeof value === "string" ? aliases.get(value.trim()) : undefined);
+  // Native ShotNormalizer may list exact references under one actor label and
+  // may use full-width semicolons. A role-only URI, guessed v1 path, unknown or
+  // duplicate angle never picks a file.
+  const rawValues = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];
+  const values = rawValues.flatMap(value => typeof value === "string" ? value.split(/[,，;；]/u) : [value])
+    .map(value => {
+      if (typeof value !== "string") return value;
+      const text = value.trim();
+      const labelled = /^([^:：]+)[:：]\s*(.+)$/u.exec(text);
+      return labelled && [character.id, character.name].includes(labelled[1]!.trim()) ? labelled[2]!.trim() : text;
+    });
+  const angleFromReference = (value: string): number | undefined => {
+    const nativePrefix = `image://characters/${character.id}/`;
+    const namePrefix = `image://characters/${character.name}/`;
+    if (!value.startsWith(nativePrefix) && !value.startsWith(namePrefix)) return undefined;
+    const versions = [...value.matchAll(/\/v(\d+)(?=\/|$)/gu)].map(match => Number(match[1]));
+    if (versions.some(version => version !== selectionReceipt.selectedVersion)) return undefined;
+    const matches = character.angles.flatMap((angle, index) => new RegExp(
+      `(?:^|[-_/])${angle}(?:\\.(?:png|jpe?g|webp|bmp|tiff?|heic?))?$`, "i",
+    ).test(value) ? [index] : []);
+    return matches.length === 1 ? matches[0] : undefined;
+  };
+  const embeddedNativeIndices = (value: string): number[] => {
+    // Native prose may keep a canonical portrait URI and append review-state
+    // parentheses. Resolve only complete native URI tokens, never a role-only
+    // phrase, guessed angle or unknown version.
+    const references = [...value.matchAll(/image:\/\/characters\/[^\s,，;；、。()（）\[\]【】]+/gu)]
+      .map(match => aliases.get(match[0]!) ?? angleFromReference(match[0]!) ?? -1);
+    return references;
+  };
+  const indices = values.flatMap(value => {
+    if (typeof value !== "string") return [undefined];
+    const text = value.trim();
+    const exact = aliases.get(text);
+    if (exact !== undefined) return [exact];
+    const exactNative = angleFromReference(text);
+    if (exactNative !== undefined) return [exactNative];
+    const embedded = embeddedNativeIndices(text);
+    return embedded.length ? embedded : [undefined];
+  });
   const maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
-  if (indices.length === 0 || indices.some(index => index === undefined || outputs[index]!.bytes > maxBytes)
+  if (indices.length === 0 || indices.some(index => index === undefined || !Number.isInteger(index)
+    || index < 0 || index >= outputs.length || outputs[index]!.bytes > maxBytes)
     || new Set(indices).size !== indices.length) return [];
   return indices.map(index => {
     const copy = outputs[index!]!;
@@ -367,7 +412,19 @@ function portraitMediaType(file: string): string {
 export function resolvePromptAssets(input: ResolvePromptAssetInput): PromptCompileAsset[] {
   const field = input.source.fields && typeof input.source.fields === "object" && !Array.isArray(input.source.fields)
     ? (input.source.fields as Record<string, unknown>).portraits : undefined;
-  if (input.archiveCopies) return resolveCurrentArchivePromptAssets(input, input.archiveCopies, field ?? input.source.portraits);
+  // Native DualArraySync can retain the canonical image URI only in the
+  // compiled prompt while leaving sibling field copies null. The exact URI
+  // still resolves against this run's byte-verified archive.
+  if (input.archiveCopies) {
+    const explicit = field ?? input.source.portraits;
+    const promptReferences = typeof input.source.prompt === "string"
+      ? [...input.source.prompt.matchAll(/image:\/\/characters\/[^\s,，;；、。()（）\[\]【】]+/gu)].map(match => match[0]!)
+      : [];
+    const raw = explicit === undefined || explicit === null || (typeof explicit === "string" && !explicit.trim())
+      ? promptReferences
+      : explicit;
+    return resolveCurrentArchivePromptAssets(input, input.archiveCopies, raw);
+  }
   const raw = input.source.portraits ?? field;
   const values = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];
   const maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
@@ -1089,6 +1146,106 @@ export interface EvaluatePromptQualityInput {
   maxFinalPromptChars?: number;
 }
 
+function rescaleTimelineClock(value: unknown, fromSeconds: number, toSeconds: number): unknown {
+  if (typeof value !== "string" || !Number.isFinite(fromSeconds) || fromSeconds <= 0
+    || !Number.isFinite(toSeconds) || toSeconds <= 0 || fromSeconds === toSeconds) return value;
+  const factor = toSeconds / fromSeconds;
+  return value.replace(/(\d{1,2}):(\d{2}(?:\.\d+)?)/g, (_match, minutes: string, seconds: string) => {
+    const previous = Number(minutes) * 60 + Number(seconds);
+    const next = Math.min(toSeconds, previous * factor);
+    const precision = seconds.includes(".") ? seconds.split(".")[1]!.length : 0;
+    const rendered = (next % 60).toFixed(precision).padStart(precision ? precision + 3 : 2, "0");
+    return `${String(Math.floor(next / 60)).padStart(2, "0")}:${rendered}`;
+  });
+}
+
+function timelineClockMax(value: unknown): number | undefined {
+  if (typeof value !== "string") return undefined;
+  const times = [...value.matchAll(/(\d{1,2}):(\d{2}(?:\.\d+)?)/g)]
+    .map(([, minutes, seconds]) => Number(minutes) * 60 + Number(seconds))
+    .filter(Number.isFinite);
+  return times.length ? Math.max(...times) : undefined;
+}
+
+function clampShotTimelineFields(entry: EvaluatePromptQualityInput["shots"][number], duration: number) {
+  const source = entry.source as Record<string, unknown>;
+  const fields = source.fields && typeof source.fields === "object" && !Array.isArray(source.fields)
+    ? source.fields as Record<string, unknown> : undefined;
+  const clamp = (value: unknown) => {
+    const observed = timelineClockMax(value);
+    return observed !== undefined && observed > duration ? rescaleTimelineClock(value, observed, duration) : value;
+  };
+  return {
+    ...entry,
+    source: {
+      ...source,
+      ...(source.timeline !== undefined ? { timeline: clamp(source.timeline) } : {}),
+      ...(fields ? { fields: { ...fields, ...(fields.timeline !== undefined ? { timeline: clamp(fields.timeline) } : {}) } } : {}),
+    },
+  };
+}
+
+export function normalizePromptShotDurations(
+  shots: EvaluatePromptQualityInput["shots"],
+  requestedTargetSeconds?: number,
+): EvaluatePromptQualityInput["shots"] {
+  if (shots.length === 0) return shots;
+  const durations = shots.map(({ source }) => Number((source as Record<string, unknown>).duration
+    ?? ((source as Record<string, unknown>).timing as Record<string, unknown> | undefined)?.duration));
+  const minimums = shots.map(({ compile }) => compile.model.durationSec.min);
+  const maximums = shots.map(({ compile }) => compile.model.durationSec.max);
+  const minSeconds = Math.max(...minimums);
+  const maxSeconds = Math.min(...maximums);
+  const sourceTargetSeconds = durations.reduce((sum, duration) => sum + duration, 0);
+  const targetSeconds = Number.isSafeInteger(requestedTargetSeconds) && Number(requestedTargetSeconds) > 0
+    ? Number(requestedTargetSeconds) : sourceTargetSeconds;
+  if (!Number.isInteger(targetSeconds) || !Number.isInteger(minSeconds) || !Number.isInteger(maxSeconds)
+    || (durations.every(duration => Number.isInteger(duration) && duration >= minSeconds && duration <= maxSeconds)
+      && sourceTargetSeconds === targetSeconds)) {
+    return shots.map((entry, index) => clampShotTimelineFields(entry, durations[index]!));
+  }
+  const plan = projectShotDurations(shots.map(({ source }, index) => {
+    const record = source as Record<string, unknown>;
+    return {
+      shotId: String(record.shotId ?? record.shot_id ?? `S${String(index + 1).padStart(2, "0")}`),
+      duration: durations[index],
+      ...(record.timing && typeof record.timing === "object" && !Array.isArray(record.timing)
+        ? { timing: record.timing as { start?: number; duration?: number; end?: number } } : {}),
+      ...(record.dialogue !== undefined ? { dialogue: record.dialogue } : {}),
+      ...(typeof record.emotion === "string" ? { emotion: record.emotion }
+        : typeof record.mood === "string" ? { emotion: record.mood } : {}),
+      ...(typeof record.mood === "string" ? { mood: record.mood } : {}),
+      ...(typeof record.sceneType === "string" ? { sceneType: record.sceneType } : {}),
+    };
+  }), { targetSeconds, minSeconds, maxSeconds, enforceVoiceFloor: false });
+  if (!plan.ok) return shots;
+  const projected = applyProjectedDurations<Record<string, unknown>>(shots.map(({ source }, index) => {
+    const record = source as Record<string, unknown>;
+    return {
+      ...structuredClone(record),
+      shotId: String(record.shotId ?? record.shot_id ?? `S${String(index + 1).padStart(2, "0")}`),
+    };
+  }), plan.entries);
+  return shots.map((entry, index) => {
+    const previous = entry.source as Record<string, unknown>;
+    const next = projected[index]!;
+    const fromSeconds = durations[index]!;
+    const toSeconds = Number(next.duration);
+    const fields = previous.fields && typeof previous.fields === "object" && !Array.isArray(previous.fields)
+      ? { ...(previous.fields as Record<string, unknown>) } : {};
+    if (fields.timeline !== undefined) fields.timeline = rescaleTimelineClock(fields.timeline, fromSeconds, toSeconds);
+    return clampShotTimelineFields({
+      ...entry,
+      source: {
+        ...next,
+        ...(typeof previous.timeline === "string"
+          ? { timeline: rescaleTimelineClock(previous.timeline, fromSeconds, toSeconds) } : {}),
+        fields,
+      },
+    }, toSeconds);
+  });
+}
+
 export interface PromptContractSummary {
   shotId: string;
   fieldSchema: string;
@@ -1359,7 +1516,14 @@ async function evaluateCompiledShots(
 }
 
 export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): Promise<PromptQualityResult> {
-  const input = { ...value, maxFinalPromptChars: checkedFinalPromptLimit(value.maxFinalPromptChars) };
+  const requestedBrief = value.upstreamContext?.brief;
+  const requestedDuration = requestedBrief && typeof requestedBrief === "object" && !Array.isArray(requestedBrief)
+    ? Number((requestedBrief as Record<string, unknown>).duration) : undefined;
+  const input = {
+    ...value,
+    shots: normalizePromptShotDurations(value.shots, requestedDuration),
+    maxFinalPromptChars: checkedFinalPromptLimit(value.maxFinalPromptChars),
+  };
   const approvedProductionPlanSha256 = input.upstreamContext?.approvedProductionPlan !== undefined
     ? sha256Json(input.upstreamContext.approvedProductionPlan) : undefined;
   const reviewer = input.reviewer ?? null;

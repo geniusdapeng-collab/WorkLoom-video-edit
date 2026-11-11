@@ -92,6 +92,20 @@ describe("creative theme host contract", () => {
     expect(task.target_audience).toBe("客户未明确指定；任何人群假设均为待审核");
   });
 
+  it("uses the frozen marketing brief tone before the model default", () => {
+    const input = result();
+    input.tasks[0]!.tone = "轻快明朗";
+    const normalized = normalizeCreativeThemeContract(input, {
+      pipelineRoute: { kind: "marketing" },
+      customerOriginalIntent: "全程高燃的赛道广告",
+      brief: { tone: "热血感动（全程高燃、极速竞技，不低俗）" },
+      builtinCharacterSelection: { mode: "builtin" },
+    });
+    const task = (normalized.result.tasks as Array<Record<string, unknown>>)[0]!;
+    expect(task.tone).toBe("热血感动");
+    expect(normalized.changes).toContain("marketing-tone-normalized");
+  });
+
   it.each(["narrative", "marketing"])("keeps off-screen narration independent from the %s visual cast", (kind) => {
     const intent = "全片无人出镜，保留女声旁白：灯火映照着归人的路。";
     const normalized = normalizeCreativeThemeContract(result(), {

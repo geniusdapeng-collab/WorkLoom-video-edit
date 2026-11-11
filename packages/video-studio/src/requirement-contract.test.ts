@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast, requirementHash, requirementRecord,
-  normalizeDiscoveryTiming, requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
+  normalizeDiscoveryTiming, prdCharacterShapePath, requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
   validateRequirementSchema, verifiedRequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import { SCENE_SUM_ARITHMETIC_TOLERANCE_SECONDS, TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
@@ -45,8 +45,29 @@ describe("discovery timing authority", () => {
     expect(structure.totalDuration).toBe(30);
     expect(structure.sceneCount).toBe(6);
     expect(structure.opening.duration + structure.scenes.reduce((sum, scene) => sum + scene.duration, 0) + structure.ending.duration).toBe(30);
-    expect(structure.scenes.every((scene) => scene.duration >= 3)).toBe(true);
+    expect([structure.opening, ...structure.scenes, structure.ending].every((scene) => (
+      Number.isSafeInteger(scene.duration) && scene.duration >= 4
+    ))).toBe(true);
     expect(audience.emotionTriggers).toEqual(["已审场景节点愿意转发", "已审场景节点感到精密"]);
+  });
+
+  it("projects fractional and sub-minimum scene nodes to a conserving integer 4–30 second plan", () => {
+    const structure = {
+      opening: { duration: 3.5 },
+      scenes: [{ duration: 5 }, { duration: 5 }, { duration: 8 }, { duration: 5 }],
+      ending: { duration: 3.5 },
+      totalDuration: 30,
+      sceneCount: 6,
+    };
+    const normalized = normalizeDiscoveryTiming(30, structure, {});
+    const nodes = [structure.opening, ...structure.scenes, structure.ending];
+    expect(normalized).toEqual({
+      changes: ["scene-duration-reconciled"],
+      previousDuration: 30,
+      normalizedDuration: 30,
+    });
+    expect(nodes.map((node) => node.duration)).toEqual([4, 5, 5, 7, 5, 4]);
+    expect(nodes.every((node) => Number.isSafeInteger(node.duration) && node.duration >= 4)).toBe(true);
   });
 
   it("leaves an impossible residual for strict validation instead of fabricating a timeline", () => {
@@ -274,6 +295,35 @@ describe("schema-derived scene timing and bounded validation facts", () => {
       try { operation(); } catch (error) { failure = error; }
       expect(structuredSceneFeedback(failure)).toBe("");
     }
+  });
+
+  it("brands a closed characterSystem object for one bounded PRD structure correction", () => {
+    const schema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        characterSystem: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            characters: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                properties: { characterId: { type: "string" } },
+              },
+            },
+          },
+        },
+      },
+    };
+    let failure: unknown;
+    try {
+      validateRequirementSchema({ characterSystem: { characters: [], privateExtra: true } }, schema, "PRD production response");
+    } catch (error) { failure = error; }
+    expect(prdCharacterShapePath(failure)).toBe("/characterSystem");
+    expect((failure as Error).message).not.toContain("privateExtra");
   });
 
   it("retains exactly the existing seven arithmetic facts as retry feedback", () => {

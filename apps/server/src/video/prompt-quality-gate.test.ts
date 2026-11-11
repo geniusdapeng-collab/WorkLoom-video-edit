@@ -173,15 +173,29 @@ it("uses only the ordered explicit selections from a verified native archive bin
     mediaType: "image/png", sourceRef: `characters/P1/lead-archive-v2-${angles[index]}.png`,
   }));
   expect(resolve(`林夏: ${closeup}, ${front}`)).toEqual(expected);
+  expect(resolve(`${closeup}；image://characters/lead/portraits/v2/front`)).toEqual(expected);
+  expect(resolve(`${closeup}; image://characters/lead/portrait-v2-front.png`)).toEqual(expected);
+  expect(resolve(`${closeup}（来源已核验）；image://characters/lead/v2/front.png（待G5复制与审核后启用）`)).toEqual(expected);
+  expect(resolve(`${closeup}、image://characters/lead/portraits/v2/lead-front.png（当前尚未出图）`))
+    .toEqual(expected);
+  expect(resolve("image://characters/lead-front.png，image://characters/lead-closeup.png（待本次G5核验）"))
+    .toEqual([expected[1], expected[0]]);
   expect(resolve([closeup, front])).toEqual(expected);
   expect(resolve([sources[2]!.path, outputs[0]!.path])).toEqual(expected);
   for (const invalid of [
     "portrait-set://lead", "/characters/character/portrait_v1.png", [closeup, closeup],
     [closeup, front + ".evil"], [closeup, "image://characters/lead/v1/front.png"],
     [closeup, "image://characters/other/v2/front.png"], [closeup, "image://characters/../../original/lead-front.png"],
+    `${front}（来源已核验）；image://characters/lead/v3/closeup.png`,
+    "image://characters/other-front.png",
   ]) expect(resolve(invalid)).toEqual([]);
   expect(resolve([closeup, front], { ...binding, character: "其他角色" })).toEqual([]);
   expect(resolve([closeup, front], { ...binding, portraits: binding.portraits.slice(0, 3) })).toEqual([]);
+  expect(resolvePromptAssets({ source: { fields: { portraits: "image://characters/lead/front.png" } },
+    workDir, charactersDir, archiveCopies })).toEqual([{
+      field: "portraits", role: "reference_image", sha256: outputs[0]!.sha256, bytes: outputs[0]!.bytes,
+      mediaType: "image/png", sourceRef: `characters/P1/lead-archive-v2-front.png`,
+    }]);
 });
 
 const repairedCamera = "固定机位，缓慢推近一个动作";
@@ -529,10 +543,16 @@ describe("G6 同次修复的真实模型路由", () => {
     expect(fresh).toMatchObject({ status: reused.status, g6Eligible: reused.g6Eligible, findings: reused.findings });
   });
 
-  const changesDuringRepair: Array<[string, (fixture: ReturnType<typeof workerModelFixture>) => void]> = [
+  const changesDuringRepair: Array<[string, (
+    fixture: ReturnType<typeof workerModelFixture>,
+    restore: (undo: () => void) => void,
+  ) => void]> = [
     ["上游原文", ({ evaluation }) => { evaluation.upstreamContext.intent += "；修复时上游发生变化"; }],
-    ["模型能力版本", ({ evaluation }) => {
-      evaluation.shots[1]!.compile = { ...compile, model: { ...compile.model, version: "catalog-changed" } };
+    ["模型能力版本", ({ evaluation }, restore) => {
+      const currentModel = evaluation.shots[1]!.compile.model;
+      const previousVersion = currentModel.version;
+      currentModel.version = "catalog-changed";
+      restore(() => { currentModel.version = previousVersion; });
     }],
     ["路由重新装配", ({ llm, router }) => { llm.attachRouter(router); }],
     ["场景策略内容", ({ router }) => { router.policy.scenes.preproduction!.thinking = { type: "enabled", effort: "max" }; }],
@@ -552,11 +572,16 @@ describe("G6 同次修复的真实模型路由", () => {
 
   it.each(changesDuringRepair)("修复时%s漂移，旧证明不能命中", async (_name, mutate) => {
     const fixture = workerModelFixture();
-    fixture.onRepair.mockImplementationOnce(() => { mutate(fixture); });
-    const result = await evaluatePromptPackage(fixture.evaluation);
-    expect(result.status).toBe("passed");
-    expect(fixture.calls).toEqual(["review:S01", "review:S02", "repair:S01", "review:S01", "review:S02"]);
-    expect(result.semanticReports[1]!.proofReuse).toBeUndefined();
+    const restores: Array<() => void> = [];
+    fixture.onRepair.mockImplementationOnce(() => { mutate(fixture, undo => restores.push(undo)); });
+    try {
+      const result = await evaluatePromptPackage(fixture.evaluation);
+      expect(result.status).toBe("passed");
+      expect(fixture.calls).toEqual(["review:S01", "review:S02", "repair:S01", "review:S01", "review:S02"]);
+      expect(result.semanticReports[1]!.proofReuse).toBeUndefined();
+    } finally {
+      for (const undo of restores.reverse()) undo();
+    }
   });
 
   it("修复后的确定性错误在任何语义证明消费前阻断", async () => {

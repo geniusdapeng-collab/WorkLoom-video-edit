@@ -6,6 +6,8 @@ const record = (value: unknown): RecordValue =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : fail();
 const same = isDeepStrictEqual;
 const camel = (field: string): string => field.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+const criticalNegative = (value: unknown): value is string =>
+  typeof value === "string" && /\bno\s+text\b/iu.test(value) && /\bno\s+watermark\b/iu.test(value);
 
 export interface NativeFieldRepairSynchronizer {
   /** Only the current native parser's successful repaired_fields object is observed. */
@@ -67,6 +69,9 @@ export function nativeFieldRepairSynchronizer(
     const repairedFields = repaired.fields === undefined ? undefined : record(repaired.fields);
     if (!same(identity, { shotId: repaired.shotId, shot_id: repaired.shot_id, duration: repaired.duration })) fail();
     const applied = new Map<string, unknown>();
+    const rejected = new Set<unknown>();
+    let restoreNegative = false;
+    let priorNegative: string | undefined;
     for (const value of actions) {
       const action = record(value);
       const canonical = typeof action.fieldEn === "string" ? aliases.get(action.fieldEn) : undefined;
@@ -81,7 +86,28 @@ export function nativeFieldRepairSynchronizer(
       if (![...priorValues, ...(priorValues.every(value => !value) ? [""] : []),
         ...(applied.has(canonical) ? [applied.get(canonical)] : [])].some(value => same(value, action.before))) fail();
       if (!values(repaired, repairedFields ?? {}, canonical).some(value => same(value, action.after))) fail();
+      if (canonical === "negative") {
+        const present = priorValues.filter((value): value is string =>
+          typeof value === "string" && Boolean(value.trim()));
+        const baseline = present.length > 0 && present.every(value => value === present[0]) ? present[0] : undefined;
+        // The frozen silent path already has a verified baseline negative
+        // policy. A model may add detail, but cannot replace it with an audio
+        // instruction and erase the required text/watermark exclusions.
+        if (baseline && criticalNegative(baseline) && !criticalNegative(action.after)) {
+          rejected.add(value);
+          restoreNegative = true;
+          priorNegative = baseline;
+          continue;
+        }
+      }
       applied.set(canonical, action.after);
+    }
+    if (restoreNegative && priorNegative !== undefined) {
+      for (const key of ["negative", camel("negative")]) {
+        if (Object.hasOwn(repaired, key)) repaired[key] = priorNegative;
+        if (repairedFields && Object.hasOwn(repairedFields, key)) repairedFields[key] = priorNegative;
+      }
+      result.actions = actions.filter(value => !rejected.has(value));
     }
     for (const field of fieldNames) {
       // The pinned native function clones rather than edits its input. Refuse

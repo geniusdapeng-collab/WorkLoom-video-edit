@@ -15,10 +15,17 @@ function hasGenericSpeechDiscipline(value: unknown): boolean {
 function noSpokenContent(value: unknown): boolean {
   if (value === undefined || value === null || value === false) return true;
   if (typeof value === "string") return !value.trim() || isNoSpeechDeclaration(value);
-  if (Array.isArray(value)) return value.length === 0;
+  if (Array.isArray(value)) return value.every(item => noSpokenContent(item));
   if (typeof value !== "object") return false;
   const row = value as Record<string, unknown>;
-  return Object.keys(row).every(key => ["has_dialogue", "hasDialogue", "lines", "blocks", "text"].includes(key))
+  // FieldQuality serializes the canonical negative declaration as
+  // [{ speaker: "", text: "无台词" }] while preserving "无台词" in fields.
+  // Metadata-only rows are accepted only when their text is independently a
+  // no-speech declaration; any positive line or unknown content key stays fatal.
+  return Object.keys(row).every(key => [
+    "has_dialogue", "hasDialogue", "speaker", "lines", "blocks", "text",
+    "language", "emotion", "type", "start", "end"
+  ].includes(key))
     && [row.has_dialogue, row.hasDialogue].every(flag => flag === undefined || flag === false)
     && [row.lines, row.blocks].every(items => items === undefined || (Array.isArray(items) && items.length === 0))
     && noSpokenContent(row.text);

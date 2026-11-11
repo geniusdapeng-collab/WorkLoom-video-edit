@@ -114,13 +114,18 @@ export interface RecoverContractFieldsInput {
   missingEvidence?: readonly VerifiedFieldArtifact[];
 }
 function sourceMissingDiagnoses(evidence: readonly VerifiedFieldArtifact[], shotId: string) {
-  const byField = new Map<string, string[]>(), originals: Array<{ text: string; sha256: string }> = [];
+  const byField = new Map<string, string[]>(), allowedHardErrors = new Set<string>();
+  const originals: Array<{ text: string; sha256: string }> = [];
   for (const item of evidence) {
     const { parsed, sha256 } = artifact(item);
     if (parsed.schemaVersion !== "workloom.video-prompt-quality/v2" || !Array.isArray(parsed.findings)) return fail("MISSING_EVIDENCE_INVALID");
     let used = false;
     for (const raw of parsed.findings) {
       const finding = record(raw);
+      if (finding.shotId === shotId && finding.blocking === true && typeof finding.code === "string"
+        && (finding.code.startsWith("HARD_") || ["deterministic", "local_patch"].includes(String(finding.repairClass)))) {
+        allowedHardErrors.add(`${finding.code}:${typeof finding.field === "string" ? finding.field : "stage"}`);
+      }
       if (finding.shotId !== shotId || finding.code !== "HARD_FIELD_VALUE_MISSING" || finding.blocking !== true
         || !["deterministic", "local_patch"].includes(String(finding.repairClass)) || typeof finding.field !== "string") continue;
       const hashes = byField.get(finding.field) ?? [];
@@ -130,7 +135,7 @@ function sourceMissingDiagnoses(evidence: readonly VerifiedFieldArtifact[], shot
     }
     if (used && !originals.some(original => original.sha256 === sha256)) originals.push({ text: Buffer.from(item.bytes).toString("utf8"), sha256 });
   }
-  return { byField, originals };
+  return { byField, allowedHardErrors, originals };
 }
 function pathValue(value: unknown, path: string): unknown {
   for (const key of path.split(".")) {
@@ -268,12 +273,19 @@ export function recoverContractFields(input: RecoverContractFieldsInput): Recove
   catch { return fail("RECOMPILE_FAILED"); }
   const missing = new Set(unboundFields.map(field => field.field));
   const sourceValidation = validatePromptContract(contract);
-  if (recompiled.hardErrors.length !== missing.size
-    || recompiled.hardErrors.some(error => error.code !== "HARD_FIELD_VALUE_MISSING" || !error.field || !missing.has(error.field))
-    || sourceValidation.errors.length !== missing.size
-    || sourceValidation.errors.some(error => error.code !== "HARD_FIELD_UNBOUND" || !error.field || !missing.has(error.field))
-    || !isDeepStrictEqual(recompiled.contract, contract)
-    || !isDeepStrictEqual(recompiled.fieldValues, fields)) return fail("RECOMPILE_MISMATCH");
+  const errorKey = (error: { code: string; field: string | null }) => `${error.code}:${error.field ?? "stage"}`;
+  const expectedHardErrors = new Set([
+    ...unboundFields.map(field => `HARD_FIELD_VALUE_MISSING:${field.field}`),
+    ...(unboundFields.length === 0 ? missingDiagnoses.allowedHardErrors : []),
+  ]);
+  const actualHardErrors = new Set(recompiled.hardErrors.map(errorKey));
+  const recompiledValidation = validatePromptContract(recompiled.contract);
+  const recompileMatches = actualHardErrors.size === expectedHardErrors.size
+    && [...expectedHardErrors].every(error => actualHardErrors.has(error))
+    && isDeepStrictEqual(recompiledValidation.errors, sourceValidation.errors)
+    && isDeepStrictEqual(recompiled.contract, contract)
+    && isDeepStrictEqual(recompiled.fieldValues, fields);
+  if (!recompileMatches) return fail("RECOMPILE_MISMATCH");
   return {
     shotId: contract.shotId, duration: Number(parameters.duration_sec), ...structuredClone(metadata), fields,
     prompt: contract.prompt, sourceContractText: Buffer.from(input.contractBytes).toString("utf8"),

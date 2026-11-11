@@ -26,7 +26,7 @@ function explicitAudience(intent: string, brief: RecordValue): string {
 
 function marketingTone(value: unknown): string {
   const current = text(value);
-  const allowed = ["温暖治愈", "轻快明朗", "冷酷精密", "诗意哀伤"];
+  const allowed = ["热血感动", "温暖治愈", "轻快明朗", "冷酷精密", "诗意哀伤"];
   return allowed.find((tone) => current.includes(tone)) ?? "轻快明朗";
 }
 
@@ -182,7 +182,7 @@ export function normalizeCreativeThemeContract(
     }
 
     if (route === "marketing") {
-      const tone = marketingTone(task.tone);
+      const tone = marketingTone(text(brief.tone) || task.tone);
       if (task.tone !== tone) {
         task.tone = tone;
         changes.push("marketing-tone-normalized");

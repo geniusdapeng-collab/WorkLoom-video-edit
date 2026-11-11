@@ -435,7 +435,8 @@ async function loadApprovedSourcePlan(
       missingEvidence: [reportArtifact],
       sceneMetadata: { sceneId: String(scene.id), ...(typeof scene.sceneType === "string" ? { sceneType: scene.sceneType } : {}) } });
     if (shot.shotId !== scene.id || shot.duration !== scene.duration || !isDeepStrictEqual(parsed(bytes), entry.contract)) {
-      return fail("SOURCE_PROMPT_SCENE_MISMATCH", "完整字段合同与原 G4 场景或已归档合同对象不一致。");
+      return fail("SOURCE_PROMPT_SCENE_MISMATCH", `完整字段合同与原 G4 场景或已归档合同对象不一致：${String(scene.id)}；`
+        + `身份=${shot.shotId === scene.id}，时长=${shot.duration}/${String(scene.duration)}，合同=${isDeepStrictEqual(parsed(bytes), entry.contract)}。`);
     }
     for (const [profileKey, parameterKey] of [["aspectRatio", "aspect_ratio"], ["resolution", "resolution"],
       ["frameRate", "fps"], ["nativeAudio", "generate_audio"]] as const) {
@@ -529,7 +530,8 @@ async function loadApprovedSourcePlan(
   const exportMetadata: Json = { ...structuredClone(rootRequest.metadata), platform: platformIds[0],
     characters: structuredClone(exportCharacters), builtinCharacterSelection: structuredClone(castSelection) };
   const copies = readCurrentPortraitArchiveCopies({ workDir: runWorkDir, projectId,
-    manifest: { path: portraits.manifestPath, sha256: portraits.manifestSha256 } });
+    manifest: { path: portraits.manifestPath, sha256: portraits.manifestSha256 },
+    allowAdditionalAngles: true, allowProductArchive: true });
   for (const asset of contracts.flatMap(shot => shot.sourceContract.bindings.flatMap(binding => binding.assets ?? []))) {
     if (!asset.sourceRef) return fail("SOURCE_PORTRAIT_UNBOUND", "原字段合同缺少图片字节来源。");
     const file = path.resolve(runWorkDir, asset.sourceRef);
@@ -568,7 +570,8 @@ async function loadApprovedSourcePlan(
     const currentPortraits = loadPortraitReuseManifest(portraitBinding.manifestPath, portraitBinding.manifestSha256);
     verifyDualProfileWitness();
     const currentCopies = readCurrentPortraitArchiveCopies({ workDir: runWorkDir, projectId,
-      manifest: { path: currentPortraits.manifestPath, sha256: currentPortraits.manifestSha256 } });
+      manifest: { path: currentPortraits.manifestPath, sha256: currentPortraits.manifestSha256 },
+      allowAdditionalAngles: true, allowProductArchive: true });
     if (!isDeepStrictEqual(currentCopies, copies)) return fail("SOURCE_PORTRAIT_CHANGED", "受控角色图片或来源已变化。");
     const [latest] = await rowsFor(scope, projectId, lease);
     if (!sourceRowMatches(latest, source) && !(state.target && latest?.attempt === state.target.attempt && latest.run_id === state.target.runId)) {

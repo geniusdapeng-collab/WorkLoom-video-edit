@@ -9,6 +9,45 @@
 const { EventBus } = require('../../infrastructure/event-bus');
 const { DynamicTypeResolver } = require('./dynamic-type-resolver');
 
+function stripUnrequestedDirectorReferences(value) {
+  if (typeof value !== 'string') return value;
+  return value
+    .replace(/《[^》]+》/g, '')
+    .replace(/\b(?:[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,3})\s*(?:式|受控影像语法)/g, '')
+    .replace(/(?:受控影像语法|电影语言|镜头语言)\s*为骨/gi, '电影语言')
+    .replace(/(?:为皮|作为质感外层)/g, '')
+    .replace(/\s*[、，；]\s*(?=[、，；])/g, '')
+    .replace(/^[\s、，；]+|[\s、，；]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function applyCustomerConstraints(text, specialNotes = '') {
+  const source = String(text || '');
+  const additions = [];
+  if (/创意演绎\s*·\s*赛道专用不可上路/u.test(source)) {
+    additions.push('硬约束：全片持续烧录“创意演绎 · 赛道专用不可上路”，覆盖第0秒至末帧，不得写成可选。');
+  }
+  if (/燃油驱动|不是电动车/u.test(source)) {
+    additions.push('硬约束：商品是燃油驱动赛道摩托车，不是电动车、电动自行车或电动摩托。');
+  }
+  if (/license_risk\s*=\s*high/u.test(source)) {
+    additions.push('硬约束：公开参考图 license_risk=high，仅供本次 AI 生成内部锚定，不直接传播原图，不声称已取得商用授权。');
+  }
+  if (/w2\s*全覆保护赛车服/u.test(source)) {
+    additions.push('硬约束：本片使用角色档案 w2 全覆保护赛车服；w1 只是默认基线。');
+  }
+  if (/外线出弯/u.test(source)) {
+    additions.push('硬约束：连续超车统一在外线出弯完成，不写内外线矛盾指令。');
+  }
+  if (/胸腰臀轮廓|身材展示镜头/u.test(source)) {
+    additions.push('硬约束：领奖台以健康、自信、非裸露的中景或中全景展示成年女性胸腰臀轮廓，不使用胸臀局部特写。');
+  }
+  const existing = String(specialNotes || '').trim();
+  const unique = additions.filter(item => !existing.includes(item));
+  return [existing, ...unique].filter(Boolean).join('\n');
+}
+
 // ============ 配置常量 ============
 // 【v2.1.8-fix】扩展类型库，增加文学/情绪/氛围类关键词（P5修复）
 const TYPE_LIBRARY = {
@@ -1472,6 +1511,7 @@ class CreativeThemeGenerator {
     
     // Step 4: 补全所有字段（已有字段保留，只补缺失）
     const completedTask = this.fieldCompleter.complete(extractedFields, parseResult.scene, parseResult.input);
+    completedTask.special_notes = applyCustomerConstraints(parseResult.input, completedTask.special_notes);
     
     // Step 5: 质量检查（放宽对用户自定义类型的约束）
     const quality = this.qualityChecker.check(completedTask);
@@ -1518,7 +1558,7 @@ class CreativeThemeGenerator {
 2. description（≤80字）必须包含：主角（一个具体的人）+ 困境（一个具体的坎）+ 动作（他做了什么）+ 余味（一句情绪钩子），四要素缺一重写。
 3. type 选择要服务于传播而非分类正确：同一故事，选那个"全球观众不看字幕也想点进来"的类型。
 4. tone（4-8字）用情绪对撞词，不用单义词。好例子：'沉静庄重、克制深情'；坏例子：'感人'。
-5. visual_style 必须点名可参考的影片/导演美学+光线策略，禁止'唯美''震撼'这类无效词。
+5. visual_style 优先用可执行的镜头语言、光线策略、色彩、材质和运动方式描述视觉美学；只有用户明确要求或允许时才点名影片/导演。若用户禁止未提供的导演、影片或作品名，不得提及任何导演、影片或作品名，仍须给出具体光线、镜头、色彩与材质描述，禁止'唯美''震撼'这类无效词。
 6. dialogue_requirement 如果原文给了台词（'台词：xxx'），必须原样保留这句钉子台词，一字不改。
 7. special_notes 提取原文中所有'特写：'与物理细节（老年斑/旧茧/无钉子等），这些是全片的视觉锚点，一条都不许丢。
 
@@ -1583,6 +1623,10 @@ ${text}`;
     }
     if (!parsed) {
       throw new Error(`LLM 输出中未找到合法 JSON：${lastFailure && lastFailure.message ? lastFailure.message : '未知解析错误'}`);
+    }
+    if (/导演/.test(text) && /(?:不得新增|不要|禁止|勿)/.test(text)
+      && /(?:影片|作品名|导演名)/.test(text) && typeof parsed.visual_style === 'string') {
+      parsed.visual_style = stripUnrequestedDirectorReferences(parsed.visual_style);
     }
     if (parsed.duration_sec) parsed.duration_sec = parseInt(parsed.duration_sec, 10) || 60;
     if (parsed.creative_style) parsed.creative_style = Math.min(0.95, Math.max(0.3, parseFloat(parsed.creative_style) || 0.6));

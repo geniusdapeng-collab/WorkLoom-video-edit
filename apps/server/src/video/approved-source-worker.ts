@@ -182,11 +182,13 @@ export async function startApprovedSourceRepairWorker(
       await save(`stages/preproduction/attempt-${ctx.attempt}.authored-fields.json`, { schemaVersion: "workloom.approved-source-authored-fields/v1",
         sourceAdoption: { ref: adoption.ref, sha256: adoption.sha256 }, ...authored });
       const copies = readCurrentPortraitArchiveCopies({ workDir: plan.workDir, projectId,
-        manifest: { path: plan.portraits.manifestPath, sha256: plan.portraits.manifestSha256 } });
+        manifest: { path: plan.portraits.manifestPath, sha256: plan.portraits.manifestSha256 },
+        allowAdditionalAngles: true, allowProductArchive: true });
       entry.currentGate = "G5_PORTRAIT";
       // This host operation rechecks the four existing copies; it dispatches no portrait generation.
       const portraitProof = acceptPortraitArchiveReuse({ workDir: plan.workDir, projectId,
         manifest: { path: plan.portraits.manifestPath, sha256: plan.portraits.manifestSha256 },
+        allowAdditionalAngles: true, allowProductArchive: true,
         stage: { status: "completed", characters: 1, products: 0, completedPortraits: copies.outputs.length, pendingPortraits: 0,
           reusedPortraits: copies.outputs.length, generatedPortraits: 0 } });
       evidence.push({ gate: "G5_PORTRAIT", approved: true, status: "passed", via: "archive-reuse-acceptance", degraded: false,

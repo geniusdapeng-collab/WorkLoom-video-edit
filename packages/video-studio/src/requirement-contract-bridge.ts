@@ -11,7 +11,8 @@ import {
 } from "./requirement-contract.js";
 import {
   nativeReasonCompleted, nativeReasonFailure, nativeSceneResponseRouteCurrent, nativeSceneResponseSource,
-  sameNativeSceneResponseRoute, nativeRiskResponseRouteCurrent, nativeRiskResponseSource, sameNativeRiskResponseRoute, type LLMReasonResult,
+  sameNativeSceneResponseRoute, nativeRiskResponseRouteCurrent, nativeRiskResponseSource, sameNativeRiskResponseRoute,
+  WorkloomLLMEngine, type LLMReasonResult,
 } from "./llm-adapter.js";
 import { parseStrictSceneJsonObject, recoverSceneJsonMissingSeparators } from "./scene-json-comma-recovery.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
@@ -97,12 +98,70 @@ function frozenSilentAudiencePrompt(original: string): string {
     + "\n\n本次受众细分、情绪触发与传播动机属于待审假设。以冻结 Brief 与本次已审创意为边界，"
     + "不得把未有来源的数字、时点、动作次数或商品名写成本片要求，不得把创作推测升级为商品事实。"
     + "商品事实只引用本次 G1 已接受且获本片使用的原文；不要从推测补齐或改写型号及用途。"
+    + "\n\n【必填自检】primaryAudience.consumptionLevel 必须使用 schema 枚举值；客户未提供消费能力证据时写 medium，禁止省略该字段。"
     + original.slice(format);
 }
 
 const frozenSilentRiskBoundary = "商品身份、型号及用途以本次 G1 已接受原文为准，并遵守冻结 Brief 的使用范围；"
   + "不得从受众推测新增事实、数字或动作节拍。叙事风险和缓解须对照下附本次实际场景草案与冻结分段，"
-  + "保持现有动作、先后、原生声音和后期文字要求。待确认内容留在技术风险，不能写成 businessConstraints。";
+  + "保持现有动作、先后、原生声音和后期文字要求。公开来源商品图 license_risk=high 必须列入风险，"
+  + "明确不得提交图生图、作为首帧或进入成片；商品外观仅作权利安全示意，不宣称精确还原。"
+  + "用户原话中的性感身材诉求已改写为健康、自信、非裸露的中景或中全景轮廓展示，不拍胸臀局部特写。"
+  + "待确认内容留在技术风险，不能写成 businessConstraints。";
+
+const tireToken = /(?<!\d)(\d{3})\s*\/\s*(\d{2})\s*ZR\s*(\d{2})(?!\d)/iu;
+const normalizeTire = (value: string): string | undefined => {
+  const match = tireToken.exec(value.trim());
+  return match ? `${match[1]}/${match[2]} ZR${match[3]}`.toUpperCase() : undefined;
+};
+
+/**
+ * G3 can summarize an accepted G1 package into prose. Keep its reviewable
+ * narrative, but reconcile only values that have a unique accepted identity in
+ * G1 and clearly label rights-safe visual styling as an artistic treatment.
+ */
+export function reconcileRenderedRequirementFacts(report: string, authority: PrdAuthority): string {
+  const acceptedByWidth = new Map<string, string>();
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    const row = value as RequirementRecord;
+    if (typeof row.pointer === "string" && /轮胎/u.test(row.pointer) && typeof row.value === "string") {
+      const tire = normalizeTire(row.value);
+      if (tire) {
+        const width = tire.slice(0, 3);
+        const prior = acceptedByWidth.get(width);
+        if (prior && prior !== tire) acceptedByWidth.set(width, "");
+        else if (prior !== "") acceptedByWidth.set(width, tire);
+      }
+    }
+    for (const child of Object.values(row)) visit(child);
+  };
+  visit(JSON.parse(authority.marketing.g1Artifact.content));
+
+  const corrections: string[] = [];
+  let content = report.replace(new RegExp(tireToken.source, "giu"), token => {
+    const normalized = normalizeTire(token);
+    if (!normalized) return token;
+    const accepted = acceptedByWidth.get(normalized.slice(0, 3));
+    if (!accepted || accepted === normalized) return token;
+    corrections.push(`轮胎规格 ${normalized} → ${accepted}`);
+    return accepted;
+  });
+  if (content.includes("哑光车身") && !/哑光车身（[^）]*示意[^）]*）/u.test(content)) {
+    content = content.replace(/哑光车身/gu, "哑光车身（权利安全示意美术处理）");
+    corrections.push("“哑光车身”标注为权利安全示意美术处理");
+  }
+  if (!corrections.length) return content;
+  return content + "\n\n## 宿主事实边界校正\n"
+    + `本次 G3 内容与当前 G1 原件 ${authority.marketing.g1Artifact.path} / SHA256 `
+    + `${authority.marketing.g1Artifact.sha256} 进行确定性核对，仅执行以下纠正：\n`
+    + [...new Set(corrections)].map(item => `- ${item}`).join("\n")
+    + "\n- 商品外观视觉描述不代表官方外观、表面工艺或未核实部件的已核实事实；正式生成与成片只作权利安全示意处理。\n";
+}
 
 function verifiedNativeRiskSchema(value: unknown) {
   const schema = requirementRecord(structuredClone(value), "RiskAssessor 原始 schema");
@@ -384,7 +443,9 @@ export function installRequirementContractBridge(
       if (contract.ownerAudience !== (typeof ownerAudience === "string" && ownerAudience.trim() ? ownerAudience : null)) {
         throw new RequirementContractError("REQUIREMENT_AUDIENCE_CHANGED", "G3 与本次宿主冻结的客户受众口径不一致");
       }
-      const report = renderRequirementContract(contract, requirementRecord(metadata, "G3 metadata"));
+      const report = reconcileRenderedRequirementFacts(
+        renderRequirementContract(contract, requirementRecord(metadata, "G3 metadata")), scope.authority!,
+      );
       const evidence = scope.sceneSyntaxRecovery;
       if (!evidence) return report;
       if (evidence.discovery !== discovery || evidence.receipt.sceneHash !== requirementHash(evidence.discovery.sceneStructure)) {
@@ -406,7 +467,7 @@ export function installRequirementContractBridge(
       const techniqueOnly = typeof brief.requirements === "string"
         && /参考(?:案例)?(?:只|仅)(?:写|使用)无品牌的?摄影[、，,]剪辑(?:和|与|及|[、，,])声音手法/u.test(brief.requirements);
       const segments = scope.segments;
-      const frozenSilent = segments !== undefined && scope.authority?.profile.speechPolicy === "none";
+      const frozenSilent = scope.authority?.profile.speechPolicy === "none";
       if (segments && Number(requirementRecord(input, "原始洞察来源").duration_sec) !== segments.totalSeconds) {
         throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "上游创意时长与冻结分段合同不一致");
       }
@@ -470,13 +531,16 @@ export function installRequirementContractBridge(
             const effectiveSchema = riskSchema ?? (techniqueReference ? techniqueReferenceSchema(schema) : schema);
             const runView = Object.create(this) as RequirementRecord;
             let pendingFeedback = "", attemptFeedback = "";
-            let started = false, correctionUsed = false;
+            let started = false, correctionAttempts = 0;
             let currentFailure: { error: unknown } | undefined;
             let riskDeadline: number | undefined;
             let activeRiskSlot: { previous?: LLMReasonResult } | undefined;
             let currentRisk: LLMReasonResult | undefined;
             let currentRiskData: { body: RequirementRecord; sha256: string } | undefined;
             let riskBasePrompt: string | undefined;
+            let genericRiskSyntaxFailure: LLMReasonResult | undefined;
+            let genericRiskSyntaxFailures = 0;
+            let genericRiskCorrectionComplete = false;
             if (riskSchema) {
               const timeout = this.timeoutMs;
               if (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0) {
@@ -516,12 +580,69 @@ export function installRequirementContractBridge(
                   return { ...result, data: parsed };
                 } },
               });
+            } else if (name === "risk" && WorkloomLLMEngine.supportsStructuredReviewProof(
+              Object.getPrototypeOf(this.llmEngine) as WorkloomLLMEngine)) {
+              const model = requirementRecord(this.llmEngine, "RiskAssessor 已守护模型");
+              const reason = model.reasonStructured;
+              const metered = Boolean(process.env.WORKLOOM_BUDGET_TASK_ID?.trim());
+              if (typeof reason !== "function") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "RiskAssessor 缺少原生 reasonStructured");
+              const measured = (result: LLMReasonResult) => {
+                const promptTokens = result.usage?.promptTokens, completionTokens = result.usage?.completionTokens;
+                return Number.isSafeInteger(promptTokens) && Number(promptTokens) > 0
+                  && Number.isSafeInteger(completionTokens) && Number(completionTokens) > 0;
+              };
+              runView.llmEngine = Object.create(model, {
+                reasonStructured: { value: async (prompt: unknown, nativeSchema: unknown, options: unknown) => {
+                  requireActiveScope();
+                  if (typeof prompt !== "string" || !prompt.trim() || genericRiskCorrectionComplete) {
+                    throw unverified("风险评审调用窗口或一次性语法纠正已失效");
+                  }
+                  const correcting = attemptFeedback === discoveryJsonCorrection;
+                  if (correcting && !genericRiskSyntaxFailure) throw unverified("风险评审缺少首次同路由语法失败");
+                  const result = await Reflect.apply(reason, model, [
+                    correcting ? prompt + discoveryJsonCorrection : prompt, nativeSchema, options,
+                  ]) as LLMReasonResult;
+                  requireActiveScope();
+                  if (correcting) {
+                    if (!nativeReasonCompleted(result) || metered && !measured(result)) {
+                      genericRiskCorrectionComplete = true;
+                      throw unverified("风险 JSON 语法纠正未取得完整计量对象");
+                    }
+                    if (result.success === true) {
+                      genericRiskCorrectionComplete = true;
+                      return result;
+                    }
+                    if (nativeReasonFailure(result) === "json-syntax" && correctionAttempts < 2) {
+                      genericRiskSyntaxFailure = result;
+                      genericRiskSyntaxFailures += 1;
+                      pendingFeedback = discoveryJsonCorrection;
+                      throw unverified("风险 JSON 语法纠正仍不是有效 JSON，进入最后一次同路由纠正");
+                    }
+                    genericRiskCorrectionComplete = true;
+                    throw unverified("风险 JSON 语法纠正未取得可验证对象");
+                  }
+                  if (nativeReasonFailure(result) === "json-syntax") {
+                    if (metered && (!nativeReasonCompleted(result) || !measured(result))) {
+                      throw unverified("风险 JSON 语法失败缺少完整计量回执");
+                    }
+                    genericRiskSyntaxFailure = result;
+                    genericRiskSyntaxFailures += 1;
+                    pendingFeedback = discoveryJsonCorrection;
+                    throw unverified("模型正文不是有效 JSON");
+                  }
+                  if (result.success !== true) throw unverified("未收到可验证的模型响应");
+                  return result;
+                } },
+              });
             }
             runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
               requireActiveScope();
               // Native retries may continue looping. Only a completed invalid
-              // response can admit one distinct, fully validated correction.
-              if ((started && (!pendingFeedback || correctionUsed))
+              // response can admit a distinct, fully validated correction. A
+              // second correction is reserved for two measured JSON-syntax
+              // failures; schema/content failures keep the original one-retry rule.
+              const correctionLimit = genericRiskSyntaxFailures >= 2 ? 2 : 1;
+              if ((started && (!pendingFeedback || correctionAttempts >= correctionLimit))
                 || (riskSchema && (Date.now() >= riskDeadline! || (started && !nativeRiskResponseRouteCurrent(currentRisk))))) {
                 throw currentFailure?.error ?? unverified("未收到可验证的模型响应");
               }
@@ -530,7 +651,7 @@ export function installRequirementContractBridge(
                 currentRisk = undefined;
                 currentRiskData = undefined;
               }
-              correctionUsed = started;
+              if (pendingFeedback) correctionAttempts += 1;
               started = true;
               attemptFeedback = pendingFeedback;
               pendingFeedback = "";
@@ -559,7 +680,7 @@ export function installRequirementContractBridge(
               if (frozenSilent && name === "audience") {
                 prompt = guard(scope, () => frozenSilentAudiencePrompt(original));
               }
-              if (segments && name === "risk") {
+              if (name === "risk" && (segments || frozenSilent)) {
                 const boundary = original.lastIndexOf("\n\n【评估心法】");
                 const format = original.lastIndexOf("\n\n请输出 JSON 格式：");
                 if (boundary < 0 || format <= boundary) {
@@ -600,6 +721,8 @@ export function installRequirementContractBridge(
               }
               return prompt + attemptFeedback;
             };
+            if (name === "audience") runView.maxRetries = 2;
+            if (name === "risk" && !riskSchema) runView.maxRetries = 3;
             runView._validateAndFill = function (this: RequirementRecord, response: unknown, responseSchema: unknown) {
               requireActiveScope();
               if (riskSchema && (Date.now() >= riskDeadline! || responseSchema !== riskSchema
@@ -646,7 +769,8 @@ export function installRequirementContractBridge(
       sceneView.run = async function (this: RequirementRecord, value: unknown, schema: unknown) {
         requireActiveScope();
         finalSceneFailure = undefined;
-        const effectiveSchema = structuredSceneSchema(schema, segments);
+        const effectiveSchema = structuredSceneSchema(schema, segments,
+          !segments && scope.authority?.profile.speechPolicy === "none" ? { middleMinimum: 4 } : {});
         const runView = Object.create(this) as RequirementRecord;
         // The pinned agent defaults to two tries. Only this private view gets
         // a third loop slot; _callLLM admits it solely with both native proofs.

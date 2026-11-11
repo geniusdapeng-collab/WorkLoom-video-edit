@@ -513,8 +513,24 @@ export function installVendorFieldQualityBridge(options: { log?: (line: string) 
             logs: Array.isArray(result?.logs) ? result.logs : []
           };
         } catch (err) {
-          log(`[vendor-compat] FieldQualityPipeline.run 失败（已按空报告回填）：${err instanceof Error ? err.message : String(err)}`);
-          return { finalShot: shot, reports: [], logs: [] };
+          const error = err instanceof Error ? err : new Error(String(err));
+          log(`[vendor-compat] FieldQualityPipeline.run 失败（已按空报告回填）：${error.message}`);
+          log(`[vendor-compat] FieldQualityPipeline.run 栈：${(error.stack ?? "").split("\n").slice(0, 12).join(" ← ")}`);
+          // runAll reads the final report without treating a thrown single-shot
+          // check as a successful pass. Keep the failure visible but prevent the
+          // entire Phase 3.5 bridge from crashing on `undefined.passed`.
+          const shotId = typeof (shot as Record<string, unknown>)?.shotId === "string"
+            ? String((shot as Record<string, unknown>).shotId) : "unknown";
+          return {
+            finalShot: shot,
+            reports: [{
+              shotId,
+              passed: false,
+              issues: [],
+              summary: () => `FieldQualityPipeline.run failed: ${error.message}`,
+            }],
+            logs: [],
+          };
         }
       };
       restores.push(() => { pipelineProto.run = originalRun; });
@@ -1655,16 +1671,26 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
       || typeof generate !== "function" || typeof call !== "function" || typeof parse !== "function") return;
     // Keep the native retry loop for transport errors. A final structured result
     // with prohibited speech is terminal for this generation, even on its retry.
-    const generation = new AsyncLocalStorage<{ terminalError?: SilentScreenplayError }>();
+    const generation = new AsyncLocalStorage<{ attempt: number; terminalError?: SilentScreenplayError }>();
     prototype.generate = function patchedGenerate(this: unknown, ...args: unknown[]): unknown {
-      if (durationProjectionOptions(options).speechPolicy !== "none") return Reflect.apply(generate, this, args);
-      return generation.run({}, () => Reflect.apply(generate, this, args));
+      return generation.run({ attempt: 0 }, () => Reflect.apply(generate, this, args));
     };
     prototype._buildGenerationPrompt = function patchedBuildGenerationPrompt(this: unknown, ...args: unknown[]): string {
       const policy = durationProjectionOptions(options);
-      const terminal = generation.getStore()?.terminalError;
+      const attempt = generation.getStore();
+      const terminal = attempt?.terminalError;
       if (terminal) throw terminal;
       let prompt = Reflect.apply(build, this, args);
+      if (attempt) {
+        attempt.attempt += 1;
+        if (attempt.attempt > 1) {
+          // A native retry must never resend the exact same paid wire request.
+          // The budget gateway correctly rejects duplicate bytes, so change the
+          // correction prompt while preserving every original requirement.
+          prompt += `\n\n## 本次原生重试纠偏
+上一次生成没有产出可直接解析且合同完整的结果。请重新生成完整、闭合、严格合法的 JSON；保留原始任务、人物、商品事实、场景、时长、声音和全部限制，不得缩减字段或场景。只输出紧凑 JSON，不要 markdown、解释、思考过程或引用上一次输出。`;
+        }
+      }
       if (policy.speechPolicy === "none") prompt = bindSilentScreenplayPrompt(prompt, Boolean(policy.frozenSegments));
       return policy.frozenSegments ? bindFrozenScreenplayPrompt(prompt, policy.frozenSegments) : prompt;
     };
@@ -2239,7 +2265,24 @@ export function installVendorPhase3FusionBridge(options: { log?: (line: string) 
           } };
         });
         stages.skillQC = { status: qcRows.some((row) => row.status === "failed") ? "failed" : "passed", scope: "prompt-text-only", details: qcRows };
-        if (qcRows.some((row) => row.status === "failed")) throw new CinematicSkillError("PHASE3_SKILL_QC_FAILED", "融合提示词包含所选技能的肯定式禁止内容");
+        const skillQCFailureDetails = qcRows
+          .filter((row) => row.status === "failed")
+          .map((row) => {
+            const violations = Array.isArray(row.violations)
+              ? row.violations as Array<{ skill?: unknown; term?: unknown }>
+              : [];
+            const hits = violations
+              .map((violation) => `${String(violation.skill ?? "?")}/${String(violation.term ?? "?")}`)
+              .join("、");
+            return `${String(row.shotId ?? "?")}: ${hits || "未提供命中词"}`;
+          })
+          .join("；");
+        if (skillQCFailureDetails) {
+          throw new CinematicSkillError(
+            "PHASE3_SKILL_QC_FAILED",
+            `融合提示词包含所选技能的肯定式禁止内容（${skillQCFailureDetails}）`,
+          );
+        }
         const llmStats = result.llmStats && typeof result.llmStats === "object" ? result.llmStats as FusionRecord : {};
         llmStats.promptFusion = { stats: pfResult.stats ?? null, elapsedMs: Date.now() - start };
         result.llmStats = llmStats;

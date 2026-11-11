@@ -59,6 +59,11 @@ function fourKeys(value: unknown, label: string): Json {
   if (Object.keys(item).length !== 4 || ANGLES.some(angle => !Object.hasOwn(item, angle))) fail(`${label} 必须正好包含四个必需角度`);
   return item;
 }
+function requiredAngles(value: unknown, label: string): Json {
+  const item = object(value, label);
+  if (ANGLES.some(angle => !Object.hasOwn(item, angle))) fail(`${label} 缺少必需角度`);
+  return item;
+}
 
 /** 仅服务端受控环境变量选择此文件，用户 metadata 不能自行声明复用通过。 */
 export function loadPortraitReuseManifest(file: string, expectedSha256?: string): ArchivedPortraitCharacters {
@@ -86,6 +91,7 @@ export function loadPortraitReuseManifest(file: string, expectedSha256?: string)
 /** 当前项目复制图、来源、档案与选择快照逐字节核验；计数字段本身不能构成通过。 */
 export function acceptPortraitArchiveReuse(input: {
   workDir: string; projectId: string; stage: unknown; manifest: { path: string; sha256: string };
+  allowAdditionalAngles?: boolean; allowProductArchive?: boolean;
 }): PortraitArchiveReuseAcceptance {
   const stage = object(input.stage, "portrait stage");
   const expectedStage = { status: "completed", characters: 1, products: 0, completedPortraits: 4, pendingPortraits: 0, reusedPortraits: 4, generatedPortraits: 0 } as const;
@@ -97,6 +103,7 @@ export function acceptPortraitArchiveReuse(input: {
 /** Verify project copies before G6 without asserting a completed G5 stage. */
 export function readCurrentPortraitArchiveCopies(input: {
   workDir: string; projectId: string; manifest: { path: string; sha256: string };
+  allowAdditionalAngles?: boolean; allowProductArchive?: boolean;
 }): Omit<PortraitArchiveReuseAcceptance, "stage"> & { character: { id: string; name: string; angles: typeof ANGLES } } {
   const configured = loadPortraitReuseManifest(input.manifest.path, input.manifest.sha256);
   const source = configured.characters[0]!;
@@ -106,13 +113,23 @@ export function readCurrentPortraitArchiveCopies(input: {
   if (realpathSync(root) !== root) fail("本次角色目录经过符号链接");
   const indexFile = fileReceipt(path.join(root, "portrait-index.json"), 8_000_000);
   const index = object(JSON.parse(indexFile.bytes.toString("utf8")), "portrait index");
-  const characters = object(index.characters, "index.characters"), products = object(index.products, "index.products");
+  const characters = object(index.characters, "index.characters");
+  const products = object(index.products, "index.products");
+  const characterEntries = Object.entries(characters).map(([key, value]) => [key, object(value, "index.character")] as const);
+  const canonical = characterEntries.filter(([key, value]) => key === source.id || value.id === source.id);
   if (index.schemaVersion !== "workloom.portrait-index/v1" || index.projectId !== input.projectId
-    || Object.keys(characters).length !== 1 || Object.keys(products).length !== 0) fail("本次角色索引归属或主体数量不符");
-  const item = object(Object.values(characters)[0], "index.character");
+    || characterEntries.length === 0 || !input.allowProductArchive && Object.keys(products).length !== 0
+    || (!input.allowAdditionalAngles ? characterEntries.length !== 1 : canonical.length !== 1
+      || characterEntries.some(([key, value]) => ![source.id, source.name].includes(key)
+        && ![source.id, source.name].includes(String(value.id)) || value.name !== source.name))) {
+    fail("本次角色索引归属或主体数量不符");
+  }
+  const item = (input.allowAdditionalAngles ? canonical[0]![1] : characterEntries[0]![1]);
   text(item.id, "index.character.id");
   if (item.kind !== "character" || item.portraitVersion !== configured.approvedSelection.selectedVersion || item.pinnedVersion !== configured.approvedSelection.selectedVersion) fail("本次索引未锁定选定版本的合成角色");
-  const files = fourKeys(item.files, "本次四角度"), receipts = fourKeys(item.reuseReceipts, "复用回执"), artifacts = fourKeys(item.artifacts, "复制产物回执");
+  const evidenceFields = input.allowAdditionalAngles ? requiredAngles : fourKeys;
+  const files = evidenceFields(item.files, "本次角色角度"), receipts = evidenceFields(item.reuseReceipts, "复用回执"),
+    artifacts = evidenceFields(item.artifacts, "复制产物回执");
   if (item.receipts !== undefined && Object.keys(object(item.receipts, "generation receipts")).length > 0) fail("复用分支混入生成回执");
   const sources: ReuseFileReceipt[] = [], outputs: ReuseFileReceipt[] = [];
   for (const angle of ANGLES) {

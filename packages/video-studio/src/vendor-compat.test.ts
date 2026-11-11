@@ -623,6 +623,43 @@ console.log("RESULT " + JSON.stringify({
     expect(result.restoredKeepsMusic).toBe(true);
   }, 90_000);
 
+  it("原生剧本重试使用纠偏提示，禁止把相同付费请求重发到预算闸", () => {
+    const script = `
+import { createRequire } from "node:module";
+import { installVendorDurationProjectionBridge } from ${JSON.stringify(resolve(here, "vendor-compat.ts"))};
+const require = createRequire(${JSON.stringify(join(repoRoot, "package.json"))});
+const { ScriptGenerator } = require(${JSON.stringify(join(repoRoot, "vendor/supermickey/hyperreality-system/engines/script-engine/core/script-generator.js"))});
+const original = ScriptGenerator.prototype._buildGenerationPrompt;
+const uninstall = installVendorDurationProjectionBridge({ log: () => undefined });
+const generator = Object.create(ScriptGenerator.prototype);
+const prompts = [];
+generator.config = { timeout: 1000, maxRetries: 3 };
+generator._loadTemplate = async () => ({ structure: { acts: [] } });
+generator._callLLM = async (prompt) => {
+  prompts.push(prompt);
+  if (prompts.length === 1) throw new Error("SCRIPT_MODEL_JSON_INVALID: fixture");
+  return '{"meta":{"title":"合成剧本"},"structure":{"scenes":[{"scene_id":"opening","scene_type":"opening","scene_name":"起点","timing":{"duration":30}}]}}';
+};
+generator._parseLLMResponse = () => ({ blueprint_id: "fixture", structure: { scenes: [{
+  scene_id: "opening", scene_type: "opening", scene_name: "起点", timing: { start: 0, duration: 30, end: 30 }
+}] } });
+const blueprint = await generator.generate({
+  metadata: { title: "合成剧本", protagonist: "合成人物", target_duration: 30, target_platform: ["douyin"],
+    language: "中文", world_setting: "现实世界", characters: [], narrative_mode: "dramatic" },
+  constraints: {}, parsed: { primary_mode: "dramatic" }
+});
+uninstall();
+console.log("RESULT " + JSON.stringify({
+  calls: prompts.length,
+  success: Boolean(blueprint?.structure?.scenes?.length),
+  distinct: prompts.length > 1 && prompts[0] !== prompts[1],
+  corrected: prompts[1]?.includes("本次原生重试纠偏") === true,
+  restored: ScriptGenerator.prototype._buildGenerationPrompt === original
+}));
+`;
+    expect(runInChild(script)).toEqual({ calls: 2, success: true, distinct: true, corrected: true, restored: true });
+  }, 90_000);
+
   it("时长策略桥：5 处在用口径统一放宽到模型上限 30s，摘除后精确还原", () => {
     const script = `
 import { createRequire } from "node:module";
@@ -868,6 +905,39 @@ console.log("RESULT " + JSON.stringify({ success: output.success, containsActual
     expect(Number(result.matched)).toBe(1);
     expect(result.qc).toBe("passed");
     expect(result.promptHash).toMatch(/^[a-f\d]{64}$/);
+  }, 90_000);
+
+  it("技能文本 QC 失败时回执包含具体镜头、技能与命中词", () => {
+    const result = runInChild(phase3Fixture(`
+const uninstall = installVendorPhase3FusionBridge();
+let error = null;
+let selectedTerm = null;
+try {
+ await makePhase({
+  _callLLM: async prompt => {
+   counters.llm++;
+   const roster = JSON.parse(prompt.split("\\n").find(line => line.startsWith("候选：")).slice(3));
+   const qc = require(${JSON.stringify(join(repoRoot, "vendor/supermickey/hyperreality-system/skills/hollywood-cinematography/cinematography-skill-router.js"))})
+    .getSkillQCBlocks(roster.map(item => item.file));
+   const selected = qc.find(entry => entry.forbidden.length > 0);
+   selectedTerm = selected.forbidden[0].split(/[：:]/)[0].trim();
+   return { result: { picks: [{ file: selected.file, reason: "人物近景与情绪匹配" }] }, degraded: false };
+  },
+  process: async shots => {
+   counters.fusion++;
+   return { shots: shots.map(s => ({ ...s, prompt: "【场景】女人坐在窗边。\\n【动作】" + selectedTerm + "作为本镜的肯定式执行内容。" })), stats: { failed: 0 } };
+  }
+ }).execute(makeState({ scene: "女人坐在窗边", composition: "面部近景", mood: "温情", camera_movement: "斯坦尼康慢移" }));
+} catch (e) {
+ error = { code: e.code, message: e.message };
+}
+uninstall();
+console.log("RESULT " + JSON.stringify({ error, selectedTerm, counters }));
+`));
+    expect(result.error).toMatchObject({ code: "PHASE3_SKILL_QC_FAILED" });
+    expect(String((result.error as Record<string, unknown>).message)).toContain("SC-01");
+    expect(String((result.error as Record<string, unknown>).message)).toContain(String(result.selectedTerm));
+    expect((result.counters as Record<string, unknown>).checkpoints).toBe(0);
   }, 90_000);
 
   it("预算拒绝或未知预算在任何路由模型/融合调用之前停止", () => {

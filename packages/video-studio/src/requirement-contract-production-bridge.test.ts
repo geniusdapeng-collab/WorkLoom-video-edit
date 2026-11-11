@@ -327,7 +327,7 @@ describe("actual native scene prompt and strict production response", () => {
   });
 
   it.each(["frozen without private speech policy", "private speech policy without frozen segments"])(
-    "preserves the native audience contract for %s",
+    "applies the speech-policy boundary without changing source fields for %s",
     async (kind) => {
       installNativeDiscovery();
       const scene = physicalScene([10, 10, 10]);
@@ -337,9 +337,17 @@ describe("actual native scene prompt and strict production response", () => {
       const model = modelFor(run, [scene]);
       await expect(runDiscovery(run, model.engine)).resolves.toMatchObject({ audienceProfile: run.modules.audience });
       expect(model.calls).toHaveLength(4);
-      expect(model.calls[0]!.prompt).toContain("第50秒转发");
-      expect(model.calls[0]!.prompt).toContain("可复述可转发的钉子台词");
-      expect(model.calls[2]!.prompt).not.toContain("商品身份、型号及用途以本次 G1 已接受原文为准");
+      if (kind === "private speech policy without frozen segments") {
+        expect(model.calls[0]!.prompt).not.toContain("第50秒转发");
+        expect(model.calls[0]!.prompt).not.toContain("可复述可转发的钉子台词");
+        expect(model.calls[0]!.prompt).toContain("不新增对白、旁白、口播、传播短句或屏上文字");
+        expect(model.calls[0]!.prompt).toContain("consumptionLevel 必须使用 schema 枚举值");
+        expect(model.calls[2]!.prompt).toContain("商品身份、型号及用途以本次 G1 已接受原文为准");
+      } else {
+        expect(model.calls[0]!.prompt).toContain("第50秒转发");
+        expect(model.calls[0]!.prompt).toContain("可复述可转发的钉子台词");
+        expect(model.calls[2]!.prompt).not.toContain("商品身份、型号及用途以本次 G1 已接受原文为准");
+      }
     },
   );
 
@@ -1573,7 +1581,8 @@ describe("actual native non-scene discovery wire recovery", () => {
           if (outcome === "syntax") content = malformed;
           if (outcome === "schema") content = JSON.stringify({ SYNTHETIC_REJECTED_BODY: "PRIVATE-UNDECLARED-RESPONSE-VALUE" });
         }
-        return Response.json({ model: "deepseek-flash", choices: [{ finish_reason: "stop", message: { content } }],
+        return Response.json({ id: `synthetic-discovery-${admitted.size}`, object: "chat.completion",
+          model: "deepseek-flash", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }],
           usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 } });
       },
     });
@@ -1615,6 +1624,53 @@ describe("actual native scoped RiskAssessor Responses", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     resetCircuit("preproduction");
+  });
+
+  it("recovers from two measured generic RiskAssessor JSON syntax failures without changing its native schema", async () => {
+    installNativeDiscovery();
+    const scene = physicalScene([10, 10, 10]);
+    const run = privateRun("risk-generic-json-correction", 30, scene);
+    const riskPrompts: string[] = [];
+    const providerConfig = {
+      baseUrl: "http://127.0.0.1:1", apiKey: "synthetic-local-key",
+      fetchImpl: async (url, init) => {
+        expect(new URL(String(url)).pathname).toBe("/chat/completions");
+        const body = JSON.parse(String(init?.body));
+        const prompt: string = body.messages.at(-1).content;
+        let content: string;
+        if (prompt.slice(0, 180).includes("技术制片人")) {
+          riskPrompts.push(prompt);
+          content = riskPrompts.length === 1
+            ? "{\"technicalRisks\":["
+            : riskPrompts.length === 2 ? "{\"technicalRisks\":[{\"risk\":" : JSON.stringify(run.modules.risk);
+        } else if (prompt.slice(0, 180).includes("受众分析")) {
+          content = JSON.stringify(run.modules.audience);
+        } else if (prompt.slice(0, 180).includes("泡在片库里的剪辑指导")) {
+          content = JSON.stringify(run.modules.reference);
+        } else {
+          content = JSON.stringify(scene);
+        }
+        return Response.json({
+          id: `synthetic-generic-${riskPrompts.length}`, model: "deepseek-flash",
+          choices: [{ finish_reason: "stop", message: { content } }],
+          usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 },
+        });
+      },
+    } satisfies ConstructorParameters<typeof OpenAiCompatibleProvider>[1];
+    const adapter = new OpenAiCompatibleProvider("deepseek-flash", providerConfig);
+    const engine = new WorkloomLLMEngine({ ...providerConfig, model: "deepseek-flash", router: {
+      scene: "preproduction", forceModel: "deepseek-flash", providers: new Map([[adapter.modelId, adapter]]),
+      sink: { recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined },
+    } }) as unknown as RequirementRecord;
+    const discovery = new RequirementDiscoveryEngine({ llmEngine: engine, timeoutMs: 5_000, agentTimeoutMs: 5_000 });
+    await expect(runDiscovery(run, engine, discovery)).resolves.toMatchObject({
+      sceneStructure: scene,
+      riskAssessment: run.modules.risk,
+    });
+    expect(riskPrompts).toHaveLength(3);
+    expect(riskPrompts[0]).not.toContain("上一次原生需求 JSON 语法纠正");
+    expect(riskPrompts[1]).toContain("上一次原生需求 JSON 语法纠正");
+    expect(riskPrompts[2]).toContain("上一次原生需求 JSON 语法纠正");
   });
 
   it.each([

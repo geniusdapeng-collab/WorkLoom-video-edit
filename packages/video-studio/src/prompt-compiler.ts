@@ -145,7 +145,8 @@ function setPath(target: Record<string, unknown>, path: string, value: unknown):
 function isNotApplicablePortrait(value: unknown): boolean {
   if (Array.isArray(value)) return value.length === 0;
   const text = readable(value).trim().toUpperCase();
-  return ["NONE", "N/A", "NA", "NOT_APPLICABLE", "不适用", "无", "全片无人", "无角色"].includes(text);
+  return ["NONE", "N/A", "NA", "NOT_APPLICABLE", "不适用", "无", "全片无人", "无角色"].includes(text)
+    || /^(?:本镜|全片)?(?:无角色(?:出场)?|无人物(?:出场)?)(?:[，,；;]\s*(?:无定妆照|不适用|仅商品|纯商品))*$/u.test(text);
 }
 
 function inputMode(delivery: PromptCompileDelivery, assets: PromptCompileAsset[]): PromptContractRequest["inputMode"] {
@@ -288,7 +289,7 @@ export function compilePromptShot(
       }
     }
     if (definition.key === "portraits" && explicitNoPeople
-      && (value === undefined || (Array.isArray(value) && value.length === 0) || isNotApplicablePortrait(value))) {
+      && (value === undefined || value === null || (Array.isArray(value) && value.length === 0) || isNotApplicablePortrait(value))) {
       fieldValues.set("portraits", "NONE");
       fieldText.set("portraits", "NONE（本镜明确无人物，不绑定参考图）");
       continue;

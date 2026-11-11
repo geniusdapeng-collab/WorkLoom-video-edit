@@ -7,7 +7,10 @@ import {
 } from "./provider-budget-policy.js";
 
 const JOURNAL_SCHEMA = "workloom.provider-budget-wal/v1";
-const MAX_JOURNAL_BYTES = 512 * 1024;
+// A full multi-stage video workflow can legitimately exceed a thousand paid
+// model calls. Keep the append-only audit trail bounded without freezing a
+// valid task at the former 512 KiB ceiling.
+const MAX_JOURNAL_BYTES = 64 * 1024 * 1024;
 const ERROR_CODE = /^[A-Z][A-Z0-9_]{0,95}$/;
 
 type BudgetLimits = { profile?: never; caps: TaskCaps }

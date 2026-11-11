@@ -668,4 +668,25 @@ describe("task-local provider budget gateway", () => {
     await expect(gate(upstream, { journalPath: path, port: first.server.port })).rejects.toThrow("BUDGET_JOURNAL_INVALID");
     expect(upstream).not.toHaveBeenCalled();
   });
+
+  it("reopens and continues a valid large workflow WAL beyond the former 512 KiB ceiling", async () => {
+    const upstream = vi.fn(async () => llmResponse());
+    const first = await gate(upstream);
+    const port = first.server.port;
+    await first.server.close();
+    const hash = digest("large durable workflow request");
+    const claim = { kind: "llm" as const, inputTokens: 40, maxOutputTokens: 393_216,
+      microCny: llmMicroCny(40, 393_216) };
+    const usage = { kind: "llm" as const, inputTokens: 40, outputTokens: 1, microCny: llmMicroCny(40, 1) };
+    const header = readFileSync(first.journalPath, "utf8").trimEnd();
+    writeFileSync(first.journalPath, `${header}\n${JSON.stringify({
+      type: "reserve", hash, wireSha256: digest("large workflow request bytes"), at: Date.now(), claim,
+      padding: "x".repeat(600 * 1024),
+    })}\n${JSON.stringify({ type: "settle", hash, at: Date.now(), usage })}\n`);
+    expect(readFileSync(first.journalPath).length).toBeGreaterThan(512 * 1024);
+    const restarted = await gate(upstream, { journalPath: first.journalPath, port });
+    expect((await call(restarted.server, "/budget/status")).data).toMatchObject({ state: "live", frozen: null, held: false });
+    expect((await call(restarted.server, DEEPSEEK_CHAT_PATH, llm("post-large-wal continuation"))).status).toBe(200);
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
 });

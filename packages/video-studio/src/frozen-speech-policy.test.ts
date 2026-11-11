@@ -27,6 +27,22 @@ describe("frozen marketing speech policy", () => {
     expect(() => assertNoSpokenPromptPackage([shot], "G6_PROMPT")).not.toThrow();
     expect(shot).toEqual(before);
   });
+  it("accepts the native structured serialization of a negative dialogue declaration", () => {
+    const shot = { shotId: "opening", dialogue: [{ speaker: "", text: "无台词。" }],
+      fields: { dialogue: "无台词。" } };
+    const before = structuredClone(shot);
+    expect(() => assertNoSpokenPromptPackage([shot], "G6_PROMPT")).not.toThrow();
+    expect(shot).toEqual(before);
+  });
+  it.each([
+    { dialogue: [{ speaker: "", text: "无台词" }, { speaker: "李英子", text: "我赢了。" }] },
+    { dialogue: [{ speaker: "", text: "无台词", line: "我赢了。" }] },
+  ])("rejects mixed or unknown spoken aliases inside a structured declaration", ({ dialogue }) => {
+    const shot = { shotId: "opening", dialogue, fields: { dialogue: "无台词" } };
+    const before = structuredClone(shot);
+    expect(() => assertNoSpokenPromptPackage([shot], "G6_PROMPT")).toThrow("PRD_SPEECH_CONFLICT");
+    expect(shot).toEqual(before);
+  });
   it.each([
     ["native top-level audio", { audio: `原生引擎声；${AUDIO_DISCIPLINE_CLAUSE}` }, undefined],
     ["native nested audio", { fields: { audio: `原生胎噪；${AUDIO_DISCIPLINE_CLAUSE.slice(0, 25)}` } }, undefined],

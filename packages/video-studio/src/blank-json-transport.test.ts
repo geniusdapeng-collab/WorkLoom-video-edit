@@ -43,7 +43,11 @@ const structured = (adapter: adapterApi.WorkloomLLMEngine) => adapter.reasonStru
 beforeEach(() => resetCircuit(scene));
 
 describe("native completed blank JSON is an exact failure receipt", () => {
-  it.each(["", "    "])("attests raw ASCII blank %j through one native Chat POST without a success", async content => {
+  it.each([
+    ["empty string", ""],
+    ["spaces", "    "],
+    ["null", null],
+  ])("attests %s through one native Chat POST without a success", async (_label, content) => {
     const sample = setup(blank(content));
     const result = await structured(sample.adapter);
     expect(result).toEqual({ success: false, error: "模型返回 content 为空", retryable: false });
@@ -66,7 +70,6 @@ describe("native completed blank JSON is an exact failure receipt", () => {
   });
 
   it.each([
-    ["null content", blank(null)],
     ["non-ASCII whitespace", blank("　")],
     ["tab", blank("\t")],
     ["newline", blank(" \n")],
