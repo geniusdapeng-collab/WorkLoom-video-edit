@@ -69,13 +69,24 @@ describe("native completed blank JSON is an exact failure receipt", () => {
     expect(sample.sink.recordDegradation).toHaveBeenCalledTimes(1);
   });
 
+  it("accepts a measured blank native Chat envelope when the provider omits the optional response id", async () => {
+    const payload = { ...blank() };
+    delete (payload as { id?: unknown }).id;
+    const sample = setup(payload);
+    const result = await structured(sample.adapter);
+    expect(proof(result)).toMatchObject({
+      modelId: model, responseId: null,
+      promptTokens: 132765, completionTokens: 4779, reasoningTokens: 4740,
+    });
+    expect(sample.fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["non-ASCII whitespace", blank("　")],
     ["tab", blank("\t")],
     ["newline", blank(" \n")],
     ["array content", blank([{ type: "text", text: "" }])],
     ["wrong model", { ...blank(), model: "different" }],
-    ["missing id", { ...blank(), id: " " }],
     ["chunk instead of chat completion", { ...blank(), object: "chat.completion.chunk" }],
     ["extra choice", { ...blank(), choices: [...blank().choices, ...blank().choices] }],
     ["wrong finish", { ...blank(), choices: [{ ...blank().choices[0], finish_reason: "length" }] }],

@@ -43,7 +43,7 @@ export interface ChatUsageReceipt {
 /** Measured stop with a blank final JSON-mode message. This is failure evidence. */
 export type NativeBlankJsonReceipt = Readonly<{
   modelId: typeof DEEPSEEK_FLASH_MODEL_ID;
-  responseId: string;
+  responseId: string | null;
   requestHash: string;
   responseHash: string;
   promptTokens: number;
@@ -294,7 +294,7 @@ function completionUsage(data: OpenAiResponse, thinkingEnabled: boolean, outputC
 function isNativeChatJsonMessage(
   data: OpenAiResponse,
   contentMode: "text" | "blank" = "text",
-): data is OpenAiResponse & { id: string } {
+): boolean {
   const choice = data.choices?.[0];
   const message = objectRecord(choice?.message);
   const usage = objectRecord(data.usage);
@@ -305,7 +305,9 @@ function isNativeChatJsonMessage(
     // null instead of an empty string. It remains blank only inside the same
     // complete native envelope and is never accepted as a successful answer.
     : content === null || typeof content === "string";
-  if (data.object !== "chat.completion" || data.error != null || typeof data.id !== "string" || !data.id.trim()
+  const hasResponseId = typeof data.id === "string" && Boolean(data.id.trim());
+  if (data.object !== "chat.completion" || data.error != null
+    || (!hasResponseId && contentMode !== "blank")
     || !Array.isArray(data.choices) || data.choices.length !== 1 || choice?.index !== 0 || choice.finish_reason !== "stop"
     || message?.role !== "assistant" || !contentValid
     || message.refusal != null || message.function_call != null
@@ -496,7 +498,10 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     return this.#matchesBlankDispatch(before) && after?.provider === this && after.finalJson === true
       && this.#matchesTransport(after, DEEPSEEK_CHAT_PATH) && before.scene === second.scene
       && before.mode === second.mode && before.effort === second.effort
-      && first.requestHash !== second.requestHash && first.responseId !== second.responseId;
+      && first.requestHash !== second.requestHash
+      && (first.responseId === null || second.responseId === null
+        ? first.responseHash !== second.responseHash
+        : first.responseId !== second.responseId);
   }
 
   #matchesTransport(dispatched: OpenAiTransport, path: typeof DEEPSEEK_CHAT_PATH | typeof DEEPSEEK_RESPONSES_PATH): boolean {
@@ -760,7 +765,8 @@ export class OpenAiCompatibleProvider implements ModelProvider {
           && (choice.message?.content === null || !/[^ ]/u.test(choice.message?.content as string))) {
           try {
             const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
-            const receipt = Object.freeze({ ...usage, modelId: this.modelId, responseId: data.id, requestHash, responseHash });
+            const receipt = Object.freeze({ ...usage, modelId: this.modelId,
+              responseId: typeof data.id === "string" && data.id.trim() ? data.id : null, requestHash, responseHash });
             nativeBlankJsonErrors.set(error, receipt);
             nativeBlankJsonDispatches.set(receipt, { ...transport, provider: this, scene: opts.scene ?? "generic", mode, effort });
           } catch (validationError) {
