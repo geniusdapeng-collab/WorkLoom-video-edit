@@ -538,7 +538,8 @@ describe("预生产原始结果与诚实终态", () => {
     const runId = worker.startRun(scope, { projectId, intent: "使用既有AI模特v4", metadata: { products: [],
       characters: [{ id: "c1", name: "一号AI模特", description: "既有明确选择的成年虚构AI女性角色，白T与长裤。" }] } });
     await vi.waitFor(() => expect(worker.getRun(runId, scope.workspaceId)?.finishedAt).not.toBeNull(), { timeout: 3_000, interval: 10 });
-    expect(worker.getRun(runId, scope.workspaceId)?.status).toBe(generated ? "failed" : "finished");
+    const entry = worker.getRun(runId, scope.workspaceId);
+    expect(entry?.status, entry?.error ?? "").toBe(generated ? "failed" : "finished");
     expect(doubles.studioConfigs[0]?.portraits).toMatchObject({ archivedCharactersOnly: true, archivedCharacters: { manifestPath: f.manifestPath, approvedSelection: f.approvedSelection } });
     expect(doubles.query.mock.calls.some(([sql]) => sql.includes("INSERT INTO approvals"))).toBe(false);
     expect(doubles.review.mock.calls.some(([options]) => options.context.gate === "G5_PORTRAIT")).toBe(false);

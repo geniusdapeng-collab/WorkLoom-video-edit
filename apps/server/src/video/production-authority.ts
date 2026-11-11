@@ -218,7 +218,7 @@ async function sourceForShot(
     if (matches.length === 1 && archiveReuse) {
       try {
         verifyPortraitArchiveReuseAcceptance({ workDir: path.join(await realpath(workDir), "workspaces", component(scope.workspaceId)),
-          projectId, proof: gate.archiveReuse, evidence: gate.evidence });
+          projectId, proof: gate.archiveReuse, evidence: gate.evidence, allowAdditionalAngles: true, allowProductArchive: true });
       } catch (error) {
         fail("PREPRODUCTION_GATES_UNVERIFIED", `G5 既有角色复用证据不可核实：${error instanceof Error ? error.message : String(error)}`);
       }

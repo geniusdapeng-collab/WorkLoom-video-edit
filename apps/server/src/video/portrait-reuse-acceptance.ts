@@ -116,12 +116,14 @@ export function readCurrentPortraitArchiveCopies(input: {
   const characters = object(index.characters, "index.characters");
   const products = object(index.products, "index.products");
   const characterEntries = Object.entries(characters).map(([key, value]) => [key, object(value, "index.character")] as const);
-  const canonical = characterEntries.filter(([key, value]) => key === source.id || value.id === source.id);
+  const selectedIdentities = new Set([source.id, source.name, ...(source.aliases ?? [])]);
+  const canonical = characterEntries.filter(([key, value]) => selectedIdentities.has(key)
+    || selectedIdentities.has(String(value.id)) || value.name === source.name);
   if (index.schemaVersion !== "workloom.portrait-index/v1" || index.projectId !== input.projectId
     || characterEntries.length === 0 || !input.allowProductArchive && Object.keys(products).length !== 0
     || (!input.allowAdditionalAngles ? characterEntries.length !== 1 : canonical.length !== 1
-      || characterEntries.some(([key, value]) => ![source.id, source.name].includes(key)
-        && ![source.id, source.name].includes(String(value.id)) || value.name !== source.name))) {
+      || characterEntries.some(([key, value]) => !selectedIdentities.has(key)
+        && !selectedIdentities.has(String(value.id)) && value.name !== source.name))) {
     fail("本次角色索引归属或主体数量不符");
   }
   const item = (input.allowAdditionalAngles ? canonical[0]![1] : characterEntries[0]![1]);
@@ -157,10 +159,14 @@ export function portraitReuseEvidence(proof: PortraitArchiveReuseAcceptance): Ar
 }
 
 /** 签发/提交资格时重新读取全部字节，不能只接受工作器写出的 passed 字符串。 */
-export function verifyPortraitArchiveReuseAcceptance(input: { workDir: string; projectId: string; proof: unknown; evidence: unknown }): void {
+export function verifyPortraitArchiveReuseAcceptance(input: {
+  workDir: string; projectId: string; proof: unknown; evidence: unknown;
+  allowAdditionalAngles?: boolean; allowProductArchive?: boolean;
+}): void {
   const proof = object(input.proof, "archive reuse acceptance");
   const manifest = object(proof.manifest, "archive reuse manifest");
   const actual = acceptPortraitArchiveReuse({ workDir: input.workDir, projectId: input.projectId, stage: proof.stage,
-    manifest: { path: text(manifest.path, "manifest.path"), sha256: text(manifest.sha256, "manifest.sha256") } });
+    manifest: { path: text(manifest.path, "manifest.path"), sha256: text(manifest.sha256, "manifest.sha256") },
+    allowAdditionalAngles: input.allowAdditionalAngles, allowProductArchive: input.allowProductArchive });
   if (!isDeepStrictEqual(actual, proof) || !isDeepStrictEqual(portraitReuseEvidence(actual), input.evidence)) fail("复用证据与本次实际文件不一致");
 }
