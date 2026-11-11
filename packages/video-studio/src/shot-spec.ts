@@ -708,19 +708,19 @@ function normalizeGuardFieldLabels(prompt: string): string {
     .replace(/【灯光】/g, "【灯光设计】")
     .replace(
       /【编译纪律】声音须遵守本镜台词和音频字段；禁止镜头外\s*BGM\s*与配乐。/g,
-      "【音频纪律】禁BGM; no background music。",
+      "【音频纪律】no background music",
     )
     .replace(
       /【编译纪律】人物与场景必须服从镜头卡；不得用参考图背景、光线或色调替换本镜场景。/g,
-      "【场景解耦】按本镜布景。",
+      "【场景解耦】按本镜。",
     )
     .replace(
       /【编译纪律】所有字段来自同一版镜头卡；禁止静默删除、截断或改写字段值。/g,
-      "【写实纪律】写实真人; no cartoon。",
+      "【写实纪律】真人; no cartoon。",
     )
     .replace(
       /【编译纪律】【无台词】本镜不得出现台词\/旁白\/口播与可辨词句人声，只允许环境声与动作音效。/g,
-      "【无台词】无台词/旁白/可辨人声。",
+      "【无台词】禁人声。",
     );
   if (!/【语言约束】/.test(next)) {
     next = `【语言约束】中文。\n${next}`;
