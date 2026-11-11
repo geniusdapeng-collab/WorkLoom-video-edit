@@ -20,7 +20,12 @@ export function readApprovedProductionPlan(input: {
   const { workDir, marketing, proof, shots } = input;
   const profile = normalizePrdProductionProfile(input.metadata);
   const segments = frozenVisualPrdSegments({ metadata: input.metadata, marketing, profile });
-  if (!segments) return invalid("缺少本次冻结无对白分段");
+  const brief = jsonRecord(input.metadata.brief);
+  // A frozen segment contract is mandatory whenever the client supplied one.
+  // Silent plans may instead be approved as a non-uniform ordered scene list;
+  // in that case derive intervals only from the already approved G4 scenes.
+  if (!segments && brief?.segmentContract !== undefined) return invalid("本次冻结无对白分段无效");
+  if (!segments && profile.speechPolicy !== "none") return invalid("缺少本次冻结无对白分段");
   const file = path.join(workDir, "gates", marketing.scope.projectId, `attempt-${marketing.scope.attempt}`, "G4_PRD.md");
   const receipt = jsonRecord(proof?.autoApproval);
   const g4ArtifactSha256 = receipt?.artifactSha256;
@@ -73,21 +78,25 @@ export function readApprovedProductionPlan(input: {
   const scenes = contract.scenes;
   const verification = plan.sceneVerificationPlans;
   if (!Array.isArray(scenes) || !Array.isArray(verification)
-    || scenes.length !== segments.count || verification.length !== scenes.length || shots.length !== scenes.length) {
+    || verification.length !== scenes.length || shots.length !== scenes.length
+    || (segments && scenes.length !== segments.count)) {
     return invalid("G4 场景、冻结区间与原生镜头无法按序一一对应");
   }
   const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every(text => typeof text === "string" && text.trim());
   const tolerance = (profile.durationToleranceFrames ?? 0) / (profile.frameRate ?? 1);
   const seen = new Set<string>();
-  return { g4ArtifactSha256, requirementContractHash, scenes: shots.map((shot, index) => {
+  let cursor = 0;
+  const plannedScenes = shots.map((shot, index) => {
     const approvedScene = jsonRecord(scenes[index]);
     const verificationPlan = jsonRecord(verification[index]);
-    const shotId = shot.shotId ?? shot.shot_id;
+    const shotId = shot.shotId ?? shot.shot_id, shotDuration = shot.duration;
     if (!approvedScene || !verificationPlan || typeof shotId !== "string" || !shotId || seen.has(shotId)
       || (shot.shotId !== undefined && shot.shot_id !== undefined && shot.shotId !== shot.shot_id)
-      || approvedScene.id !== shotId || verificationPlan.sceneId !== shotId || shot.duration !== segments.secondsPerSegment
-      || approvedScene.duration !== shot.duration || typeof verificationPlan.duration !== "number"
-      || !Number.isFinite(verificationPlan.duration) || Math.abs(verificationPlan.duration - shot.duration) > tolerance + 1e-9
+      || approvedScene.id !== shotId || verificationPlan.sceneId !== shotId
+      || (segments && shotDuration !== segments.secondsPerSegment)
+      || typeof shotDuration !== "number" || !Number.isSafeInteger(shotDuration) || shotDuration <= 0
+      || approvedScene.duration !== shotDuration || typeof verificationPlan.duration !== "number"
+      || !Number.isFinite(verificationPlan.duration) || Math.abs(verificationPlan.duration - shotDuration) > tolerance + 1e-9
       || typeof approvedScene.purpose !== "string" || !approvedScene.purpose.trim() || !strings(approvedScene.keyElements)
       || !Array.isArray(approvedScene.props) || !Array.isArray(approvedScene.actions) || !approvedScene.actions.length
       || !approvedScene.actions.every(value => {
@@ -96,7 +105,17 @@ export function readApprovedProductionPlan(input: {
       }) || !strings(verificationPlan.visualRequirements) || !strings(verificationPlan.audioRequirements)
       || verificationPlan.dialogue !== "") return invalid(`第 ${index + 1} 镜的已审场景身份、时长或动作核验计划不完整`);
     seen.add(shotId);
-    return { shotId, sceneId: shotId, interval: segments.intervals[index]!, approvedScene, verificationPlan };
-  }) };
+    const interval = segments?.intervals[index] ?? {
+      startSec: cursor,
+      endSec: cursor + shotDuration,
+      brief: approvedScene.purpose,
+    };
+    cursor = interval.endSec;
+    return { shotId, sceneId: shotId, interval, approvedScene, verificationPlan };
+  });
+  if (!segments && (profile.targetDuration === undefined || Math.abs(cursor - profile.targetDuration) > tolerance + 1e-9)) {
+    return invalid("无分段合同的静默镜头顺序总时长与已审目标时长不一致");
+  }
+  return { g4ArtifactSha256, requirementContractHash, scenes: plannedScenes };
 }
 
