@@ -370,6 +370,38 @@ describe("task-local provider budget gateway", () => {
     expect(readFileSync(first.journalPath, "utf8")).not.toMatch(/do not|unknown paid receipt/);
   });
 
+  it("reconciles one frozen unknown LLM outcome at its audited maximum before reopening", async () => {
+    const failed = vi.fn(async () => Response.json({ message: "provider diagnostic stays private" }, { status: 429 }));
+    const first = await gate(failed);
+    const wire = llm("reconcile this exact unknown outcome");
+    expect(code(await call(first.server, DEEPSEEK_CHAT_PATH, wire))).toBe("BUDGET_OUTCOME_UNKNOWN");
+    await first.server.close();
+    const rows = readFileSync(first.journalPath, "utf8").trimEnd().split("\n").map(line => JSON.parse(line));
+    const reserve = rows.find(row => row.type === "reserve" && row.claim);
+    const freeze = rows.find(row => row.type === "freeze");
+    expect(reserve?.claim).toMatchObject({ kind: "llm" });
+    expect(freeze?.hash).toBe(reserve?.hash);
+    const usage = {
+      kind: "llm" as const,
+      inputTokens: reserve.claim.inputTokens,
+      outputTokens: reserve.claim.maxOutputTokens,
+      microCny: reserve.claim.microCny,
+    };
+    writeFileSync(first.journalPath, `${readFileSync(first.journalPath, "utf8").trimEnd()}\n${JSON.stringify({
+      type: "reconcile", hash: reserve.hash, at: Date.now(), usage,
+      basis: "conservative-claim-maximum", reason: freeze.reason,
+    })}\n`);
+    const healthy = vi.fn(async () => llmResponse());
+    const { server } = await gate(healthy, { journalPath: first.journalPath, port: first.server.port });
+    expect((await call(server, "/budget/status")).data).toMatchObject({
+      state: "live", live: true, frozen: null, held: false,
+      consumed: { llmGrossTokens: usage.inputTokens + usage.outputTokens, microCny: usage.microCny },
+    });
+    expect((await call(server, DEEPSEEK_CHAT_PATH, llm("continue after append-only reconciliation"))).status).toBe(200);
+    expect(healthy).toHaveBeenCalledTimes(1);
+    expect(readFileSync(first.journalPath, "utf8")).not.toContain("provider diagnostic stays private");
+  });
+
   it("reconciles a confirmed overrun and freezes before any new paid request", async () => {
     const upstream = vi.fn(async () => llmResponse(600_000, 390_000));
     const { server } = await gate(upstream);
