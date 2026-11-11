@@ -62,12 +62,13 @@ function missingFixture(missing: string[] = ["action"], otherFields: Record<stri
   const recover = () => recoverContractFields({ contractBytes: bytes, expectedSha256: digest(bytes), missingEvidence: [evidence] });
   return { fields, compiled, bytes, report, evidence, recover };
 }
-function nativeEngine(reply: string, patch: Record<string, unknown> = {}) {
+function nativeEngine(reply: string | readonly string[], patch: Record<string, unknown> = {}) {
   const requests: Array<Record<string, unknown>> = [];
   const fetchImpl: typeof fetch = async (_url, init) => {
     requests.push(JSON.parse(String(init?.body)));
+    const content = typeof reply === "string" ? reply : reply[Math.min(requests.length - 1, reply.length - 1)]!;
     return Response.json({ id: `offline-fixture-${requests.length}`, object: "chat.completion", created: 1,
-      model: "deepseek-flash", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: reply } }],
+      model: "deepseek-flash", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }],
       usage: { prompt_tokens: 500, completion_tokens: 100, total_tokens: 600 }, ...patch });
   };
   const config = { baseUrl: "http://approved-source-fields.invalid/v1", apiKey: "offline-fixture-only", fetchImpl };
@@ -79,7 +80,7 @@ function nativeEngine(reply: string, patch: Record<string, unknown> = {}) {
   engine.attachRouter(router);
   return { engine, requests, policy, router };
 }
-function authorInput(reply: string, patch: Record<string, unknown> = {}, plan = fieldPlan()) {
+function authorInput(reply: string | readonly string[], patch: Record<string, unknown> = {}, plan = fieldPlan()) {
   const native = nativeEngine(reply, patch), archives: FieldAuthoringArchiveInput[] = [], events: FieldAuthoringBudgetEvent[] = [];
   const input = { plan, sourceContext: structuredClone(sourceContext), engine: native.engine,
     verifyCurrent: vi.fn(async () => undefined), budgetHook: vi.fn(async (event: FieldAuthoringBudgetEvent) => { events.push(event); }),
@@ -194,7 +195,7 @@ describe("canonical source-contract recovery", () => {
 });
 
 describe("host diagnostic field authoring plan", () => {
-  it("turns final prompt overflow into bounded descriptive fields and refuses a non-shortening rewrite", async () => {
+  it("uses one exact-length correction and refuses a repeated overlong rewrite", async () => {
     const shot = fixture({ color_palette: "色".repeat(3200) }).recovered;
     expect(shot.prompt.length).toBeGreaterThan(3000);
     const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [{
@@ -208,11 +209,45 @@ describe("host diagnostic field authoring plan", () => {
       [field, `${String(shot.fields[field])}新`]));
     const authored = authorInput(JSON.stringify({ shotId: shot.shotId, fields }), {}, plan);
     await expect(authorRepairFields(authored.input)).rejects.toThrow("AUTHORING_PROMPT_STILL_TOO_LONG");
-    const shortened = Object.fromEntries(plan.fieldsByShot[shot.shotId]!.map(field => [field, `${field}短版`]));
-    const shortenedInput = authorInput(JSON.stringify({ shotId: shot.shotId, fields: shortened }), {}, plan);
-    await expect(authorRepairFields(shortenedInput.input)).resolves.toMatchObject({
-      shots: [expect.objectContaining({ fields: expect.objectContaining(shortened) })],
+    expect(authored.requests).toHaveLength(2);
+    expect(JSON.stringify(authored.requests[1])).toContain("最终长度纠偏");
+  });
+  it("corrects a schema-valid overlong answer once and archives both byte sets", async () => {
+    const shot = fixture({ color_palette: "色".repeat(3200) }).recovered;
+    const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [{
+      shotId: shot.shotId, field: null, code: "HARD_FINAL_PROMPT_TOO_LONG",
+      detail: `完整提示词 ${shot.prompt.length} 字符超过最终上限 3000`, blocking: true, repairClass: "deterministic",
+    }] });
+    const plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+      maxFinalPromptChars: 3000, diagnosedFindings: [report] });
+    const rejectedFields = Object.fromEntries(plan.fieldsByShot[shot.shotId]!.map(field =>
+      [field, `${String(shot.fields[field])}过密`]));
+    const correctedFields = Object.fromEntries(plan.fieldsByShot[shot.shotId]!.map(field => [field, `${field}短版`]));
+    const authored = authorInput([
+      JSON.stringify({ shotId: shot.shotId, fields: rejectedFields }),
+      JSON.stringify({ shotId: shot.shotId, fields: correctedFields }),
+    ], {}, plan);
+    const result = await authorRepairFields(authored.input);
+    expect(authored.requests).toHaveLength(2);
+    expect(JSON.stringify(authored.requests[0])).toContain("hardFinalPromptBudget");
+    expect(JSON.stringify(authored.requests[1])).toContain("最终长度纠偏");
+    expect(result.shots[0]!.fields).toEqual(expect.objectContaining(correctedFields));
+    expect(result.shots[0]!.prompt.length).toBeLessThanOrEqual(3000);
+    expect(authored.archives.map(item => item.kind)).toEqual([
+      "request", "response", "correction-request", "correction-response", "snapshot",
+    ]);
+    expect(result.receipts[0]!.correction).toMatchObject({
+      reason: "final-prompt-length",
+      rejectedPromptChars: expect.any(Number),
+      acceptedPromptChars: expect.any(Number),
+      rejectedAllowedFieldChars: expect.any(Number),
+      acceptedAllowedFieldChars: expect.any(Number),
     });
+    expect(result.receipts[0]!.correction!.rejectedPromptChars).toBeGreaterThan(3000);
+    expect(result.receipts[0]!.correction!.acceptedPromptChars).toBeLessThanOrEqual(3000);
+    expect(authored.events.map(event => event.phase)).toEqual([
+      "before", "dispatch", "after", "before", "dispatch", "after",
+    ]);
   });
   it("defers the verified G5 portrait rebinding while authoring a shorter prompt", async () => {
     const fields = { ...fixture().fields, color_palette: "色".repeat(3200) };

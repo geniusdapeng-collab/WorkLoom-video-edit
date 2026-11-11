@@ -427,14 +427,35 @@ export interface FieldAuthoringBudgetEvent {
   dispatchOutcome?: "verified-complete" | "unverified";
   nativeCompleted?: boolean;
 }
-export interface FieldAuthoringArchiveInput { shotId: string; kind: "request" | "response" | "snapshot"; bytes: Uint8Array; sha256: string }
+export interface FieldAuthoringArchiveInput {
+  shotId: string;
+  kind: "request" | "response" | "correction-request" | "correction-response" | "snapshot";
+  bytes: Uint8Array;
+  sha256: string;
+}
 export interface FieldAuthoringArchiveRef { ref: string; sha256: string }
+export interface FieldAuthoringCorrectionReceipt {
+  reason: "final-prompt-length";
+  rejectedRequest: FieldAuthoringArchiveRef;
+  rejectedResponse: FieldAuthoringArchiveRef;
+  rejectedPromptChars: number;
+  rejectedAllowedFieldChars: number;
+  rejectedFieldsSha256: string;
+  acceptedPromptChars: number;
+  acceptedAllowedFieldChars: number;
+  acceptedFieldsSha256: string;
+  maxFinalPromptChars: number;
+  maxAllowedFieldChars: number;
+  rejectedUsage: { promptTokens: number; completionTokens: number };
+  usage: { promptTokens: number; completionTokens: number };
+}
 export interface FieldAuthoringReceipt {
   shotId: string; sourceContextSha256: string; sourceContractSha256: string; planSha256: string;
   authoredAt: string;
   changedFields: string[]; beforeFieldsSha256: string; afterFieldsSha256: string;
   newFields: string[];
   request: FieldAuthoringArchiveRef; response: FieldAuthoringArchiveRef; snapshot: FieldAuthoringArchiveRef;
+  correction?: FieldAuthoringCorrectionReceipt;
   usage: { promptTokens: number; completionTokens: number };
   dispatch: { inputSha256: string; requestSha256: string; responseSha256: string; modelId: string; policyVersion: string; registryVersion: string };
   mutableRequestTextPaths: string[];
@@ -469,7 +490,11 @@ function sameValueShape(before: unknown, after: unknown): boolean {
     && Object.keys(before).every(key => sameValueShape((before as JsonRecord)[key], (after as JsonRecord)[key]));
   return before !== null && typeof before === typeof after;
 }
-/** One normal native dispatch per affected shot. This creates text, never a gate approval. */
+/**
+ * One normal native dispatch per affected shot, plus at most one same-route
+ * correction when a schema-valid answer still misses the exact final-prompt
+ * budget. This creates text, never a gate approval.
+ */
 export async function authorRepairFields(input: AuthorRepairFieldsInput): Promise<FieldAuthoringResult> {
   const { sha256: planSha256, ...planBody } = input.plan;
   if (sha256Json(planBody) !== checkedHash(planSha256) || sha256Json(input.plan.shots) !== input.plan.sourceShotsSha256
@@ -514,6 +539,29 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
     const writable = new Set(allowed);
     const diagnoses = input.plan.diagnoses.filter(entry => entry.shotId === shot.shotId);
     const sourceCompileErrors = compilePromptShot(shot, shot.compileOptions).hardErrors;
+    const hasTruncationDiagnosis = diagnoses.some(entry => entry.kind === "truncation");
+    const allowedFieldChars = (fields: JsonRecord) => allowed.reduce((sum, field) => {
+      const value = fields[field];
+      if (typeof value !== "string") return fail("AUTHORING_PROMPT_BUDGET_INVALID");
+      return sum + value.length;
+    }, 0);
+    const sourceAllowedFieldChars = hasTruncationDiagnosis && input.plan.maxFinalPromptChars !== undefined
+      ? allowedFieldChars(shot.fields) : null;
+    const promptOverflowChars = sourceAllowedFieldChars === null ? 0
+      : Math.max(0, shot.prompt.length - input.plan.maxFinalPromptChars!);
+    // The compiler adds fixed labels and separators but preserves each plain
+    // text field's UTF-16 length. Leave a small reserve so the model receives
+    // an integer field-value budget that is strictly easier than the final
+    // prompt postcondition.
+    const maxAllowedFieldChars = sourceAllowedFieldChars === null ? null
+      : Math.max(1, sourceAllowedFieldChars - promptOverflowChars - 8);
+    const promptBudget = maxAllowedFieldChars === null ? null : {
+      maxFinalPromptChars: input.plan.maxFinalPromptChars!,
+      sourceFinalPromptChars: shot.prompt.length,
+      sourceAllowedFieldChars: sourceAllowedFieldChars!,
+      maxAllowedFieldChars,
+      requiredReductionChars: Math.max(0, promptOverflowChars + 8),
+    };
     const timelineDiagnosed = writable.has("timeline") && diagnoses.some(entry => entry.field === "timeline" && entry.origin === "g6-semantic");
     const witnessInput = (fields: JsonRecord) => ({ approvedProductionPlan: input.sourceContext.approvedProductionPlan,
       shotId: shot.shotId, duration: shot.duration, action: fields.action, timeline: fields.timeline,
@@ -530,6 +578,7 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       "你是当前影片的字段作者。本次是新创作，不得声称恢复未知的历史原文。",
       "完整冻结Brief、G1–G4原件、所有镜头字段和当前角色图绑定都在下方。只有当前镜头allowedFields可以写入；其余字段、身份、事实、顺序、时长、音频纪律和技术规格保持原样。",
       "逐项解决diagnoses。不要截断或摘要只读上下文，不要把缺失内容转移到别的字段，不要增加场景。",
+      "若存在hardFinalPromptBudget，allowedFields所有文本值的UTF-16字符数合计不得超过maxAllowedFieldChars；这是提交前硬后置条件，不能只做轻微压缩。",
       "只返回一个完整JSON对象：shotId、fields。fields必须恰好包含本镜所有allowedFields；已有字段保持原类型，每个值均有实际改变。sourceUnboundFields没有已保存的历史值与类型，只能按完整已审来源新写非空文本；不得声称恢复旧值或旧摘要。禁止额外键、Markdown和解释。",
       canonicalJson({ authoringPlanSha256: planSha256, sourceContext: input.sourceContext, allShots: input.plan.shots.map(source => ({
         shotId: source.shotId, duration: source.duration, fields: source.fields, sourceContractSha256: source.sourceContractSha256,
@@ -539,60 +588,153 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       })), shotId: shot.shotId,
         duration: shot.duration, allowedFields: allowed, writableFields: Object.fromEntries(Object.entries(shot.fields).filter(([key]) => writable.has(key))),
         readOnlyFields: Object.fromEntries(Object.entries(shot.fields).filter(([key]) => !writable.has(key))),
-        sourceUnboundFields: shot.unboundFields, diagnoses, ...(rivalWitness ? { hostEventWitness: rivalWitness } : {}) }),
+        sourceUnboundFields: shot.unboundFields, diagnoses, ...(promptBudget ? { hardFinalPromptBudget: promptBudget } : {}),
+        ...(rivalWitness ? { hostEventWitness: rivalWitness } : {}) }),
     ].join("\n");
     const schema = { shotId: shot.shotId, fields: Object.fromEntries(allowed.map(field => [field,
       Object.hasOwn(shot.fields, field) ? shot.fields[field] : newFieldSchemaExample])) };
     const options: LLMReasonOptions = { scene: "preproduction", temperature: 0 };
-    const request = await archive(shot.shotId, "request", Buffer.from(canonicalJson({ prompt, schema, options, planSha256, sourceContextSha256: input.plan.sourceContextSha256 })));
-    await input.budgetHook({ phase: "before", shotId: shot.shotId });
-    await verify();
-    let result: Awaited<ReturnType<WorkloomLLMEngine["reasonStructuredWithProof"]>> | undefined;
-    let measured: { promptTokens: number; completionTokens: number } | null = null;
-    let invoked = false;
-    try {
-      invoked = true;
-      const pending = input.engine.reasonStructuredWithProof(prompt, schema, options);
-      // The adapter has actually been invoked. Observe both promises even if
-      // a journal hook fails, so its failure cannot abandon a paid response.
-      const [answer, notice] = await Promise.allSettled([pending,
-        Promise.resolve().then(() => input.budgetHook({ phase: "dispatch", shotId: shot.shotId }))]);
-      if (answer.status === "rejected") throw answer.reason;
-      result = answer.value;
-      const usage = result.result.usage;
-      measured = usage && Number.isSafeInteger(usage.promptTokens) && Number(usage.promptTokens) > 0
-        && Number.isSafeInteger(usage.completionTokens) && Number(usage.completionTokens) > 0
-        ? { promptTokens: usage.promptTokens!, completionTokens: usage.completionTokens! } : null;
-      const response = await archive(shot.shotId, "response", Buffer.from(result.result.content ?? canonicalJson({ success: result.result.success, error: result.result.error ?? "NO_CONTENT" })));
+    const dispatchCandidate = async (candidatePrompt: string, correction: boolean) => {
+      const request = await archive(shot.shotId, correction ? "correction-request" : "request",
+        Buffer.from(canonicalJson({ prompt: candidatePrompt, schema, options, planSha256, sourceContextSha256: input.plan.sourceContextSha256 })));
+      await input.budgetHook({ phase: "before", shotId: shot.shotId });
       await verify();
-      if (notice.status === "rejected") throw notice.reason;
-      if (!result.result.success || !measured || typeof result.result.content !== "string" || !result.proof
-        || !result.proof.matchesCurrent(prompt, schema, options)) return fail("AUTHORING_RESPONSE_UNPROVEN");
-      const parsed = strictJson(result.result.content), nextFields = record(parsed.fields);
-      if (!isDeepStrictEqual(Object.keys(parsed).sort(), ["fields", "shotId"]) || parsed.shotId !== shot.shotId
-        || !isDeepStrictEqual(Object.keys(nextFields).sort(), [...allowed].sort())
-        || !isDeepStrictEqual(parsed, result.result.data)) return fail("AUTHORING_RESPONSE_SCOPE_INVALID");
-      const priorFields = structuredClone(shot.fields);
-      const newFields: string[] = [];
+      let result: Awaited<ReturnType<WorkloomLLMEngine["reasonStructuredWithProof"]>> | undefined;
+      let measured: { promptTokens: number; completionTokens: number } | null = null;
+      let invoked = false;
+      let handedOff = false;
+      let outcome: Promise<void> | undefined;
+      const finishOutcome = () => outcome ??= (async () => {
+        if (!invoked) return;
+        const nativeCompleted = result ? nativeReasonCompleted(result.result) : false;
+        let dispatchOutcome: "verified-complete" | "unverified" = "unverified";
+        try {
+          // The adapter intentionally omits the authoring proof on syntax
+          // failure. Its private current-route receipt can still prove that
+          // this failed response completed with measured usage. This only
+          // classifies the call; the response above remains rejected.
+          if (nativeCompleted && measured && result && (result.proof?.matchesCurrent(candidatePrompt, schema, options)
+            || nativeChatJsonSyntaxRouteCurrent(input.engine, result.result))) dispatchOutcome = "verified-complete";
+        } finally {
+          // A native call must reach the durable outcome tracker exactly once,
+          // including unknown usage/proof and errors during archival or parsing.
+          await input.budgetHook({ phase: "after", shotId: shot.shotId, usage: measured,
+            success: result?.result.success === true, dispatchOutcome, nativeCompleted });
+        }
+      })();
+      try {
+        invoked = true;
+        const pending = input.engine.reasonStructuredWithProof(candidatePrompt, schema, options);
+        // The adapter has actually been invoked. Observe both promises even if
+        // a journal hook fails, so its failure cannot abandon a paid response.
+        const [answer, notice] = await Promise.allSettled([pending,
+          Promise.resolve().then(() => input.budgetHook({ phase: "dispatch", shotId: shot.shotId }))]);
+        if (answer.status === "rejected") throw answer.reason;
+        result = answer.value;
+        const usage = result.result.usage;
+        measured = usage && Number.isSafeInteger(usage.promptTokens) && Number(usage.promptTokens) > 0
+          && Number.isSafeInteger(usage.completionTokens) && Number(usage.completionTokens) > 0
+          ? { promptTokens: usage.promptTokens!, completionTokens: usage.completionTokens! } : null;
+        const response = await archive(shot.shotId, correction ? "correction-response" : "response",
+          Buffer.from(result.result.content ?? canonicalJson({ success: result.result.success, error: result.result.error ?? "NO_CONTENT" })));
+        await verify();
+        if (notice.status === "rejected") throw notice.reason;
+        const proof = result.proof;
+        if (!result.result.success || !measured || typeof result.result.content !== "string" || !proof
+          || !proof.matchesCurrent(candidatePrompt, schema, options)) return fail("AUTHORING_RESPONSE_UNPROVEN");
+        const parsed = strictJson(result.result.content), nextFields = record(parsed.fields);
+        if (!isDeepStrictEqual(Object.keys(parsed).sort(), ["fields", "shotId"]) || parsed.shotId !== shot.shotId
+          || !isDeepStrictEqual(Object.keys(nextFields).sort(), [...allowed].sort())
+          || !isDeepStrictEqual(parsed, result.result.data)) return fail("AUTHORING_RESPONSE_SCOPE_INVALID");
+        handedOff = true;
+        return { prompt: candidatePrompt, result, proof, measured, request, response, parsed, nextFields, finishOutcome };
+      } finally {
+        if (!handedOff) await finishOutcome();
+      }
+    };
+    const candidateFields = (nextFields: JsonRecord) => {
+      const priorFields = structuredClone(shot.fields), fields = structuredClone(shot.fields), newFields: string[] = [];
       for (const field of allowed) {
-        const value = nextFields[field];
-        const existed = Object.hasOwn(shot.fields, field);
+        const value = nextFields[field], existed = Object.hasOwn(shot.fields, field);
         if (!nonempty(value) || (existed ? !sameValueShape(shot.fields[field], value) || isDeepStrictEqual(value, shot.fields[field])
           : typeof value !== "string" || value === newFieldSchemaExample)) return fail("AUTHORING_NOOP_OR_TYPE_INVALID");
         if (!existed) newFields.push(field);
-        shot.fields[field] = structuredClone(value);
+        fields[field] = structuredClone(value);
       }
       for (const field of Object.keys(priorFields)) if (!writable.has(field)
-        && !isDeepStrictEqual(shot.fields[field], priorFields[field])) return fail("AUTHORING_READONLY_DRIFT");
+        && !isDeepStrictEqual(fields[field], priorFields[field])) return fail("AUTHORING_READONLY_DRIFT");
+      return { priorFields, fields, newFields };
+    };
+    const evaluateCandidate = (fields: JsonRecord) => {
       const authoredAt = new Date().toISOString();
-      const compiled = compilePromptShot(shot, { ...shot.compileOptions, createdAt: authoredAt });
+      const compiled = compilePromptShot({ ...shot, fields }, { ...shot.compileOptions, createdAt: authoredAt });
       const remainingHardErrors = compiled.hardErrors.filter(error => !(input.plan.deferPortraitAssetBinding === true
         && error.code === "HARD_ASSET_MISSING" && error.field === "portraits"
         && sourceCompileErrors.some(source => source.code === error.code && source.field === error.field)));
-      if (remainingHardErrors.length || !isDeepStrictEqual(compiled.fieldValues, shot.fields)) return fail("AUTHORING_COMPILE_INVALID");
-      if (input.plan.maxFinalPromptChars !== undefined
-        && diagnoses.some(entry => entry.kind === "truncation")
-        && compiled.contract.prompt.length > input.plan.maxFinalPromptChars) return fail("AUTHORING_PROMPT_STILL_TOO_LONG");
+      if (remainingHardErrors.length || !isDeepStrictEqual(compiled.fieldValues, fields)) return fail("AUTHORING_COMPILE_INVALID");
+      const authoredFieldChars = hasTruncationDiagnosis ? allowedFieldChars(fields) : null;
+      return { authoredAt, compiled, authoredFieldChars,
+        tooLong: input.plan.maxFinalPromptChars !== undefined && hasTruncationDiagnosis
+          && compiled.contract.prompt.length > input.plan.maxFinalPromptChars };
+    };
+    const first = await dispatchCandidate(prompt, false);
+    let finishSelected = first.finishOutcome;
+    try {
+      let selected = { ...first, candidate: candidateFields(first.nextFields) };
+      let evaluation = evaluateCandidate(selected.candidate.fields);
+      let correctionReceipt: FieldAuthoringCorrectionReceipt | undefined;
+      if (evaluation.tooLong) {
+        if (maxAllowedFieldChars === null || promptBudget === null || evaluation.authoredFieldChars === null) {
+          return fail("AUTHORING_PROMPT_BUDGET_INVALID");
+        }
+        await finishSelected();
+        const correctionPrompt = [
+          prompt,
+          "【最终长度纠偏】上一份已验证响应的字段结构与语义均可使用，但完整编译提示词仍超过硬上限，不能提交。"
+            + "重新返回同一shotId与同一fields集合；不要改动任何只读字段、来源事实、动作、身份、时长或请求通道。"
+            + "必须首先满足allowedFields文本值UTF-16字符数合计上限，再用完整语义压缩替换超预算的表述。",
+          canonicalJson({
+            authoringCorrection: {
+              attempt: 1,
+              reason: "final-prompt-length",
+              maxFinalPromptChars: promptBudget.maxFinalPromptChars,
+              rejectedPromptChars: evaluation.compiled.contract.prompt.length,
+              rejectedAllowedFieldChars: evaluation.authoredFieldChars,
+              maxAllowedFieldChars,
+              excessChars: Math.max(0, evaluation.compiled.contract.prompt.length - promptBudget.maxFinalPromptChars),
+              previousFields: selected.candidate.fields,
+              previousFieldsSha256: sha256Json(selected.candidate.fields),
+            },
+          }),
+        ].join("\n");
+        const corrected = await dispatchCandidate(correctionPrompt, true);
+        const correctedCandidate = candidateFields(corrected.nextFields);
+        const correctedEvaluation = evaluateCandidate(correctedCandidate.fields);
+        if (correctedEvaluation.tooLong) return fail("AUTHORING_PROMPT_STILL_TOO_LONG");
+        if (correctedEvaluation.authoredFieldChars === null
+          || correctedEvaluation.authoredFieldChars > maxAllowedFieldChars) return fail("AUTHORING_PROMPT_BUDGET_INVALID");
+        correctionReceipt = {
+          reason: "final-prompt-length",
+          rejectedRequest: first.request,
+          rejectedResponse: first.response,
+          rejectedPromptChars: evaluation.compiled.contract.prompt.length,
+          rejectedAllowedFieldChars: evaluation.authoredFieldChars,
+          rejectedFieldsSha256: sha256Json(selected.candidate.fields),
+          acceptedPromptChars: correctedEvaluation.compiled.contract.prompt.length,
+          acceptedAllowedFieldChars: correctedEvaluation.authoredFieldChars,
+          acceptedFieldsSha256: sha256Json(correctedCandidate.fields),
+          maxFinalPromptChars: promptBudget.maxFinalPromptChars,
+          maxAllowedFieldChars,
+          rejectedUsage: first.measured,
+          usage: corrected.measured,
+        };
+        selected = { ...corrected, candidate: correctedCandidate };
+        evaluation = correctedEvaluation;
+        finishSelected = corrected.finishOutcome;
+      }
+      const { priorFields, fields: nextFields, newFields } = selected.candidate;
+      const { authoredAt, compiled } = evaluation;
+      shot.fields = nextFields;
       const mutableRequestTextPaths = [...(timelineDiagnosed ? ["technical.timeline"] : []),
         ...(rivalWitness ? ["technical.character_constraint"] : [])];
       const immutableRequest = (contract: PromptContract) => {
@@ -610,36 +752,22 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
         || sourcePortrait.valueSha256 !== currentPortrait.valueSha256) return fail("AUTHORING_REQUEST_DRIFT");
       if (rivalWitness && g6EventWitnessRepairDrift(witnessInput(shot.fields), [rivalWitness])) return fail("AUTHORING_EVENT_WITNESS_DRIFT");
       shot.prompt = compiled.prompt;
-      const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = result.proof;
+      const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = selected.proof;
       const dispatch = { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion };
       const proof = { shotId: shot.shotId, sourceContextSha256: input.plan.sourceContextSha256, sourceContractSha256: shot.sourceContractSha256,
         planSha256, authoredAt, changedFields: [...allowed], newFields, beforeFieldsSha256: sha256Json(priorFields), afterFieldsSha256: sha256Json(shot.fields),
-        request, response, usage: measured, dispatch, mutableRequestTextPaths };
+        request: selected.request, response: selected.response, ...(correctionReceipt ? { correction: correctionReceipt } : {}),
+        usage: selected.measured, dispatch, mutableRequestTextPaths };
       const snapshot = await archive(shot.shotId, "snapshot", Buffer.from(canonicalJson({ schemaVersion: APPROVED_SOURCE_FIELDS_VERSION,
         shotId: shot.shotId, authoring: proof, fields: shot.fields, prompt: shot.prompt, contract: compiled.contract })));
-      if (!result.proof.matchesCurrent(prompt, schema, options)) return fail("AUTHORING_DISPATCH_DRIFT");
+      await finishSelected();
+      if (!selected.proof.matchesCurrent(selected.prompt, schema, options)) return fail("AUTHORING_DISPATCH_DRIFT");
       const receipt = { ...proof, snapshot };
       shot.authoringProof = receipt;
       shot.currentContract = compiled.contract;
       receipts.push(receipt);
     } finally {
-      if (invoked) {
-        const nativeCompleted = result ? nativeReasonCompleted(result.result) : false;
-        let dispatchOutcome: "verified-complete" | "unverified" = "unverified";
-        try {
-          // The adapter intentionally omits the authoring proof on syntax
-          // failure. Its private current-route receipt can still prove that
-          // this failed response completed with measured usage. This only
-          // classifies the call; the response above remains rejected.
-          if (nativeCompleted && measured && result && (result.proof?.matchesCurrent(prompt, schema, options)
-            || nativeChatJsonSyntaxRouteCurrent(input.engine, result.result))) dispatchOutcome = "verified-complete";
-        } finally {
-          // A native call must reach the durable outcome tracker exactly once,
-          // including unknown usage/proof and errors during archival or parsing.
-          await input.budgetHook({ phase: "after", shotId: shot.shotId, usage: measured,
-            success: result?.result.success === true, dispatchOutcome, nativeCompleted });
-        }
-      }
+      await finishSelected();
     }
     await verify();
   }
