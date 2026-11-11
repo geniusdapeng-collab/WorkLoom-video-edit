@@ -1,6 +1,6 @@
 /** Private, create-only video submission journal. A known/unknown dispatch is never automatically POSTed again. */
 import { createHash, randomUUID } from "node:crypto";
-import { closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { VideoSubmissionRequest } from "./video-submission-request.js";
 
@@ -26,6 +26,21 @@ interface Prepared {
   inputs: VideoSubmissionRequest["inputs"]; inputArtifacts: VideoSubmissionArtifact[];
 }
 interface Ack { schemaVersion: "workloom.video-submission-ack/v1"; taskId: string; preparedSha256: string; acknowledgedAt: string; httpStatus: number; requestId: string | null }
+interface TerminalRecord { preparedSha256?: string; taskId?: string; status?: string; httpStatus?: number; errorCode?: string; at?: string }
+function retryablePreDispatchTerminal(terminal: TerminalRecord): boolean {
+  return terminal.status === "submit-rejected" && !terminal.taskId && terminal.errorCode === "BUDGET_FROZEN";
+}
+/** Preserve a known pre-dispatch rejection, then allow the exact frozen contract to attempt once more after gateway recovery. */
+function archivePreDispatchTerminal(directory: string, dispatchFile: string, terminalFile: string, terminal: TerminalRecord, now: () => number): void {
+  const evidenceRoot = join(directory, "pre-dispatch-rejections");
+  privateDirectory(evidenceRoot);
+  const target = join(evidenceRoot, `${Date.parse(String(terminal.at ?? "")) || now()}-${randomUUID()}`);
+  mkdirSync(target, { recursive: false, mode: 0o700 });
+  if (existsSync(dispatchFile)) renameSync(dispatchFile, join(target, "dispatch-started.json"));
+  renameSync(terminalFile, join(target, "terminal.json"));
+  syncDirectory(target);
+  syncDirectory(evidenceRoot);
+}
 function safeProviderError(value: unknown, authorization: string): { code: string; message: string } {
   const redact = (part: unknown): string => String(part ?? "")
     .split(authorization).join("[authorization-redacted]")
@@ -93,8 +108,9 @@ export function readVideoSubmissionRecovery(scope: { directory: string; projectI
       ? { mode: prepared.mode, inputs: prepared.inputs, promptContractSha256: prepared.promptContractSha256 }
       : { mode: prepared.mode, inputs: prepared.inputs }))) throw new VideoSubmissionError("VIDEO_SUBMISSION_RECOVERY_CONTRACT_INVALID");
   if (existsSync(join(directory, "terminal.json"))) {
-    const terminal = readJson<{ preparedSha256?: string; taskId?: string; status?: string; httpStatus?: number; errorCode?: string }>(join(directory, "terminal.json"));
+    const terminal = readJson<TerminalRecord>(join(directory, "terminal.json"));
     if (terminal.preparedSha256 !== hash(readFileSync(preparedFile))) throw new VideoSubmissionError("VIDEO_SUBMISSION_TERMINAL_INVALID");
+    if (!existsSync(join(directory, "ack.json")) && retryablePreDispatchTerminal(terminal)) return null;
     throw new VideoSubmissionError(`VIDEO_SUBMISSION_TERMINAL: ${terminal.status ?? "unknown"}; HTTP ${terminal.httpStatus ?? "n/a"}; ${terminal.errorCode ?? "unknown"}; not resubmitted`, typeof terminal.taskId === "string" ? terminal.taskId : null);
   }
   if (!existsSync(join(directory, "ack.json"))) {
@@ -161,9 +177,10 @@ export async function runVideoSubmission(scope: VideoSubmissionScope, options: {
   const recovered = Boolean(ack);
   if (ack && (ack.schemaVersion !== "workloom.video-submission-ack/v1" || ack.preparedSha256 !== preparedSha256 || !/^[A-Za-z0-9._:-]{1,256}$/.test(ack.taskId))) throw new VideoSubmissionError(`VIDEO_SUBMISSION_ACK_INVALID: ${ackFile}`);
   if (existsSync(terminalFile)) {
-    const terminal = readJson<{ preparedSha256?: string; taskId?: string; status?: string }>(terminalFile);
+    const terminal = readJson<TerminalRecord>(terminalFile);
     if (terminal.preparedSha256 !== preparedSha256) throw new VideoSubmissionError("VIDEO_SUBMISSION_TERMINAL_INVALID", ack?.taskId ?? null);
-    throw new VideoSubmissionError(`VIDEO_SUBMISSION_TERMINAL: ${terminal.status ?? "unknown"}; not resubmitted`, ack?.taskId ?? null);
+    if (!ack && retryablePreDispatchTerminal(terminal)) archivePreDispatchTerminal(directory, dispatchFile, terminalFile, terminal, now);
+    else throw new VideoSubmissionError(`VIDEO_SUBMISSION_TERMINAL: ${terminal.status ?? "unknown"}; not resubmitted`, ack?.taskId ?? null);
   }
   if (!ack) {
     if (options.recoveryOnly) throw new VideoSubmissionError("VIDEO_SUBMISSION_RECOVERY_ACK_REQUIRED: GET-only recovery cannot POST");

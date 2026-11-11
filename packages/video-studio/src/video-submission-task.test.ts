@@ -75,6 +75,23 @@ describe("persistent video task admission and cold recovery", () => {
     await expect(runVideoSubmission(scope, options(fetcher))).rejects.toThrow(`HTTP ${status}`);
     await expect(runVideoSubmission(scope, options(fetcher))).rejects.toThrow("TERMINAL"); expect(() => readVideoSubmissionRecovery(recoveryScope(scope))).toThrow("TERMINAL"); expect(calls).toBe(1);
   });
+  it("known BUDGET_FROZEN pre-dispatch rejection preserves evidence and permits one exact retry after recovery", async () => {
+    const scope = fixture(); let posts = 0;
+    const frozen = fake((_url, init) => {
+      if (method(init) === "POST") { posts++; return response({ error: { code: "BUDGET_FROZEN", message: "frozen" } }, 423); }
+      throw new Error("no GET after rejected POST");
+    });
+    await expect(runVideoSubmission(scope, options(frozen))).rejects.toThrow("HTTP 423");
+    expect(posts).toBe(1);
+    expect(readVideoSubmissionRecovery(recoveryScope(scope))).toBeNull();
+    const recovered = fake((_url, init) => {
+      if (method(init) === "POST") { posts++; return response({ id: "task-after-budget-recovery" }); }
+      return success();
+    });
+    expect((await runVideoSubmission(scope, options(recovered))).taskId).toBe("task-after-budget-recovery");
+    expect(posts).toBe(2);
+    expect(files(scope.directory).some((file) => file.includes("/pre-dispatch-rejections/") && file.endsWith("/terminal.json"))).toBe(true);
+  });
   it.each([401, 403, 404])("query HTTP %s retains task for GET-only recovery", async (status) => {
     const scope = fixture(); let posts = 0;
     await expect(runVideoSubmission(scope, options(fake((_url, init) => { if (method(init) === "POST") { posts++; return response({ id: "task-query" }); } return response("failure", status); })))).rejects.toThrow("taskId=task-query");
