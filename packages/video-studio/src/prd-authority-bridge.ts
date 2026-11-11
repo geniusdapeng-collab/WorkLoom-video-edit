@@ -1853,9 +1853,14 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
           && Number.isSafeInteger(completionTokens) && Number(completionTokens) > 0;
       };
       const first = await invoke(fullPrompt);
-      // A fully measured JSON-syntax failure remains independently correctable;
+      // A fully measured successful production response remains complete even
+      // when an OpenAI-compatible provider omits its optional response id; the
+      // provider has already validated model identity, finish_reason and usage.
+      // A measured JSON-syntax failure remains independently correctable, while
       // blank responses keep their stricter native blank-transport proof.
-      const completed = nativeReasonCompleted(first) || (measured(first)
+      const measuredSuccess = measured(first) && first.success === true
+        && typeof first.content === "string" && Boolean(first.content.trim());
+      const completed = nativeReasonCompleted(first) || measuredSuccess || (measured(first)
         && nativeReasonFailure(first) === "json-syntax" && typeof first.content === "string" && Boolean(first.content.trim()));
       const blank = (primary || sceneDesign || focusedFusionFill) && options.critical === true
         && !first.success && !completed && nativeReasonBlankJson(first);

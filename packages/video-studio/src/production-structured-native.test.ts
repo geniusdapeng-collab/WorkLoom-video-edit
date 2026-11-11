@@ -131,7 +131,7 @@ function fixture(replies: Reply[], frozen = false, onDispatch?: (ordinal: number
 
 describe("host-bound Studio production with the native SceneDesignAgent", () => {
   it.each([
-    "corrected", "empty-string", "normal", "null", "unicode-space", "missing-usage", "finish-length",
+    "corrected", "empty-string", "normal", "measured-no-id", "null", "unicode-space", "missing-usage", "finish-length",
     "second-blank", "wrong-order", "duplicate-key", "same-id", "outside-exact-shot-contract", "late-first", "late-second",
   ] as const)("bounds frozen native SceneDesign blank JSON correction: %s", async mode => {
     const replies: Reply[] = [];
@@ -151,7 +151,11 @@ describe("host-bound Studio production with the native SceneDesignAgent", () => 
       choices: [{ index: 0, finish_reason: finish, message: { role: "assistant", content } }],
       ...(measured ? { usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 } } : {}),
     });
-    const first = mode === "normal" ? accepted : mode === "empty-string" ? "" : mode === "unicode-space" ? "\u3000"
+    const first = mode === "normal" ? accepted : mode === "measured-no-id"
+      ? Response.json({ object: "chat.completion", model: "deepseek-flash",
+          choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: accepted } }],
+          usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 } })
+      : mode === "empty-string" ? "" : mode === "unicode-space" ? "\u3000"
       : mode === "null" ? response(null, "synthetic-response-1") : mode === "missing-usage" ? response(" ", "synthetic-response-1", "stop", false)
         : mode === "finish-length" ? response(" ", "synthetic-response-1", "length") : "    ";
     const second = mode === "second-blank" ? " " : mode === "wrong-order" ? JSON.stringify({ shots: [...designs].reverse() })
@@ -162,7 +166,7 @@ describe("host-bound Studio production with the native SceneDesignAgent", () => 
       : nativeShots;
     const original = f.agent._buildPrompt(input, blueprint);
     const operation = f.run(() => f.agent.process(input, blueprint));
-    if (["corrected", "empty-string", "normal", "null"].includes(mode)) {
+    if (["corrected", "empty-string", "normal", "measured-no-id", "null"].includes(mode)) {
       await expect(operation).resolves.toMatchObject({ degraded: false, shots: designs });
     } else {
       await expect(operation).rejects.toThrow(mode === "late-first" ? "PRD_PRODUCTION_MODEL_DEADLINE" : "PRD_PRODUCTION_MODEL_UNVERIFIED");
