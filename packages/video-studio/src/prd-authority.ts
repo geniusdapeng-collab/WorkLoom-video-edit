@@ -513,6 +513,22 @@ export function projectUndeclaredPrdCharacterFields(value: RequirementRecord, ef
   return removed;
 }
 
+/**
+ * Agent3 can also decorate visualSpecification with a few undeclared keys.
+ * The effective schema remains authoritative, so remove only a bounded number
+ * of top-level extras and retain every declared nested field unchanged.
+ */
+export function projectUndeclaredPrdVisualFields(value: RequirementRecord, effectiveSchema: RequirementRecord): string[] {
+  const properties = requirementRecord(effectiveSchema.properties, "生产规格 schema 字段");
+  const visualSchema = requirementRecord(properties.visualSpecification, "visualSpecification schema");
+  const allowed = new Set(Object.keys(requirementRecord(visualSchema.properties, "visualSpecification schema 字段")));
+  const visual = requirementRecord(value.visualSpecification, "PRD visualSpecification");
+  const extras = Object.keys(visual).filter(key => !allowed.has(key));
+  if (extras.length > 8) prdFail("PRD_VISUAL_SHAPE_INVALID", "visualSpecification 有过多未声明字段");
+  for (const key of extras) delete visual[key];
+  return extras.map(key => `/visualSpecification/${key}`);
+}
+
 /** Validate the actual model payload before vendor parsers can manufacture missing modules. */
 export function validatePrdModelPayload(value: unknown, kind: "creative" | "production", schemaValue: RequirementRecord, contract: RequirementContract, profile: PrdProductionProfile): RequirementRecord {
   let parsed: unknown = value;
@@ -533,6 +549,7 @@ export function validatePrdModelPayload(value: unknown, kind: "creative" | "prod
   } else {
     compactProductionExecutionArrays(result);
     projectUndeclaredPrdCharacterFields(result, effective);
+    projectUndeclaredPrdVisualFields(result, effective);
   }
   // Retain the existing creative validation path and acceptance semantics.
   const schema = kind === "creative"
