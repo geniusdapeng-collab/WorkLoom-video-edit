@@ -2735,6 +2735,14 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     next = singleOpponent;
     corrections.push("single-opponent-and-post-text-scope");
   }
+  const supportedNearStop = next
+    .replace(/赛车沿减速区低矮边线直线滑行到近乎停住/g, "赛车沿减速区低矮边线滑行至步行速度；右脚点地配前刹、左脚撑车")
+    .replace(/随车停住后收住/g, "随车降至步行速度后收住")
+    .replace(/车速降至近乎停住/g, "末帧降至步行速度、双脚落地支撑");
+  if (supportedNearStop !== next) {
+    next = supportedNearStop;
+    corrections.push("near-stop-support");
+  }
   next = next.replace(/6000K冷白(?!补光)/g, "5600K冷白");
   return { prompt: next, corrections };
 }
@@ -3738,6 +3746,13 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
   return {
     projectId: PROJECT,
     reviewId: `${PROJECT}:${stage}:${RUN_ID}:${Date.now()}`,
+    reviewScope: "physical-execution",
+    approvedCreativeDirection: {
+      productAppearanceMode: "rights-safe-conceptual-silhouette",
+      fictionalCompetition: true,
+      mandatoryStoryBeats: ["封闭赛道竞速", "连续超车", "冲线", "停稳摘盔", "领奖台纪念奖杯"],
+      disclosure: "广告创意演绎，不是真实赛事成绩、真实冠军、真实赛事官方活动或品牌背书",
+    },
     platform: String((shotlist as Record<string, unknown>).platform ?? arg("--platform", "")),
     locale: FILM_SPEECH_LANGUAGE,
     aspect: ASPECT,

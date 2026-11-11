@@ -96,6 +96,26 @@ describe("实体与物理常识审核 agent", () => {
     expect(typed.shots[0]).toMatchObject({ wardrobeId: "w2", costume: "本镜启用 w2 赛道装备" });
   });
 
+  it("下游物理复核保留上游已批准的创意与权利边界", () => {
+    const context = buildPlausibilityContext({
+      ...baseContext,
+      reviewScope: "physical-execution",
+      approvedCreativeDirection: {
+        productAppearanceMode: "rights-safe-conceptual-silhouette",
+        fictionalCompetition: true,
+        mandatoryStoryBeats: ["领奖台纪念奖杯"],
+        disclosure: "广告创意演绎，非真实赛事成绩",
+      },
+    });
+    expect(context.project).toMatchObject({
+      reviewScope: "physical-execution",
+      approvedCreativeDirection: {
+        fictionalCompetition: true,
+        productAppearanceMode: "rights-safe-conceptual-silhouette",
+      },
+    });
+  });
+
   it("解析模型输出：blocker/warning 与提示词补丁；结构非法即抛错（上层 fail-closed）", () => {
     const parsed = parsePlausibilityAnswer(JSON.stringify({
       verdict: "block",

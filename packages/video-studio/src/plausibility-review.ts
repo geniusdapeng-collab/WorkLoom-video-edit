@@ -83,6 +83,14 @@ export interface PlausibilityContextInput {
   projectId: string;
   /** Distinguishes a new independent review from an accidental replay of the same request bytes. */
   reviewId?: string;
+  /** Film's downstream review checks physical execution; upstream gates own facts, rights and creative direction. */
+  reviewScope?: "full" | "physical-execution";
+  approvedCreativeDirection?: {
+    productAppearanceMode?: string;
+    fictionalCompetition?: boolean;
+    mandatoryStoryBeats?: string[];
+    disclosure?: string;
+  };
   platform?: string;
   locale?: string;
   aspect?: string;
@@ -143,6 +151,8 @@ export function buildPlausibilityContext(input: PlausibilityContextInput): Recor
     stage: input.stage,
     project: {
       id: input.projectId, reviewId: input.reviewId ?? null,
+      reviewScope: input.reviewScope ?? "full",
+      approvedCreativeDirection: input.approvedCreativeDirection ?? null,
       platform: input.platform ?? null, locale: input.locale ?? null,
       aspect: input.aspect ?? null, resolution: input.resolution ?? null, durationSeconds: input.durationSeconds ?? null,
     },
@@ -291,8 +301,19 @@ export async function reviewPlausibility(
       type: "text",
       text: [
         "你是影视监制中的【实体与物理常识审核 agent】。用你自己的世界知识判断，不要假设观众或审查方已提供任何品类规则表。",
+        ...(input.reviewScope === "physical-execution"
+          ? [
+              "本轮是下游【物理执行复核】：上游 G1-G7 已完成事实、权利、商品与创意方向审批。"
+              + "你只判断实体使用、动作动因、支撑/接触/比例、装备、状态和相邻镜连续性。"
+              + "不得要求删除已批准的用户创意（虚构赛事、领奖台、奖杯、纪念性冠军叙事）、"
+              + "不得要求未授权公开外观精确还原，也不得重审商品合规；执行矛盾仍须如实报告。",
+            ]
+          : []),
         "对每个镜头逐条回答下列问题；不能确定的写进 warning 并说明缺什么证据，不要编造。",
-        ...PLAUSIBILITY_RUBRIC.map((line, index) => `${index + 1}. ${line}`),
+        ...(input.reviewScope === "physical-execution"
+          ? [0, 1, 2, 3, 4, 5, 9, 10].map((index) => PLAUSIBILITY_RUBRIC[index]!)
+          : PLAUSIBILITY_RUBRIC
+        ).map((line, index) => `${index + 1}. ${line}`),
         input.stage === "pre-submit"
           ? "本轮附有关键帧画面（逐镜）：比例、身份、装备、品牌保真与真实感必须结合画面判断；只凭文字看不到的缺陷要在本轮报出。"
           : "本轮只有卡片与提示词：请判断逻辑/常识/口径层面是否成立（无人驾驶、缺装备、比例无锚、台词与语言、叙事逻辑等）。",
