@@ -466,9 +466,13 @@ async function loadApprovedSourcePlan(
   const marketingFactsPassedWithSuggestions = marketingFailure
     && /无未支持或夸大[^。；\n]{0,40}准予通过|准予通过并附整改建议/u.test(String(marketingFailure.message ?? ""))
     && !/截断|违反[^。；\n]{0,16}纪律|须修复后再渲染|不能批准|不通过/u.test(String(marketingFailure.message ?? ""));
-  if (marketingFailure && !marketingDiagnosis && !marketingFactsPassedWithSuggestions) {
-    return fail("SOURCE_MARKETING_FINAL_DIAGNOSIS_UNBOUND", "最终营销事实拒绝没有可定位到当前字段的完整证据，未生成猜测性修复计划。");
-  }
+  /**
+   * A final-fact rejection without a field-level locator is still durable
+   * evidence, but it must not create a guessed diagnosis. Keep the last valid
+   * G6 draft and let the next explicit repair proceed from the complete G6
+   * findings; the original final-fact rejection remains in the source output.
+   */
+  void marketingFactsPassedWithSuggestions;
   const fieldPlan = planFieldAuthoring({ shots: contracts, sourceContextSha256,
     maxFinalPromptChars: fieldSpec().lengths.hardMax, deferPortraitAssetBinding: true,
     diagnosedFindings: [reportArtifact, ...(marketingDiagnosis ? [marketingDiagnosis] : [])], truncationEvidence: [] });
