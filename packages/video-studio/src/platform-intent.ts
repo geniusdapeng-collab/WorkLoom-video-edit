@@ -290,13 +290,18 @@ export function checkSpeechFit(input: SpeechFitInput): SpeechFitResult {
 }
 
 /** 注入需求正文的平台制作口径块（供应商与生成端都能看到，不依赖元数据被正确读取）。 */
-export function platformDeliveryGuidance(decision: PlatformIntentDecision): string {
+export function platformDeliveryGuidance(
+  decision: PlatformIntentDecision,
+  options: { speechPolicy?: "none" } = {},
+): string {
   const profile = speechRateProfile(decision.id);
   return `\n[平台制作口径 ${decision.id}·${decision.label}] 目标平台：${decision.label}（${decision.reason}）。`
     + `画幅 ${decision.aspectRatio}；开场钩子须落在前 ${profile.hookWindowSec} 秒。`
-    + `语速：目标 ${profile.target} 字/秒、上限 ${profile.max} 字/秒；`
-    + `每句台词按镜时长折算后可念字数（镜时长 × ${profile.max}），放不下就改写更短的文案——禁止靠拉快配音把长文案硬塞进短镜。`
-    + `配音基础速率 ${profile.ttsSpeed}×。`;
+    + (options.speechPolicy === "none"
+      ? "本片明确无台词、无旁白、无口播；不生成或改写配音文案，不设置配音速率。"
+      : `语速：目标 ${profile.target} 字/秒、上限 ${profile.max} 字/秒；`
+        + `每句台词按镜时长折算后可念字数（镜时长 × ${profile.max}），放不下就改写更短的文案——禁止靠拉快配音把长文案硬塞进短镜。`
+        + `配音基础速率 ${profile.ttsSpeed}×。`);
 }
 
 /** 平台 ID 是否已登记语速档（供测试与运维校验，不触发告警）。 */

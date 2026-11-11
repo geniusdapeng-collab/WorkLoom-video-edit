@@ -807,7 +807,8 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
   const resolvedMetadata: Record<string, unknown> = applyBuiltinCharacters(audienceBound.metadata, selectedBuiltinCharacters);
   const runInput: RunInput = {
     projectId: input.projectId,
-    intent: appendBuiltinCharacterGuidance(appendPlatformGuidance(appendScenePolicyGuidance(input.intent, selectedScenePolicy.policy), selectedPlatform.decision), selectedBuiltinCharacters),
+    intent: appendBuiltinCharacterGuidance(appendPlatformGuidance(appendScenePolicyGuidance(input.intent, selectedScenePolicy.policy),
+      selectedPlatform.decision, resolvedMetadata), selectedBuiltinCharacters),
     metadata: resolvedMetadata,
     isMarketing: input.isMarketing,
   };

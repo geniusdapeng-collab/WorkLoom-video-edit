@@ -35,14 +35,24 @@ export function captureRequirementTheme(
     contentSha256: createHash("sha256").update(contentMd).digest("hex"), verdict });
 }
 
-/** Correct only a closed-form ordinal contradiction in the review draft. */
+/** Correct only closed-form review contradictions that can be proved from the frozen rules. */
 export function reconcileRequirementThemeDraft(draft: string): string {
   const overtakesTwo = /(?:连超|连续超越|连续超过)\s*(?:两|2)\s*(?:台|辆)/u.test(draft);
   const finalCornerSecond = /((?:最后一个弯|最后弯|末弯)[^。；\n]{0,40})第二位/u;
-  if (!overtakesTwo || /套圈/u.test(draft) || !finalCornerSecond.test(draft)) return draft;
-  return draft.replace(finalCornerSecond, "$1第三位")
-    + "\n\n[宿主赛位一致性校正] 原草案在“第二位”起跑位下写“连超两台”，与三车竞争关系矛盾；"
-    + "仅将核心描述的赛位改为“第三位”，保留连超两台、冲线夺冠及全部客户原文。";
+  let corrected = draft;
+  const notes: string[] = [];
+  if (overtakesTwo && !/套圈/u.test(draft) && finalCornerSecond.test(draft)) {
+    corrected = corrected.replace(finalCornerSecond, "$1第三位");
+    notes.push("[宿主赛位一致性校正] 原草案在“第二位”起跑位下写“连超两台”，与三车竞争关系矛盾；"
+      + "仅将核心描述的赛位改为“第三位”，保留连超两台、冲线夺冠及全部客户原文。");
+  }
+  const blockedOutsideThenPass = /((?:最后一弯|最后一个弯|最后弯|末弯)[^。；\n]{0,30})外线被封(?:死|住)?\s*[，,]\s*(?:仍|却|还是)?\s*(连超|连续超越|连续超过)/u;
+  if (blockedOutsideThenPass.test(corrected)) {
+    corrected = corrected.replace(blockedOutsideThenPass, "$1从外线出弯$2");
+    notes.push("[宿主外线约束校正] 原草案同时写“外线被封”和“外线连超”，与全部超车统一在外线出弯完成的冻结约束矛盾；"
+      + "仅改为从外线出弯完成原定连续超越，保留对手数量、夺冠结果与全部客户原文。");
+  }
+  return notes.length ? `${corrected}\n\n${notes.join("\n\n")}` : draft;
 }
 
 /** Append the frozen customer source after the complete, unchanged creative draft. */

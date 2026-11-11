@@ -39,4 +39,11 @@ describe("G2 review fact alignment", () => {
     expect(reconcileRequirementThemeDraft("完成三台车的外线连续超越。"))
       .toBe("完成三台车的外线连续超越。");
   });
+
+  it("reconciles a draft that says the outside line is blocked and then immediately claims outside passes", () => {
+    const draft = "她在最后一弯外线被封，仍连超对手，冲线夺冠。";
+    const actual = reconcileRequirementThemeDraft(draft);
+    expect(actual).toContain("她在最后一弯从外线出弯连超对手，冲线夺冠。");
+    expect(actual).toContain("宿主外线约束校正");
+  });
 });

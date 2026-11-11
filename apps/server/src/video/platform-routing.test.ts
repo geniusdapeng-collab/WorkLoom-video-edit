@@ -43,4 +43,15 @@ describe("服务端目标平台识别", () => {
     expect(intent).toContain("前 5 秒");
     expect(intent).toContain("目标 3.5 字/秒、上限 4.2 字/秒");
   });
+
+  it("omits every dubbing instruction for an explicit no-speech production", () => {
+    const routed = resolvePlatformForIntent("拍一条无台词的抖音赛道广告");
+    const intent = appendPlatformGuidance("客户的创作需求", routed.decision, {
+      brief: { productionRequirements: { speechPolicy: "none" } },
+    });
+    expect(intent).toContain("本片明确无台词、无旁白、无口播");
+    expect(intent).not.toContain("语速");
+    expect(intent).not.toContain("配音基础速率");
+    expect(intent).not.toContain("每句台词");
+  });
 });
