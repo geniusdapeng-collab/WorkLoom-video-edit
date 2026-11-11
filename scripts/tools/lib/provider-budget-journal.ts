@@ -200,6 +200,13 @@ export class BudgetJournal {
         && event.usage.microCny === previous.claim.microCny);
       previous.usage = event.usage;
       this.reconciled.add(event.hash);
+      if (event.hash === this.frozenHash && ![...this.byHash.values()].some(entry => !entry.usage)) {
+        // A reconciled freeze is closed history. Retaining its reason made a
+        // later unknown reservation inherit the old frozen state and prevented
+        // its own freeze event from being appended.
+        this.frozenReason = null;
+        this.frozenHash = null;
+      }
     }
   }
 

@@ -402,6 +402,42 @@ describe("task-local provider budget gateway", () => {
     expect(readFileSync(first.journalPath, "utf8")).not.toContain("provider diagnostic stays private");
   });
 
+  it("freezes a later unknown LLM outcome after an earlier reconciliation", async () => {
+    const first = await gate(vi.fn(async () => { throw new Error("first unknown outcome"); }));
+    expect(code(await call(first.server, DEEPSEEK_CHAT_PATH, llm("first reconciled request")))).toBe("BUDGET_OUTCOME_UNKNOWN");
+    await first.server.close();
+
+    const rows = readFileSync(first.journalPath, "utf8").trimEnd().split("\n").map(line => JSON.parse(line));
+    const reserve = rows.find(row => row.type === "reserve" && row.claim);
+    const freeze = rows.find(row => row.type === "freeze");
+    expect(freeze?.hash).toBe(reserve?.hash);
+    writeFileSync(first.journalPath, `${readFileSync(first.journalPath, "utf8").trimEnd()}\n${JSON.stringify({
+      type: "reconcile", hash: reserve.hash, at: Date.now(),
+      usage: { kind: "llm", inputTokens: reserve.claim.inputTokens, outputTokens: reserve.claim.maxOutputTokens,
+        microCny: reserve.claim.microCny },
+      basis: "conservative-claim-maximum", reason: freeze.reason,
+    })}\n`);
+
+    const healthy = await gate(vi.fn(async () => llmResponse()), {
+      journalPath: first.journalPath, port: first.server.port,
+    });
+    expect((await call(healthy.server, DEEPSEEK_CHAT_PATH, llm("successful request between unknowns"))).status).toBe(200);
+    await healthy.server.close();
+
+    const secondUnknown = await gate(vi.fn(async () => { throw new Error("second unknown outcome"); }), {
+      journalPath: first.journalPath, port: first.server.port,
+    });
+    expect(code(await call(secondUnknown.server, DEEPSEEK_CHAT_PATH, llm("second unknown request")))).toBe("BUDGET_OUTCOME_UNKNOWN");
+    await secondUnknown.server.close();
+
+    const finalRows = readFileSync(first.journalPath, "utf8").trimEnd().split("\n").map(line => JSON.parse(line));
+    const reserves = finalRows.filter(row => row.type === "reserve");
+    const secondReserve = reserves.at(-1)!;
+    const secondFreeze = finalRows.find(row => row.type === "freeze" && row.hash === secondReserve.hash);
+    expect(finalRows.filter(row => row.type === "freeze")).toHaveLength(2);
+    expect(secondFreeze).toMatchObject({ hash: secondReserve.hash, reason: "BUDGET_UPSTREAM_TRANSPORT_UNKNOWN" });
+  });
+
   it("reconciles a confirmed overrun and freezes before any new paid request", async () => {
     const upstream = vi.fn(async () => llmResponse(600_000, 390_000));
     const { server } = await gate(upstream);
