@@ -2696,6 +2696,16 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
       corrections.push("masked-face-brightness");
     }
   }
+  const helmetSeam = next
+    .replace(/头盔后下方开口处/g, "全盔后缘无孔缝内")
+    .replace(/头盔后下方开口/g, "全盔后缘无孔缝")
+    .replace(/全盔后下方开口处/g, "全盔后缘无孔缝")
+    .replace(/压束在全盔内/g, "后颈压平于内衬")
+    .replace(/压束在头盔内/g, "后颈压平于内衬");
+  if (helmetSeam !== next) {
+    next = helmetSeam;
+    corrections.push("helmet-seam-without-shell-hole");
+  }
   const duration = Number(shot.duration ?? 0);
   if (duration > 0 && /四秒内不换场地/.test(next) && duration !== 4) {
     next = next.replace(/四秒内不换场地/g, `${duration}秒内不换场地`);
