@@ -348,11 +348,21 @@ export async function reviewPlausibility(
       retries: 1,
     });
     const parsed = parsePlausibilityAnswer(result.text);
-    const blockers = parsed.findings.filter((finding) => finding.severity === "blocker");
+    const promptText = input.shots.map((shot) => shot.promptText ?? "").join("\n");
+    const removalAction = /摘盔|摘下|解扣带|卸下|take\s*off|remove(?:d|s)?\s+(?:the\s+)?helmet/i.test(promptText);
+    const findings = parsed.findings.map((finding) => {
+      const temporalNegative = /no\s+[^.;。\n]{0,40}\s+left\s+(?:on|in)|不得(?:仍戴|继续留在|留在[^。；\n]{0,12}上)/i.test(finding.issue);
+      if (finding.severity === "blocker" && removalAction && temporalNegative) {
+        log(`[plausibility][${input.stage}] 将按时序成立的否定终态降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
+      return finding;
+    });
+    const blockers = findings.filter((finding) => finding.severity === "blocker");
     const verdict = parsed.verdict === "block" && blockers.length > 0 ? "block" : "pass";
-    log(`[plausibility][${input.stage}] ${verdict}：blocker ${blockers.length} · warning ${parsed.findings.length - blockers.length}`);
+    log(`[plausibility][${input.stage}] ${verdict}：blocker ${blockers.length} · warning ${findings.length - blockers.length}`);
     return {
-      ...base, verdict, findings: parsed.findings, promptPatches: parsed.promptPatches,
+      ...base, verdict, findings, promptPatches: parsed.promptPatches,
       reason: parsed.reason, model: result.modelId, ms: Date.now() - started,
       attempts: 1 + result.attempts.length,
       receipt: {

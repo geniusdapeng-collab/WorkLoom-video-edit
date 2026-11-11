@@ -207,6 +207,30 @@ describe("实体与物理常识审核 agent", () => {
     expect(JSON.stringify(content)).toContain("不消费标注为非实际画面的预生产构图稿");
   });
 
+  it("有明确摘除动作时，头盔不得仍戴在头上的终态否定降为 warning", async () => {
+    const result = await reviewPlausibility({
+      ...baseContext,
+      stage: "pre-submit",
+      shots: [{
+        ...baseContext.shots[0]!,
+        promptText: "【动作】她解开扣带并摘下头盔，收在左腰。【负面约束】no helmet left on head。",
+      }],
+    }, {
+      env: llmEnv,
+      fetchImpl: (async () => jsonResponse({
+        verdict: "block",
+        findings: [{
+          id: "temporal-helmet", severity: "blocker", shotId: "SC-01",
+          issue: "头盔不得仍戴在头上与动作中的头盔位于头上矛盾",
+          why: "未按时间轴读取", fix: "按时序说明",
+        }],
+        promptPatches: [], reason: "终态否定被误读",
+      })) as unknown as typeof fetch,
+    });
+    expect(result.verdict).toBe("pass");
+    expect(result.findings[0]).toMatchObject({ id: "temporal-helmet", severity: "warning" });
+  });
+
   it("无模型 / HTTP 失败 / 输出不可解析 → unverified（调用方 fail-closed）", async () => {
     const noModel = await reviewPlausibility(baseContext, { env: {}, fetchImpl: (async () => jsonResponse({})) as unknown as typeof fetch });
     expect(noModel.verdict).toBe("unverified");
