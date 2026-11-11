@@ -291,10 +291,16 @@ export async function reviewPlausibility(
     return { ...base, verdict: "unverified", reason: "无可用评审模型（需配置评审模型密钥）；实体与物理常识审核 fail-closed", ms: Date.now() - started };
   }
   let images: ModelContentPart[] = [];
+  const suppliedImages = input.images ?? [];
+  const reviewImages = suppliedImages.filter((image) => !image.label.includes("不表示实际视频首帧"));
+  const omittedPreparationImages = suppliedImages.length - reviewImages.length;
   try {
-    images = encodeImages(input.images ?? []);
+    images = encodeImages(reviewImages);
   } catch (error) {
     return { ...base, verdict: "unverified", reason: error instanceof Error ? error.message : String(error), ms: Date.now() - started };
+  }
+  if (omittedPreparationImages > 0) {
+    log(`实体与物理常识审核：忽略 ${omittedPreparationImages} 张明确标注为非实际提交画面的预生产构图稿`);
   }
   const content: ModelContentPart[] = [
     {
@@ -318,7 +324,9 @@ export async function reviewPlausibility(
           : PLAUSIBILITY_RUBRIC
         ).map((line, index) => `${index + 1}. ${line}`),
         input.stage === "pre-submit"
-          ? "本轮附有关键帧画面（逐镜）：比例、身份、装备、品牌保真与真实感必须结合画面判断；只凭文字看不到的缺陷要在本轮报出。"
+          ? images.length > 0
+            ? "本轮附有实际提交口径的画面证据：比例、身份、装备、品牌保真与真实感必须结合画面判断；只凭文字看不到的缺陷要在本轮报出。"
+            : "本轮实际提交模式不消费标注为非实际画面的预生产构图稿；按完整提示词、最终参考输入和实体/动作合同判断，不得把未提交的试构图当作成片帧。"
           : "本轮只有卡片与提示词：请判断逻辑/常识/口径层面是否成立（无人驾驶、缺装备、比例无锚、台词与语言、叙事逻辑等）。",
         "送审事实（JSON，完整）：",
         JSON.stringify(context),

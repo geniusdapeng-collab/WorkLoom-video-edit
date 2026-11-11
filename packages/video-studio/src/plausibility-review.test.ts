@@ -184,6 +184,29 @@ describe("实体与物理常识审核 agent", () => {
     });
   });
 
+  it("预生产构图稿明确标注为非实际视频帧时不作为提交画面送审", async () => {
+    let body: Record<string, unknown> | null = null;
+    const result = await reviewPlausibility({
+      ...baseContext,
+      stage: "pre-submit",
+      images: [{
+        label: "镜头 SC-01 预生产构图稿（不表示实际视频首帧）",
+        path: "/path/that/must/not/be/read.png",
+      }],
+    }, {
+      env: llmEnv,
+      fetchImpl: (async (_input: string | URL | Request, init?: RequestInit) => {
+        body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return jsonResponse({ verdict: "pass", findings: [], promptPatches: [], reason: "提示词与提交输入通过" });
+      }) as typeof fetch,
+    });
+    expect(result.verdict).toBe("pass");
+    const captured = body as Record<string, unknown> | null;
+    const content = (captured?.messages as Array<{ content: unknown }>)?.[0]?.content;
+    expect(JSON.stringify(content)).not.toContain("image_url");
+    expect(JSON.stringify(content)).toContain("不消费标注为非实际画面的预生产构图稿");
+  });
+
   it("无模型 / HTTP 失败 / 输出不可解析 → unverified（调用方 fail-closed）", async () => {
     const noModel = await reviewPlausibility(baseContext, { env: {}, fetchImpl: (async () => jsonResponse({})) as unknown as typeof fetch });
     expect(noModel.verdict).toBe("unverified");
