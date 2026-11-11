@@ -15,6 +15,9 @@ const newFieldSchemaExample = "从完整已审来源新创作本字段的非空�
 const FINAL_LENGTH_EDITABLE_FIELDS = ["lighting", "composition", "color_palette", "depth_of_field", "mood"] as const;
 const MARKETING_FINAL_AUDIO_BGM_CODE = "MARKETING_FINAL_AUDIO_BGM_CONFLICT";
 const MARKETING_FINAL_POST_TEXT_CODE = "MARKETING_FINAL_POST_TEXT_CONFLICT";
+const MARKETING_FINAL_RESOLUTION_CODE = "MARKETING_FINAL_RESOLUTION_COHERENCE";
+const MARKETING_FINAL_FACE_CODE = "MARKETING_FINAL_HELMET_FACE_COHERENCE";
+const MARKETING_FINAL_CHARACTER_COUNT_CODE = "MARKETING_FINAL_CHARACTER_COUNT_COHERENCE";
 // G6 semantic checks may also use upper-case HARD_* failure codes. Only the
 // compiler's exact vocabulary can describe a replayed compiler error.
 const PROMPT_COMPILER_ERROR_CODES: ReadonlySet<string> = new Set([
@@ -344,7 +347,10 @@ export interface PlanFieldAuthoringInput {
 const immutableFields = new Set(["portraits", "constraint", "baseline", "dialogue", "negative", "consistency", "bright_constraint", "audio"]);
 function allowsDiagnosedField(field: string, code: unknown): boolean {
   return !immutableFields.has(field) || field === "audio" && code === MARKETING_FINAL_AUDIO_BGM_CODE
-    || field === "negative" && code === MARKETING_FINAL_POST_TEXT_CODE;
+    || field === "negative" && code === MARKETING_FINAL_POST_TEXT_CODE
+    || field === "baseline" && code === MARKETING_FINAL_RESOLUTION_CODE
+    || field === "bright_constraint" && code === MARKETING_FINAL_FACE_CODE
+    || field === "character_constraint" && code === MARKETING_FINAL_CHARACTER_COUNT_CODE;
 }
 
 const MARKETING_FINAL_MUTABLE_FIELDS = new Set([
@@ -440,6 +446,37 @@ export function marketingFinalFactFieldArtifact(input: {
       const negative = shot.fields.negative;
       if (typeof negative === "string") add(shot, "negative", MARKETING_FINAL_POST_TEXT_CODE,
         "把“画面无任何文字”限定为生成画面本身：no generated caption/text/logo/watermark。明确『创意演绎 · 赛道专用不可上路』与片尾商品名只由正式后期字幕/叠加层烧录，不属于生成帧文字，也不由生成模型输出；保留两条后期必需文字。");
+    }
+  }
+  if (/8K[^。；\n]{0,30}1080p|1080p[^。；\n]{0,30}8K|分辨率[^。；\n]{0,20}冲突/iu.test(message)) {
+    for (const shot of input.shots) {
+      if (typeof shot.fields.baseline === "string" && /8K/iu.test(shot.fields.baseline)) add(shot, "baseline",
+        MARKETING_FINAL_RESOLUTION_CODE,
+        "把画质基线中的8K细节改为与当前1080p原生交付一致的高清电影级细节，不改变摄影写实、纹理和颗粒要求，不声明高于交付画布的源分辨率。");
+    }
+  }
+  if (/面部[^。；\n]{0,20}(?:明亮|清晰)[^。；\n]{0,20}(?:不露脸|互斥)|不露脸[^。；\n]{0,20}面部/iu.test(message)) {
+    for (const shot of input.shots) {
+      if (typeof shot.fields.bright_constraint === "string" && /面部/u.test(shot.fields.bright_constraint)) add(shot, "bright_constraint",
+        MARKETING_FINAL_FACE_CODE,
+        "本镜角色戴闭合全盔且不露脸时，删除“面部无阴影明亮清晰”的义务；改为头盔轮廓、马尾发尾、车身与赛道主体明亮清晰，暗部保留层次。");
+    }
+  }
+  if (/补光[^。；\n]{0,16}方位|方位[^。；\n]{0,16}冲突|光位[^。；\n]{0,12}冲突/iu.test(message)) {
+    for (const shot of input.shots) {
+      for (const field of ["lighting", "scene"] as const) {
+        const value = shot.fields[field];
+        if (typeof value === "string" && /补光|灯|光位/u.test(value)) add(shot, field,
+          "MARKETING_FINAL_LIGHT_DIRECTION_COHERENCE",
+          "统一为同一套可执行光位：阴天冷白漫射主光来自画面左上方或上方，看台固定冷白补光统一来自右前方；删除同一镜内互相冲突的左/右补光方位。保留色温、光比、柔和度与前后镜连续性。");
+      }
+    }
+  }
+  if (/唯一[^。；\n]{0,12}主角|主角[^。；\n]{0,16}对手[^。；\n]{0,12}同框|对手骑手[^。；\n]{0,16}互斥/iu.test(message)) {
+    for (const shot of input.shots) {
+      if (typeof shot.fields.character_constraint === "string") add(shot, "character_constraint",
+        MARKETING_FINAL_CHARACTER_COUNT_CODE,
+        "把人数语义改成“唯一命名主角李英子；另有两名无品牌匿名成年全盔运动陪体骑手”，明确陪体不构成第二个命名主角、不是竞品身份，也不允许主角分身或克隆。");
     }
   }
   if (!diagnoses.length) return undefined;
@@ -692,6 +729,12 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       && entry.code === MARKETING_FINAL_AUDIO_BGM_CODE);
     const negativeDiagnosed = writable.has("negative") && diagnoses.some(entry => entry.field === "negative"
       && entry.code === MARKETING_FINAL_POST_TEXT_CODE);
+    const baselineDiagnosed = writable.has("baseline") && diagnoses.some(entry => entry.field === "baseline"
+      && entry.code === MARKETING_FINAL_RESOLUTION_CODE);
+    const brightDiagnosed = writable.has("bright_constraint") && diagnoses.some(entry => entry.field === "bright_constraint"
+      && entry.code === MARKETING_FINAL_FACE_CODE);
+    const characterCountDiagnosed = writable.has("character_constraint") && diagnoses.some(entry => entry.field === "character_constraint"
+      && entry.code === MARKETING_FINAL_CHARACTER_COUNT_CODE);
     const witnessInput = (fields: JsonRecord) => ({ approvedProductionPlan: input.sourceContext.approvedProductionPlan,
       shotId: shot.shotId, duration: shot.duration, action: fields.action, timeline: fields.timeline,
       cameraMovement: fields.camera_movement, characterConstraint: fields.character_constraint });
@@ -700,7 +743,12 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
     const rivalWitness = writable.has("character_constraint") ? g6EventWitnessChecks(witnessInput(shot.fields))
       .find(check => check.eventWitness?.family === "rival-driver" && diagnoses.some(entry => entry.origin === "g6-semantic"
         && entry.field === "character_constraint" && entry.code === check.failureCode))?.eventWitness : undefined;
-    if ((writable.has("timeline") && !timelineDiagnosed) || (writable.has("character_constraint") && !rivalWitness)) {
+    if ((writable.has("timeline") && !timelineDiagnosed)
+      || (writable.has("character_constraint") && !rivalWitness && !characterCountDiagnosed)
+      || (writable.has("baseline") && !baselineDiagnosed)
+      || (writable.has("bright_constraint") && !brightDiagnosed)
+      || (writable.has("audio") && !audioDiagnosed)
+      || (writable.has("negative") && !negativeDiagnosed)) {
       return fail("AUTHORING_REQUEST_TEXT_UNPROVEN");
     }
     const prompt = [
@@ -869,13 +917,17 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
     const mutableRequestTextPaths = [...(timelineDiagnosed ? ["technical.timeline"] : []),
       ...(audioDiagnosed ? ["technical.audio"] : []),
       ...(negativeDiagnosed ? ["parameters.negative_prompt"] : []),
-        ...(rivalWitness ? ["technical.character_constraint"] : [])];
+      ...(baselineDiagnosed ? ["technical.baseline"] : []),
+      ...(brightDiagnosed ? ["technical.bright_constraint"] : []),
+      ...(rivalWitness || characterCountDiagnosed ? ["technical.character_constraint"] : [])];
       const immutableRequest = (contract: PromptContract) => {
         const request = structuredClone(contract.request);
         if (timelineDiagnosed) delete request.technical.timeline;
       if (audioDiagnosed) delete request.technical.audio;
       if (negativeDiagnosed) delete request.parameters.negative_prompt;
-        if (rivalWitness) delete request.technical.character_constraint;
+      if (baselineDiagnosed) delete request.technical.baseline;
+      if (brightDiagnosed) delete request.technical.bright_constraint;
+      if (rivalWitness || characterCountDiagnosed) delete request.technical.character_constraint;
         return request;
       };
       const sourcePortrait = shot.sourceContract.bindings.find(binding => binding.field === "portraits")!;

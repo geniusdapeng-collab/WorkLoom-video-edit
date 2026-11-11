@@ -394,6 +394,16 @@ describe("营销事实宿主完整执行", () => {
     await expect(finalizeMarketingFacts(prepared, [{ ...shots[0]!, prompt: "全市场第一，零噪音" }], env)).rejects.toThrow("MARKETING_PROMPT_FACTS_REJECTED");
     await expect(readFile(path.join(root, `${prepared.prefix}-facts.json`))).rejects.toMatchObject({ code: "ENOENT" });
   });
+  it("keeps production-consistency suggestions outside the final fact verdict", async () => {
+    const prepared = await prepare();
+    await finalizeMarketingFacts(prepared, shots, env);
+    const prompt = modelCalls.flatMap(call => Array.isArray(call.messages)
+      ? call.messages.flatMap((message: { content?: unknown }) => typeof message.content === "string" ? [message.content]
+        : Array.isArray(message.content) ? message.content.flatMap((part: { text?: unknown }) => typeof part.text === "string" ? [part.text] : []) : [])
+      : []).join("\n");
+    expect(prompt).toContain("本环节只裁决事实合规");
+    expect(prompt).toContain("制作建议只能写入suggestions");
+  });
   it.each(["raw", "text", "review", "prompt", "fields", "scope", "attempt", "expired", "claim-offset"])("%s变化不能复用营销事实资格", async kind => {
     const prepared = await prepare(), saved = await finalizeMarketingFacts(prepared, shots, env); let hash = saved.sha256;
     const requestedShots = structuredClone(shots), expectedScope = { ...scope };

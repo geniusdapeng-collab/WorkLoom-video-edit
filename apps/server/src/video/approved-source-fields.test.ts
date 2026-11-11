@@ -397,6 +397,41 @@ describe("host diagnostic field authoring plan", () => {
       diagnosedFindings: [artifact!] });
     expect(plan.fieldsByShot["scene-a"]).toEqual(expect.arrayContaining(["negative", "director_instruction", "action"]));
   });
+  it("repairs exact final production-consistency suggestions without weakening request channels", async () => {
+    const shot = fixture({
+      baseline: "8K级细节，电影级画质。",
+      bright_constraint: "面部无阴影明亮清晰。",
+      lighting: "主光来自上方，补光来自左前方。",
+      character_constraint: "唯一主角李英子与两名全盔对手骑手同框。",
+    }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "8K与1080p冲突；面部明亮与不露脸互斥；补光方位冲突；唯一主角与对手骑手同框互斥",
+      shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+    })!;
+    const plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact] });
+    expect(plan.fieldsByShot["scene-a"]).toEqual(expect.arrayContaining([
+      "baseline", "bright_constraint", "lighting", "character_constraint",
+    ]));
+    const fields = {
+      baseline: "高清电影级细节，1080p画质。",
+      bright_constraint: "全盔轮廓与车身明亮清晰，暗部保留层次。",
+      lighting: "主光来自上方，看台冷白补光统一来自右前方。",
+      character_constraint: "唯一命名主角李英子；另有两名无品牌匿名成年全盔运动陪体骑手，不构成第二主角或竞品身份。",
+    };
+    const { input } = authorInput(JSON.stringify({ shotId: shot.shotId, fields }), {}, plan);
+    const result = await authorRepairFields(input);
+    const prior = shot.sourceContract.request;
+    expect(result.shots[0]!.currentContract!.request.technical).toEqual({
+      ...prior.technical,
+      baseline: fields.baseline,
+      bright_constraint: fields.bright_constraint,
+      character_constraint: fields.character_constraint,
+    });
+    expect(result.receipts[0]!.mutableRequestTextPaths).toEqual([
+      "technical.baseline", "technical.bright_constraint", "technical.character_constraint",
+    ]);
+  });
 });
 
 describe("normal native dispatcher authoring with complete controlled artifacts", () => {

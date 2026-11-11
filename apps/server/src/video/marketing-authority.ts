@@ -518,7 +518,8 @@ export async function finalizeMarketingFacts(prepared: PreparedMarketingFacts, s
       requiredCheckIds: ["marketing-current-facts"], minScore: 85,
       rubric: ["逐句核对shot.prompt与全部结构fields中的商品事实、数字、价格、效果、评价和竞品主张，仅sourceClaims可作为事实依据",
         "必须遵守restrictions；不得把用户意图、推断、生成情节、广告愿望、缺证据或无冲突当成事实支持；任一未支持或夸大主张必须拒绝",
-        "创意可以使用虚构人物与非事实的镜头设计，但不得以画面演示暗示没有来源的商品性能、认证或真实人物背书"],
+        "创意可以使用虚构人物与非事实的镜头设计，但不得以画面演示暗示没有来源的商品性能、认证或真实人物背书",
+        "本环节只裁决事实合规，不负责分镜制作一致性。分辨率、8K、光位、面部可见性、主角/陪体人数措辞、景别或技术文案等制作建议只能写入suggestions，不能写入issues，也不能使approved=false；只要不存在未支持、夸大或违反restrictions的商品事实，approved必须为true并保留完整建议"],
       context: { purpose: "marketing-final-fact-review", shotId: shot.shotId, scope: prepared.bundle.scope },
     });
     const verdict = reviewed.verdict;
