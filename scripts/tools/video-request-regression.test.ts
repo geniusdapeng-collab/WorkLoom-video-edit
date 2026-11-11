@@ -606,6 +606,19 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
 }
 
 describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供应商，不代表生产通过）", () => {
+  it("提交前体检允许明确单轴后拉收至静止，仍拦截同时定格与推近", () => {
+    const fn = currentCliParts().fn("preflightSubmitGuard");
+    const context = {
+      createHash, BULLET_TIME_CAPABILITIES: { ...CONSERVATIVE_BULLET_TIME_CAPABILITIES, maxReferenceImages: 30 },
+      inspectBulletTimeMotion: () => ({ motionException: false }),
+      recordGate: (input: Card) => ({ approved: (input.checks as Array<{ pass: boolean; hard?: boolean }>)
+        .every((check) => check.hard === false || check.pass) }), log: () => {},
+    };
+    const endingPrompt = "【运镜】极缓慢单轴后拉，不摇、不移；T00:03–T00:04 后拉收至静止，落幅定格。";
+    expect(() => evaluateCurrent(`${fn}; preflightSubmitGuard({shotId:"ending",stage:"videos",prompt:${JSON.stringify(endingPrompt)},fps:30,attempt:1,prevFingerprint:null,shot:{}})`, context)).not.toThrow();
+    const conflictPrompt = "固定机位让终点定格，同时继续推近。";
+    expect(() => evaluateCurrent(`${fn}; preflightSubmitGuard({shotId:"bad",stage:"videos",prompt:${JSON.stringify(conflictPrompt)},fps:30,attempt:1,prevFingerprint:null,shot:{}})`, context)).toThrow("落幅必漂");
+  });
   it("嵌套 authored 镜头字段进入常识审核时仍保留人物、w2、服装和真实商品绑定", () => {
     const shot = {
       shotId: "S1", duration: 5, scene: "以场景圣经升级后的赛道说明为准",

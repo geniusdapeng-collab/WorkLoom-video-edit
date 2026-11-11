@@ -1831,7 +1831,13 @@ function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: st
   const hasDoc = /身份证|证件|护照|单据|票据/.test(text);
   const docOk = /(不可辨|背面|无证件文字|无身份证|不出现)/.test(text);
   if (hasDoc && !docOk) issues.push("证件类道具未声明不可辨认/背面/不入画——会出现可辨字迹与号码（隐私红线，真机返修 5 次）");
-  if (/定住|稳住|定格/.test(text) && /推|拉|移|摇|环绕/.test(text) && !inspectBulletTimeMotion(input.shot, BULLET_TIME_CAPABILITIES).motionException) {
+  const freezeLanguage = /定住|稳住|定格/.test(text);
+  const cameraMoveLanguage = /推|拉|移|摇|环绕/.test(text);
+  const explicitPullbackToRest = /极缓慢单轴后拉/.test(text)
+    && /收至静止|落幅静止|落幅停在/.test(text)
+    && !/同时推近|同时拉近|边后拉边/.test(text);
+  if (freezeLanguage && cameraMoveLanguage && !explicitPullbackToRest
+    && !inspectBulletTimeMotion(input.shot, BULLET_TIME_CAPABILITIES).motionException) {
     issues.push("同一镜同时锁\"定住\"时点与推拉运镜，且没有合法的 bulletTime 主体时间/摄影机时间分层合同——落幅必漂");
   }
   const fpsMatch = text.match(/(\d{2})\s*fps/i);
