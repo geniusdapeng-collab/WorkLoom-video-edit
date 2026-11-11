@@ -60,15 +60,15 @@ export const SEMANTIC_QUALITY_QUESTION: Readonly<Record<SemanticQualityCheckId, 
     fields: ["character", "action", "scene"],
   },
   SQ2_SCENE_PROPS: {
-    question: "场景与道具是否服务内容，而非堆砌？",
+    question: "场景与道具是否服务内容，且时间轴是否用显式连续区间从头到尾呈现动作与道具交接？",
     fields: ["scene", "props", "action", "timeline"],
   },
   SQ3_CAMERA_FEASIBLE: {
-    question: "镜头和运动是否能在目标时长内完成？",
+    question: "镜头和运动是否能在目标时长内完成？起幅、方向和速度只能是一套互不冲突的实际计划，不得附加未定时或矛盾的模板。",
     fields: ["camera_movement", "timeline", "constraint"],
   },
   SQ4_LIGHT_COLOR: {
-    question: "光影、构图和色调是否统一？",
+    question: "光影、构图和色调是否统一？护具完整不等于所有护具必须同框；明确不入近景画框的护具可由一致性字段连续承载，只对明确要求同框的部位判缺失。",
     fields: ["lighting", "color_palette", "composition", "mood"],
   },
   SQ5_PURPOSE: {
@@ -641,7 +641,7 @@ function semanticQuestions(upstream: Record<string, unknown> | undefined, shotId
   if (!hasCurrentG4Shot(upstream, shotId)) return SEMANTIC_QUALITY_QUESTION;
   return {
     ...SEMANTIC_QUALITY_QUESTION,
-    SQ5_PURPOSE: { question: "这一镜是否有明确叙事作用，且转场不违背本镜已审切点和末态动作？",
+    SQ5_PURPOSE: { question: "这一镜是否有明确叙事作用，且转场不违背本镜已审切点、硬切时长与末态自然微动？不得把自然微动改写成冻结或定格。",
       fields: [...SEMANTIC_QUALITY_QUESTION.SQ5_PURPOSE.fields, "transition"] },
   };
 }
@@ -835,10 +835,10 @@ function semanticPrompt(
     ...(upstreamContext?.approvedProductionPlan ? [
       "approvedProductionPlan 含当前 G4 批准并按镜号绑定的场景与核验计划。依据镜号核对本镜，不替其他镜头认领动作。客户冻结 Brief、现有镜号、顺序和时长仍有效。",
       "SQ1 必须核对本镜每个必做动作在画面中可见。只写动作已经完成、跳过关键前后状态、用结果代替过程或把动作移到另一镜，都判失败。缺动作指向 action；身份或姿态不符指向 character。",
-      "SQ2 必须检查时间轴是否逐项呈现本镜的动作和道具交接，按要求顺序发生。与 action 缺项或冲突时指向 timeline。SQ3 运镜各时间窗和镜位须对齐同一实际动作与时间轴。",
-      "SQ4 核对构图是否实际能看到 G4 明确要求的部位、护具、动作或可见细节；不能用无关特写、遮挡或通用形容词代替。SQ5 关键目的与相邻镜头交接必须有本镜的字段证据。",
+      "SQ2 必须检查时间轴是否用 T00:00–T00:xx 等显式连续区间从头到尾逐项呈现本镜的动作和道具交接。单点时间或省略时间窗不能证明顺序。与 action 缺项或冲突时指向 timeline。SQ3 运镜各时间窗和镜位须对齐同一实际动作与时间轴。",
+      "SQ4 核对构图是否实际能看到 G4 明确要求同框的部位、护具、动作或可见细节；如果 G4 只要求护具完整而未要求全部同框，明确说明不入近景画框的部分可由 consistency 的连续状态承载，不得把“完整”误判为“必须全同框”，也不能忽略明确同框要求。SQ5 关键目的与相邻镜头交接必须有本镜的字段证据。",
       ...(hasCurrentG4Shot(upstreamContext, contract.shotId) ? [
-        "SQ2 角色占用双手的道具必须实际放稳、交接或有明确可行的后续动作，不能从仍握住道具直接跳到双手使用另一道具。",
+        "SQ2 角色占用双手的道具必须实际放稳、交接或有明确可行的后续动作，不能从仍握住道具直接跳到双手使用另一道具。重复项必须有显式时间区间和段内动作，不使用孤立时点代替完整过程。",
         "已审规格要求连续多个关键动作时，逐个核对每次的起点、过程、完整完成和前一动作应保留的连续状态，不能用只写部分动作或成功结果代替。",
         "SQ4 必须为本镜已审明确要求的每一项可见细节单独找镜头内证据。仅证明光线、奖杯或脸部清楚，不能替代护具内的自然轮廓或规定的完整动作。",
         "SQ5 仅当本镜转场文字确有冲突时可指向 transition。按实际已审切点和末态复核：自然微动不能改成冻结或定格；稳定机位、自然微动和冻结画面是不同的制作行为。",
@@ -911,7 +911,7 @@ function repairPrompt(
       "时间轴的交接写进实际发生的段内时窗，保留完整原时长、切点和已审动作顺序，运镜及动作字段须与之相容。",
     ] : []),
     ...(findings.some(check => check.eventWitness) ? [
-      "eventWitness 是宿主从当前已审计划及同版字段提取的有限事件见证。逐项落实对应演员、身体侧别、对手身份、事件顺序与时间窗，不得删除原事件或借用另一对手的完成状态来消除诊断。",
+      "eventWitness 是宿主从当前已审计划及同版字段提取的有限事件见证。逐项落实对应演员、身体侧别、对手身份、事件顺序与时间窗，不得删除原事件或借用另一对手的完成状态来消除诊断。若涉及 timeline，必须写成 T00:00–T00:xx 等显式、连续、无缝覆盖本镜总时长的区间，不能只写孤立时点。",
     ] : []),
     "只输出 JSON：changes[]，每项必须有 field、value、reason；至少产生一个变化。",
     `镜头：${JSON.stringify({ ...(reviewScope ? { reviewScope } : {}), shotId: contract.shotId, durationSec: contract.request.parameters.duration_sec,
