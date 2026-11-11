@@ -12,6 +12,7 @@ export const APPROVED_SOURCE_FIELDS_VERSION = "workloom.approved-source-fields/v
 type JsonRecord = Record<string, unknown>;
 const hashPattern = /^[a-f0-9]{64}$/u;
 const newFieldSchemaExample = "从完整已审来源新创作本字段的非空文本";
+const FINAL_LENGTH_EDITABLE_FIELDS = ["lighting", "composition", "color_palette", "depth_of_field", "mood"] as const;
 const hashBytes = (value: Uint8Array | string): string => createHash("sha256").update(value).digest("hex");
 function fail(code: string): never { throw new Error(`APPROVED_SOURCE_FIELDS_${code}`); }
 function record(value: unknown): JsonRecord {
@@ -309,6 +310,7 @@ export interface AllowedFieldPlan {
   schemaVersion: typeof APPROVED_SOURCE_FIELDS_VERSION;
   sourceContextSha256: string;
   sourceShotsSha256: string;
+  maxFinalPromptChars?: number;
   shots: RecoveredPromptShot[];
   diagnoses: AllowedFieldDiagnosis[];
   fieldsByShot: Record<string, string[]>;
@@ -317,6 +319,7 @@ export interface AllowedFieldPlan {
 export interface PlanFieldAuthoringInput {
   shots: readonly RecoveredPromptShot[];
   sourceContextSha256: string;
+  maxFinalPromptChars?: number;
   /** Complete, hash-verified G6 reports or host field-diagnostic artifacts; never a client field list. */
   diagnosedFindings: readonly VerifiedFieldArtifact[];
   truncationEvidence?: readonly VerifiedFieldArtifact[];
@@ -343,6 +346,10 @@ function validateRecoveredShot(shot: RecoveredPromptShot): RecoveredPromptShot {
 /** Bind each diagnosed write to a complete recovered contract and its current value digest. */
 export function planFieldAuthoring(input: PlanFieldAuthoringInput): AllowedFieldPlan {
   checkedHash(input.sourceContextSha256);
+  if (input.maxFinalPromptChars !== undefined
+    && (!Number.isSafeInteger(input.maxFinalPromptChars) || input.maxFinalPromptChars <= 0)) {
+    return fail("PROMPT_LENGTH_LIMIT_INVALID");
+  }
   if (!input.shots.length || new Set(input.shots.map(shot => shot.shotId)).size !== input.shots.length) return fail("SHOTS_INVALID");
   const shots = input.shots.map(validateRecoveredShot);
   const byId = new Map(shots.map(shot => [shot.shotId, shot]));
@@ -376,7 +383,23 @@ export function planFieldAuthoring(input: PlanFieldAuthoringInput): AllowedField
     } else if (parsed.schemaVersion === "workloom.video-prompt-quality/v2" && Array.isArray(parsed.findings)) {
       for (const raw of parsed.findings) {
         const entry = record(raw);
-        if (entry.blocking !== true || typeof entry.field !== "string") continue;
+        if (entry.blocking !== true) continue;
+        if (entry.code === "HARD_FINAL_PROMPT_TOO_LONG") {
+          if (entry.repairClass !== "deterministic" || input.maxFinalPromptChars === undefined) {
+            return fail("FINAL_PROMPT_LENGTH_UNBOUND");
+          }
+          const target = byId.get(String(entry.shotId));
+          if (!target) return fail("DIAGNOSIS_SCOPE_INVALID");
+          const editable = FINAL_LENGTH_EDITABLE_FIELDS.filter(field =>
+            typeof target.fields[field] === "string" && Boolean((target.fields[field] as string).trim()));
+          if (!editable.length) return fail("FINAL_PROMPT_EDITABLE_FIELD_MISSING");
+          for (const field of editable) {
+            add({ ...entry, field, valueSha256: sha256Json(target.fields[field]),
+              reason: `${entry.detail}；只缩短 ${field}，保留全部制作语义与请求通道` }, "truncation", sha256, "host-diagnostic");
+          }
+          continue;
+        }
+        if (typeof entry.field !== "string") continue;
         if (entry.code === "HARD_FIELD_VALUE_MISSING" && ["deterministic", "local_patch"].includes(String(entry.repairClass))) {
           add({ ...entry, reason: entry.detail }, "missing", sha256, "g6-missing");
         } else if (entry.repairClass === "semantic") add({ ...entry, reason: entry.detail }, "conflict", sha256, "g6-semantic");
@@ -387,6 +410,7 @@ export function planFieldAuthoring(input: PlanFieldAuthoringInput): AllowedField
     [...new Set(diagnoses.filter(entry => entry.shotId === shot.shotId).map(entry => entry.field))]]));
   if (shots.some(shot => shot.unboundFields.some(field => !fieldsByShot[shot.shotId]!.includes(field.field)))) return fail("MISSING_DIAGNOSIS_REQUIRED");
   const body = { schemaVersion: APPROVED_SOURCE_FIELDS_VERSION, sourceContextSha256: input.sourceContextSha256,
+    ...(input.maxFinalPromptChars === undefined ? {} : { maxFinalPromptChars: input.maxFinalPromptChars }),
     sourceShotsSha256: sha256Json(shots), shots, diagnoses, fieldsByShot };
   return { ...body, sha256: sha256Json(body) };
 }
@@ -559,6 +583,9 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       const authoredAt = new Date().toISOString();
       const compiled = compilePromptShot(shot, { ...shot.compileOptions, createdAt: authoredAt });
       if (compiled.hardErrors.length || !isDeepStrictEqual(compiled.fieldValues, shot.fields)) return fail("AUTHORING_COMPILE_INVALID");
+      if (input.plan.maxFinalPromptChars !== undefined
+        && diagnoses.some(entry => entry.kind === "truncation")
+        && compiled.contract.prompt.length > input.plan.maxFinalPromptChars) return fail("AUTHORING_PROMPT_STILL_TOO_LONG");
       const mutableRequestTextPaths = [...(timelineDiagnosed ? ["technical.timeline"] : []),
         ...(rivalWitness ? ["technical.character_constraint"] : [])];
       const immutableRequest = (contract: PromptContract) => {

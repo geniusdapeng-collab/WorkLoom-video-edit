@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import {
-  ArchiveStore, canonicalJson, platformIdOf, preparePrdPortraitReferenceSelection, preparePrdPortraitSources,
+  ArchiveStore, canonicalJson, fieldSpec, platformIdOf, preparePrdPortraitReferenceSelection, preparePrdPortraitSources,
   sha256Json, type PrdMarketingAuthority,
 } from "@hyperreality/video-studio";
 import { assertSystemAutoApprovalReceipt } from "@workloom/pipeline-control";
@@ -458,6 +458,7 @@ async function loadApprovedSourcePlan(
   const sourceContext = { brief: request.metadata.brief ?? null, gates: { G1: g1.artifact.content,
     G2: approvedGates.G2_THEME.artifact.content, G3: approvedGates.G3_INSIGHT.artifact.content, G4: g4Content }, approvedProductionPlan };
   const fieldPlan = planFieldAuthoring({ shots: contracts, sourceContextSha256: sha256Json(sourceContext),
+    maxFinalPromptChars: fieldSpec().lengths.hardMax,
     diagnosedFindings: [reportArtifact], truncationEvidence: [] });
   const manifestSetting = process.env.HR_PORTRAIT_REUSE_MANIFEST?.trim();
   if (!manifestSetting) return fail("SOURCE_PORTRAITS_UNAVAILABLE", "当前宿主没有受控的既有角色图片选择，不能重新生成或猜测图片来源。");

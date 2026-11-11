@@ -72,9 +72,9 @@ function nativeEngine(reply: string, patch: Record<string, unknown> = {}) {
   engine.attachRouter(router);
   return { engine, requests, policy, router };
 }
-function authorInput(reply: string, patch: Record<string, unknown> = {}) {
+function authorInput(reply: string, patch: Record<string, unknown> = {}, plan = fieldPlan()) {
   const native = nativeEngine(reply, patch), archives: FieldAuthoringArchiveInput[] = [], events: FieldAuthoringBudgetEvent[] = [];
-  const input = { plan: fieldPlan(), sourceContext: structuredClone(sourceContext), engine: native.engine,
+  const input = { plan, sourceContext: structuredClone(sourceContext), engine: native.engine,
     verifyCurrent: vi.fn(async () => undefined), budgetHook: vi.fn(async (event: FieldAuthoringBudgetEvent) => { events.push(event); }),
     archive: vi.fn(async (item: FieldAuthoringArchiveInput) => { archives.push(item); return { ref: `attempt-new/${item.shotId}/${item.kind}`, sha256: digest(item.bytes) }; }) };
   return { ...native, input, archives, events };
@@ -187,6 +187,26 @@ describe("canonical source-contract recovery", () => {
 });
 
 describe("host diagnostic field authoring plan", () => {
+  it("turns final prompt overflow into bounded descriptive fields and refuses a non-shortening rewrite", async () => {
+    const shot = fixture({ color_palette: "色".repeat(3200) }).recovered;
+    expect(shot.prompt.length).toBeGreaterThan(3000);
+    const report = verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [{
+      shotId: shot.shotId, field: null, code: "HARD_FINAL_PROMPT_TOO_LONG",
+      detail: `完整提示词 ${shot.prompt.length} 字符超过最终上限 3000`, blocking: true, repairClass: "deterministic",
+    }] });
+    const plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+      maxFinalPromptChars: 3000, diagnosedFindings: [report] });
+    expect(plan.fieldsByShot[shot.shotId]).toEqual(["lighting", "composition", "color_palette", "depth_of_field", "mood"]);
+    const fields = Object.fromEntries(plan.fieldsByShot[shot.shotId]!.map(field =>
+      [field, `${String(shot.fields[field])}新`]));
+    const authored = authorInput(JSON.stringify({ shotId: shot.shotId, fields }), {}, plan);
+    await expect(authorRepairFields(authored.input)).rejects.toThrow("AUTHORING_PROMPT_STILL_TOO_LONG");
+    const shortened = Object.fromEntries(plan.fieldsByShot[shot.shotId]!.map(field => [field, `${field}短版`]));
+    const shortenedInput = authorInput(JSON.stringify({ shotId: shot.shotId, fields: shortened }), {}, plan);
+    await expect(authorRepairFields(shortenedInput.input)).resolves.toMatchObject({
+      shots: [expect.objectContaining({ fields: expect.objectContaining(shortened) })],
+    });
+  });
   it("derives current fields from verified G6 findings and preserves every other field", () => {
     const recovered = fixture().recovered, plan = fieldPlan(recovered, ["action", "timeline"]);
     expect(plan.fieldsByShot).toEqual({ "scene-a": ["action", "timeline"] });
