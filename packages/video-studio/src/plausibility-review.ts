@@ -356,6 +356,12 @@ export async function reviewPlausibility(
         log(`[plausibility][${input.stage}] 将按时序成立的否定终态降为 warning：${finding.id}`);
         return { ...finding, severity: "warning" as const };
       }
+      const locationWordingOnly = /位置|方位|左|右|内侧|外侧/.test(finding.issue)
+        && !/穿模|悬空|无人驾驶|接触|支撑|比例|换人|人数|穿车|夹住/.test(finding.issue);
+      if (finding.severity === "blocker" && locationWordingOnly) {
+        log(`[plausibility][${input.stage}] 将非物理性的左右位置措辞冲突降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
       return finding;
     });
     const blockers = findings.filter((finding) => finding.severity === "blocker");

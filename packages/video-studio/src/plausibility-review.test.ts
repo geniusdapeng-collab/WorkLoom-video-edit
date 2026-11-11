@@ -231,6 +231,23 @@ describe("实体与物理常识审核 agent", () => {
     expect(result.findings[0]).toMatchObject({ id: "temporal-helmet", severity: "warning" });
   });
 
+  it("纯左右位置措辞冲突降为 warning，穿模或支撑失效仍保持 blocker", async () => {
+    const result = await reviewPlausibility(baseContext, {
+      env: llmEnv,
+      fetchImpl: (async () => jsonResponse({
+        verdict: "block",
+        findings: [
+          { id: "position-copy", severity: "blocker", shotId: "SC-01", issue: "动作写左侧，构图写右侧", why: "措辞不一致", fix: "统一方位" },
+          { id: "physical", severity: "blocker", shotId: "SC-01", issue: "右肩悬空且穿模", why: "支撑失效", fix: "重做姿态" },
+        ],
+        promptPatches: [], reason: "混合问题",
+      })) as unknown as typeof fetch,
+    });
+    expect(result.verdict).toBe("block");
+    expect(result.findings.find((finding) => finding.id === "position-copy")).toMatchObject({ severity: "warning" });
+    expect(result.findings.find((finding) => finding.id === "physical")).toMatchObject({ severity: "blocker" });
+  });
+
   it("无模型 / HTTP 失败 / 输出不可解析 → unverified（调用方 fail-closed）", async () => {
     const noModel = await reviewPlausibility(baseContext, { env: {}, fetchImpl: (async () => jsonResponse({})) as unknown as typeof fetch });
     expect(noModel.verdict).toBe("unverified");
