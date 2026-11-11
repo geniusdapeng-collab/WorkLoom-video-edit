@@ -2678,14 +2678,21 @@ function portraitReferenceClauseFor(shot: ShotCard): string {
   const plan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
   return plan.applicable && plan.valid ? bulletTimeReferenceClause(plan.angles) : portraitReferenceClause;
 }
+/** Authored Film cards may keep standard fields under `fields`; consumers must not lose that binding. */
+function shotAuthoredText(shot: ShotCard, key: string): string {
+  const own = shot[key];
+  if (own !== undefined && own !== null && String(own).trim()) return String(own).trim();
+  const nested = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
+    ? shot.fields as Record<string, unknown>
+    : {};
+  const value = nested[key];
+  return value === undefined || value === null ? "" : String(value).trim();
+}
 /** Resolve only contradictions proven by the current card; never invent a new scene or claim. */
 function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { prompt: string; corrections: string[] } {
   let next = prompt;
   const corrections: string[] = [];
-  const nestedFields = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
-    ? shot.fields as Record<string, unknown>
-    : {};
-  const fieldText = (key: string): string => String(shot[key] ?? nestedFields[key] ?? "");
+  const fieldText = (key: string): string => shotAuthoredText(shot, key);
   const characterText = fieldText("character");
   const actionText = fieldText("action");
   const sceneText = `${fieldText("scene")}；${fieldText("sceneDescription")}`;
@@ -2697,9 +2704,11 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     }
   }
   const helmetSeam = next
-    .replace(/头盔后下方开口处/g, "全盔后缘无孔缝内")
-    .replace(/头盔后下方开口/g, "全盔后缘无孔缝")
-    .replace(/全盔后下方开口处/g, "全盔后缘无孔缝")
+    .replace(/全盔后缘无孔缝内/g, "全盔后缘与骑行服领口之间")
+    .replace(/全盔后缘无孔缝的黑色发圈/g, "全盔后缘与骑行服领口之间的黑色发圈")
+    .replace(/(?:全盔|头盔)后下方开口处/g, "全盔后缘与骑行服领口之间")
+    .replace(/(?:全盔|头盔)后下方开口/g, "全盔后缘与骑行服领口之间")
+    .replace(/开口处发圈/g, "全盔后缘与领口之间的发圈")
     .replace(/压束在全盔内/g, "后颈压平于内衬")
     .replace(/压束在头盔内/g, "后颈压平于内衬");
   if (helmetSeam !== next) {
@@ -2730,9 +2739,20 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
         : `侧撑已放下，她已下车站在车侧，双脚落地承重；${body}`}`);
     corrections.push("stopped-vehicle-side-stand");
   }
+  const supportedParking = next
+    .replace(/她的赛车已停稳，侧撑放下并静止在画面右后方/g,
+      "她的赛车已停稳，侧撑已支起，侧撑尖与后轮共同在沥青上承重，车身向左侧微倾并停在画面右后方")
+    .replace(/侧撑放下后，她已下车站在车侧，双脚落地承重/g,
+      "侧撑已支起、侧撑尖与后轮共同承重后，她已下车站在车侧，双脚落地承重");
+  if (supportedParking !== next) {
+    next = supportedParking;
+    corrections.push("supported-parking-contact");
+  }
   const releasedHair = next
     .replace(/马尾顺势松开垂落/g, "发圈不解开，压束马尾顺势释放并垂落")
-    .replace(/马尾松开顺肩背垂落/g, "发圈保持扎紧，发束自然垂落至肩背");
+    .replace(/马尾松开顺肩背垂落/g, "发圈保持扎紧，发束自然垂落至肩背")
+    .replace(/压束马尾顺势释放并垂落到肩背/g, "发圈保持扎紧、扎点不变；被头盔压束的发束在头盔离头后失去压缩，整束垂落到肩背，发丝不散开、不变成披散长发")
+    .replace(/no loose spread hair/gi, "no messy unstyled hair");
   if (releasedHair !== next) {
     next = releasedHair;
     corrections.push("ponytail-release-not-unfastened");
@@ -2749,6 +2769,31 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     next = singleOpponent;
     corrections.push("single-opponent-and-post-text-scope");
   }
+  const groundedPass = next
+    .replace(/后轮在弯前轻微横向滑动把缝隙收窄成一条窄线/g, "车辆受控向弯心收线，主角车保持后轮贴地跟进");
+  if (groundedPass !== next) {
+    next = groundedPass;
+    corrections.push("grounded-opponent-line");
+  }
+  const dedupedTimeline = next.replace(
+    /T00:00–T00:02：[^\n]*…[^\n]*T00:06–T00:08：[^\n]*\n(?=T00:02–T00:04：)/,
+    "",
+  );
+  if (dedupedTimeline !== next) {
+    next = dedupedTimeline;
+    corrections.push("duplicate-timeline-removed");
+  }
+  const supportedFinish = next
+    .replace(/画幅上沿横跨一条纯色且无任何文字标识的冲线横条，横条两侧不出现任何赛事官方标志、主办方标识或赞助商字样/g,
+      "画幅上沿横跨一条纯色无字冲线横条，两端由画外金属龙门立柱受拉悬挂并轻微下垂，横条无任何赛事官方标志、主办方标识或赞助商字样")
+    .replace(/冲线瞬间礼炮纸屑从上方落下/g,
+      "画外赛道边沿礼炮先向上喷射纸屑，纸屑再受重力与空气阻力下落")
+    .replace(/看台模糊人声/g, "不可辨看台气流声")
+    .replace(/看台人声压成模糊气流/g, "不可辨看台气流声");
+  if (supportedFinish !== next) {
+    next = supportedFinish;
+    corrections.push("supported-finish-props-and-audio");
+  }
   const supportedNearStop = next
     .replace(/赛车沿减速区低矮边线直线滑行到近乎停住/g, "赛车沿边线滑行减速，停稳后左脚前掌点地、右脚留脚踏")
     .replace(/随车停住后收住/g, "随车停稳后收住")
@@ -2756,6 +2801,19 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   if (supportedNearStop !== next) {
     next = supportedNearStop;
     corrections.push("near-stop-support");
+  }
+  if (sceneIdentity === "ending") {
+    let endingContinuity = next
+      .replace(/领奖台为无镌刻哑光深灰金属台面/g, "领奖台中段台面高约1.0米、宽约1.5米，为无镌刻哑光深灰金属台面")
+      .replace(/侧后方三米停放一台赛道摩托车整车正面示意外形/g, "侧后方三米停放同一台赛道摩托车，以侧撑支起且前后轮着地，整车正面示意外形")
+      .replace(/冠军奖杯为双手托起的示意外形/g, "冠军奖杯连底座高约35厘米、底座直径约12厘米，为双手在胸口以上托起的示意外形");
+    if (!/全盔已放在领奖台台面右侧/.test(endingContinuity)) {
+      endingContinuity += " | 【跨镜实体延续】上一镜同一顶哑光全盔已放在领奖台台面右侧、盔口朝上，不凭空消失。";
+    }
+    if (endingContinuity !== next) {
+      next = endingContinuity;
+      corrections.push("ending-scale-and-prop-continuity");
+    }
   }
   next = next.replace(/6000K冷白(?!补光)/g, "5600K冷白");
   return { prompt: next, corrections };
@@ -3733,10 +3791,7 @@ function recordFinalPromptGate(shot: ShotCard, verdict: ProducerVerdict): void {
     inputPaths: [file], exactInputPaths: true, evidence: { mode: "final-prompt", promptSha256: sha256FileSync(file), reviewContractHash: verdict.contractHash ?? null, bulletTime } });
 }
 function plausibilityArchiveFor(shot: ShotCard): NonNullable<ReturnType<typeof selectProductArchive>["archive"]> | null {
-  const selector = String((shot as Record<string, unknown>).product
-    ?? policyBrief?.productId
-    ?? policyBrief?.product
-    ?? "").trim();
+  const selector = String(shotAuthoredText(shot, "product") || policyBrief?.productId || policyBrief?.product || "").trim();
   if (!selector) return null;
   return selectProductArchive(productLibrary.archives, selector).archive ?? null;
 }
@@ -3757,6 +3812,7 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
       return file ? [{ label: `镜头 ${String(shot.shotId)} ${isMaterialShot(shot) ? "当前商品参考准备件" : "预生产构图稿（不表示实际视频首帧）"}`, path: file }] : [];
     })
     : [];
+  const reviewArchiveByShot = new Map(reviewShots.map((shot) => [String(shot.shotId), plausibilityArchiveFor(shot)]));
   return {
     projectId: PROJECT,
     reviewId: `${PROJECT}:${stage}:${RUN_ID}:${Date.now()}`,
@@ -3797,15 +3853,26 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
       appearance: archive.specs?.appearance, features: archive.specs?.features,
       parameters: (archive.specs?.parameters ?? []).map((parameter) => ({ name: String(parameter?.name ?? ""), value: String(parameter?.value ?? "") })),
     })),
-    shots: reviewShots.map((shot) => ({
-      shotId: String(shot.shotId), durationSec: Number(shot.duration ?? 0) || undefined,
-      scene: String(shot.scene ?? ""), sceneDescription: String(shot.sceneDescription ?? ""),
-      action: String(shot.action ?? ""), props: String(shot.props ?? ""), character: String(shot.character ?? ""),
-      wardrobeId: String((shot as Record<string, unknown>).wardrobeId ?? ""),
-      costume: String((shot as Record<string, unknown>).costume ?? ""),
-      dialogue: shot.dialogue ?? null, dialogueFree: (shot as Record<string, unknown>).dialogueFree === true,
-      product: String((shot as Record<string, unknown>).product ?? ""), promptText: promptFor(String(shot.shotId)),
-    })),
+    shots: reviewShots.map((shot) => {
+      const costume = shotAuthoredText(shot, "costume");
+      const explicitWardrobe = shotAuthoredText(shot, "wardrobeId");
+      const wardrobeFromCostume = /(?:^|[\s，,；;:：])(w\d+)\b/i.exec(costume)?.[1]
+        ?? /^w\d+\b/i.exec(costume)?.[0]
+        ?? "";
+      const authoredCharacter = shotAuthoredText(shot, "character");
+      return {
+        shotId: String(shot.shotId), durationSec: Number(shot.duration ?? 0) || undefined,
+        scene: shotAuthoredText(shot, "scene"),
+        sceneDescription: shotAuthoredText(shot, "sceneDescription"),
+        action: shotAuthoredText(shot, "action"), props: shotAuthoredText(shot, "props"),
+        character: authoredCharacter,
+        wardrobeId: explicitWardrobe || wardrobeFromCostume,
+        costume,
+        dialogue: shot.dialogue ?? null, dialogueFree: (shot as Record<string, unknown>).dialogueFree === true,
+        product: shotAuthoredText(shot, "product") || reviewArchiveByShot.get(String(shot.shotId))?.id || "",
+        promptText: promptFor(String(shot.shotId)),
+      };
+    }),
     images,
     stage,
   };

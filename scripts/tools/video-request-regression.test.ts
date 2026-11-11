@@ -558,7 +558,7 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     Buffer, Date, Promise, Error, Set, Map, Number, String, Object, Array, JSON, Math, createHash, randomUUID: () => `fixture-${Math.random().toString(36).slice(2)}`,
     readFileSync, writeFileSync, existsSync, statSync, mkdirSync, openSync, closeSync, fsyncSync, linkSync, copyFileSync, rmSync, fsConstants,
     basename: (path: string) => path.split("/").at(-1), dirname, join, resolve, fingerprintArtifact,
-    WORK_DIR: dir, PROJECT: "ISOLATED-CURRENT", PROMPT_DIR: promptDir, PLATE_DIR: plateDir, CLIP_DIR: clips,
+    WORK_DIR: dir, PROJECT: "ISOLATED-CURRENT", RUN_ID: "fixture-run", PROMPT_DIR: promptDir, PLATE_DIR: plateDir, CLIP_DIR: clips,
     SOURCE_SIZE: { width: 64, height: 96 }, ASPECT: "9:16", SOURCE_RESOLUTION: "720p", OUTPUT_RESOLUTION: "720p", FPS: 24,
     VIDEO_MODEL: "doubao-seedance-2-5-260628", ENV: env, ARK_KEY: "isolated-fixture-secret", ARK_BASE: "https://invalid.test/api/v3", WORKER_RUNTIME: null,
     BULLET_TIME_CAPABILITIES: { ...CONSERVATIVE_BULLET_TIME_CAPABILITIES, maxReferenceImages: 30 },
@@ -567,6 +567,8 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     MATERIAL_POST_ONLY: false, MATERIAL_SPEED_RAMP: false, MATERIAL_POST_CAMERA_MOVE: false, MAX_ATTEMPTS: 3, ACCEPT_REJECTED: [],
     FILM_SPEECH_LANGUAGE: "zh-CN", REALISM_CLAUSE: "实拍质感", REALISM_NEGATIVE_TERMS: "不改身份", MATERIAL_POLICY_VERSION: "fixture-policy", PLAUSIBILITY_POLICY_VERSION: "fixture-plausibility",
     shotlist: { title: "正式隔离镜头", durationSeconds: 13 }, totalSeconds: 13, lead: { name: "原创成年人物", appearanceText: "成年虚构人物" },
+    policyBrief: null, sourceCharacter: { id: "fictional-adult", name: "原创成年人物" },
+    sourceDocument: { character: { id: "fictional-adult", name: "原创成年人物" }, shots: [shot] },
     usePortraitRefs: true, portraitReferenceClause: "【人物参考】图1图2是同一虚构成年人，图3是商品。", REVISION_CONTEXT: "",
     productLibrary: { archives: [] }, selectProductArchive: () => ({ archive: null }), arg: (_name: string, fallback = "") => fallback, flag: () => false,
     isMaterialShot: () => kind === "material", isAssetShot: () => kind === "asset", isAssetRefLocal: (path: string) => path.startsWith("asset://"), assetRefOf: () => "asset://authorized-fixture-id",
@@ -598,12 +600,47 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     retryInstruction: () => { throw new Error("PAID_POST_MUST_NOT_RETRY"); }, motionPolicyForShot: () => ({ intent: "ordinary" }),
     applySpeedRamp: () => { throw new Error("UNREQUESTED_RETIME"); }, applyCameraMovePunchCut: () => { throw new Error("UNREQUESTED_CAMERA_MOVE"); },
   };
-  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "renderSecondsFor", "plausibilityArchiveFor", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
+  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "shotAuthoredText", "renderSecondsFor", "plausibilityArchiveFor", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
   const execute = () => evaluateCurrent(`(async()=>{${functions}\n${kind === "material" ? parts.material : parts.videos}\n})()`, context) as Promise<void>;
   return { dir, execute, context, gates, paidBodies, rows, accepted, reviews, get posts() { return posts; }, get gets() { return gets; }, images, front, closeup };
 }
 
 describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供应商，不代表生产通过）", () => {
+  it("嵌套 authored 镜头字段进入常识审核时仍保留人物、w2、服装和真实商品绑定", () => {
+    const shot = {
+      shotId: "S1", duration: 5, scene: "以场景圣经升级后的赛道说明为准",
+      fields: {
+        scene: "原始赛道说明",
+        action: "李英子压低身体外线出弯",
+        character: "李英子（young-rider-01），20岁成年虚构女性",
+        costume: "w2哑光全覆保护赛车服",
+      },
+    };
+    const archive = {
+      id: "zxmoto-820rr-rc", displayName: "张雪 820RR-RC 赛道版", brand: "张雪机车", category: "赛道摩托车",
+      source: { kind: "customer-upload", reviewStatus: "approved" }, specs: { parameters: [] }, photos: [],
+    };
+    const context = {
+      policyBrief: { productId: "zxmoto-820rr-rc" }, productLibrary: { archives: [archive] },
+      selectProductArchive: () => ({ archive }), PROJECT: "ISOLATED-CURRENT", RUN_ID: "fixture-run",
+      shotlist: { platform: "douyin", durationSeconds: 5 }, totalSeconds: 5,
+      FILM_SPEECH_LANGUAGE: "zh-CN", ASPECT: "9:16", OUTPUT_RESOLUTION: "1080p",
+      lead: null, PROMPT_DIR: join(tmpdir(), "no-current-prompts"), existsSync: () => false, join,
+      isMaterialShot: () => false, arg: (_name: string, fallback = "") => fallback,
+    };
+    const functions = ["shotAuthoredText", "plausibilityArchiveFor", "plausibilityContextFor"].map(currentCliParts().fn).join("\n");
+    const projected = evaluateCurrent(`${functions}; plausibilityContextFor("pre-render", [${JSON.stringify(shot)}])`, context) as {
+      shots: Array<Card>;
+    };
+    expect(projected.shots[0]).toMatchObject({
+      scene: "以场景圣经升级后的赛道说明为准",
+      action: "李英子压低身体外线出弯",
+      character: "李英子（young-rider-01），20岁成年虚构女性",
+      wardrobeId: "w2",
+      costume: "w2哑光全覆保护赛车服",
+      product: "zxmoto-820rr-rc",
+    });
+  });
   it("商品人物镜实际material分支提交两张原图+商品reference，补丁最终prompt与G-MAT1摘要一致", async () => {
     const f = currentSubmissionFixture("material"); await f.execute();
     expect(f.posts).toBe(1); expect(f.gets).toBe(1); const body = f.paidBodies[0]!;
@@ -648,7 +685,10 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
       { shotId: "nested-other", fields: { characterId: "another-person" } },
     ] };
     const identity = { id: "fictional-adult", name: "李英子", version: 2 };
-    const context = { sourceDocument: source, usePortraitRefs: true, lead: identity, characters: new Map([[identity.id, identity]]), characterRegistry: { aliases: [] }, isAssetShot: () => false, normalizeShotIntent, resolveShotCast };
+    const context = { sourceDocument: source,
+      sourceCharacter: { ...identity, appearanceInShots: ["visible", "nested-off", "nested-other"] }, usePortraitRefs: true, lead: identity,
+      characters: new Map([[identity.id, identity]]), characterRegistry: { aliases: [] }, strictSourceCast: false, isAssetShot: () => false,
+      normalizeShotIntent, resolveShotCast };
     expect(evaluateCurrent(`${fn}; leadVisibleInShot({shotId:"voice"})`, context)).toBe(false);
     expect(evaluateCurrent(`${fn}; leadVisibleInShot({shotId:"visible"})`, context)).toBe(true);
     expect(evaluateCurrent(`${fn}; leadVisibleInShot({shotId:"plural"})`, context)).toBe(true);
@@ -684,7 +724,8 @@ function portraitOriginalFixture() {
   const lead = { id: profile.id, name: profile.name, version: 2, dir, files: current.files };
   const context = { Buffer, Set, Map, Number, String, Object, Array, JSON, createHash, existsSync, readFileSync, fingerprintArtifact,
     sourceDocument: { character: { id: profile.id }, shots: [{ shotId: "S1", character: profile.name }] },
-    lead, characters: new Map([[lead.id, lead]]), characterRegistry: { aliases: [] }, usePortraitRefs: true,
+    sourceCharacter: { id: profile.id, name: profile.name },
+    lead, characters: new Map([[lead.id, lead]]), characterRegistry: { aliases: [] }, strictSourceCast: false, usePortraitRefs: true,
     BULLET_TIME_CAPABILITIES: { ...CONSERVATIVE_BULLET_TIME_CAPABILITIES, maxReferenceImages: 30 },
     bulletTimeReferencePlan, bulletTimeReferenceClause,
     isAssetShot: () => false, isAssetRefLocal: (file: string) => file.startsWith("asset://"), WORKER_RUNTIME: null,
