@@ -648,6 +648,7 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
       "05.【场景】冲线横条下缘高于全盔至少0.5米。",
       "08.【角色】李英子已下车站在车侧，双脚落地承重。",
       "09.【动作】骑手与赛车从横条下方通过；视线抬起并对向镜头。",
+      "10.【台词】无台词。",
       "20.【服装】w2哑光全覆保护赛车服。",
       "21.【道具】同一根黑色发圈保持扎紧。",
     ].join("\n"));
@@ -678,7 +679,32 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
       wardrobeId: "w2",
       costume: "w2哑光全覆保护赛车服。",
       props: "同一根黑色发圈保持扎紧。",
+      dialogueFree: true,
     });
+  });
+  it("opening最终提示词移除盔壳后下方开口并补写盔壳完整负面约束", () => {
+    const source = [
+      "11.【负面约束】禁止主角分身。",
+      "21.【道具】哑光全盔面罩闭合，后下方开口只露马尾发尾与同一黑色发圈。",
+      "24.【化妆】后下方开口处可见黑色发圈扎紧的马尾。",
+    ].join("\n");
+    const shot = {
+      shotId: "opening", sceneId: "opening", duration: 4,
+      fields: {
+        character: "李英子戴哑光全盔面罩闭合不露脸",
+        action: "保持车身稳定",
+        scene: "封闭赛道",
+      },
+    };
+    const functions = ["shotAuthoredText", "correctFilmPlausibilityConflicts"].map(currentCliParts().fn).join("\n");
+    const corrected = evaluateCurrent(`${functions}; correctFilmPlausibilityConflicts(${JSON.stringify(source)}, ${JSON.stringify(shot)})`, { String }) as {
+      prompt: string;
+      corrections: string[];
+    };
+    expect(corrected.prompt).not.toContain("后下方开口");
+    expect(corrected.prompt.match(/全盔后缘与骑行服领口之间/g)).toHaveLength(2);
+    expect(corrected.prompt).toContain("禁止盔壳开孔");
+    expect(corrected.corrections).toEqual(expect.arrayContaining(["helmet-seam-without-shell-hole", "helmet-shell-negative"]));
   });
   it("商品人物镜实际material分支提交两张原图+商品reference，补丁最终prompt与G-MAT1摘要一致", async () => {
     const f = currentSubmissionFixture("material"); await f.execute();

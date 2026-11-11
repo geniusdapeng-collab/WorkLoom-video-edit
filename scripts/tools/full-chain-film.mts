@@ -2696,6 +2696,7 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   const characterText = fieldText("character");
   const actionText = fieldText("action");
   const sceneText = `${fieldText("scene")}；${fieldText("sceneDescription")}`;
+  const sceneIdentity = String((shot as Record<string, unknown>).sceneId ?? shot.shotId ?? "");
   if (/面罩闭合|不露脸|面部.*不可见/.test(characterText) && !/面部清晰可辨|摘盔后.*面部/.test(characterText)) {
     const corrected = next.replace(/[，。；\s]*面部无阴影明亮清晰/g, "；全盔外壳、肩背轮廓与路面明亮，禁止生成面部");
     if (corrected !== next) {
@@ -2709,11 +2710,23 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     .replace(/(?:全盔|头盔)后下方开口处/g, "全盔后缘与骑行服领口之间")
     .replace(/(?:全盔|头盔)后下方开口/g, "全盔后缘与骑行服领口之间")
     .replace(/开口处发圈/g, "全盔后缘与领口之间的发圈")
+    .replace(/后下方开口处/g, "全盔后缘与骑行服领口之间")
+    .replace(/后下方开口/g, "全盔后缘与骑行服领口之间")
     .replace(/压束在全盔内/g, "后颈压平于内衬")
     .replace(/压束在头盔内/g, "后颈压平于内衬");
   if (helmetSeam !== next) {
     next = helmetSeam;
     corrections.push("helmet-seam-without-shell-hole");
+  }
+  if (sceneIdentity === "opening" && next.includes("全盔后缘与骑行服领口之间") && !/禁止盔壳开孔/.test(next)) {
+    const shellNegative = next.replace(
+      /^(\s*\d{1,2}\.\s*【负面约束】)([^\n]*)$/m,
+      (_line, head: string, body: string) => `${head}${body}；禁止盔壳开孔、破洞或发丝穿过盔体，禁止盔体夹住发束`,
+    );
+    if (shellNegative !== next) {
+      next = shellNegative;
+      corrections.push("helmet-shell-negative");
+    }
   }
   const duration = Number(shot.duration ?? 0);
   if (duration > 0 && /四秒内不换场地/.test(next) && duration !== 4) {
@@ -2750,6 +2763,16 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     next = supportedParking;
     corrections.push("supported-parking-contact");
   }
+  if (sceneIdentity === "scene-4") {
+    const helmetRemoval = next.replace(
+      /她左手先压住盔沿，右手绕到下巴下方解开扣带，扣带松开的瞬间头盔微微上抬离眉/g,
+      "她先完全解开下巴扣带并可见扣带松开，左手压住盔沿、右手托住盔底；双手把盔口两侧向外轻撑，由后向前上提使盔体越过鼻梁与耳廓，护耳衬垫不穿模、发束不被盔体夹住",
+    );
+    if (helmetRemoval !== next) {
+      next = helmetRemoval;
+      corrections.push("helmet-removal-mechanics");
+    }
+  }
   const releasedHair = next
     .replace(/马尾顺势松开垂落/g, "发圈不解开，压束马尾顺势释放并垂落")
     .replace(/马尾松开顺肩背垂落/g, "发圈保持扎紧，发束自然垂落至肩背")
@@ -2760,7 +2783,6 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     next = releasedHair;
     corrections.push("ponytail-release-not-unfastened");
   }
-  const sceneIdentity = String((shot as Record<string, unknown>).sceneId ?? shot.shotId ?? "");
   if (sceneIdentity && next.includes('"scene_id":"opening"') && sceneIdentity !== "opening") {
     next = next.replaceAll('"scene_id":"opening"', `"scene_id":"${sceneIdentity}"`);
     corrections.push("scene-id");
@@ -2778,6 +2800,28 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     next = groundedPass;
     corrections.push("grounded-opponent-line");
   }
+  if (sceneIdentity === "scene-1") {
+    const rightBend = next
+      .replace(/退到画幅右后方/g, "留在画幅右侧内侧并退到画幅右下后方")
+      .replace(/画幅右侧留净空作超越路径/g, "画幅左侧留净空作外线超越路径")
+      .replace(/退向画幅右后方/g, "保持在画幅右侧内侧并退到画幅右下后方");
+    if (rightBend !== next) {
+      next = rightBend;
+      corrections.push("right-hand-bend-screen-mapping");
+    }
+  }
+  if (sceneIdentity === "scene-2") {
+    const outerLine = next
+      .replace(/第二台对手车压画幅左三分之一内侧/g, "第二台对手车位于画幅右三分之一内侧")
+      .replace(/后轮擦路缘扬起细碎颗粒/g, "后轮在沥青上擦过，由轮胎与粗沥青摩擦带起细碎颗粒")
+      .replace(/后轮擦路缘弹起细碎颗粒/g, "后轮在沥青上擦过并带起细碎颗粒，路缘为与路面齐平的低矮冷灰路肩")
+      .replace(/后轮压过路缘时胎噪瞬时抬升/g, "后轮擦过粗沥青时胎噪瞬时抬升")
+      .replace(/车身沿外线滑出/g, "车身沿外线贴地出弯");
+    if (outerLine !== next) {
+      next = outerLine;
+      corrections.push("outer-line-contact-mapping");
+    }
+  }
   const dedupedTimeline = next.replace(
     /T00:00–T00:02：[^\n]*…[^\n]*T00:06–T00:08：[^\n]*\n(?=T00:02–T00:04：)/,
     "",
@@ -2785,6 +2829,16 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   if (dedupedTimeline !== next) {
     next = dedupedTimeline;
     corrections.push("duplicate-timeline-removed");
+  }
+  if (sceneIdentity === "scene-3" && !next.includes("T00:00–T00:02")) {
+    const completeTimeline = next.replace(
+      /^(\s*\d{1,2}\.\s*【时间轴】)(?![^\n]*T00:00–T00:02)/m,
+      "$1T00:00–T00:02：贴地低机位后追随推进；",
+    );
+    if (completeTimeline !== next) {
+      next = completeTimeline;
+      corrections.push("finish-opening-timeline");
+    }
   }
   const supportedFinish = next
     .replace(/画幅上沿横跨一条纯色且无任何文字标识的冲线横条，横条两侧不出现任何赛事官方标志、主办方标识或赞助商字样/g,
@@ -2808,7 +2862,8 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     .replace(/随车停住后收住/g, "随车停稳后收住")
     .replace(/车速降至近乎停住/g, "近乎停住后左脚前掌点地")
     .replace(/停稳后左脚前掌点地、右脚留脚踏/g, "近乎停住后左脚前掌点地、右脚留脚踏，前轮与后轮着地，侧撑尚未放下")
-    .replace(/停稳后左脚前掌点地/g, "近乎停住后左脚前掌点地");
+    .replace(/停稳后左脚前掌点地/g, "近乎停住后左脚前掌点地")
+    .replace(/双手仍握在把上未摘盔/g, "仍在鞍座，双手仍握把，侧撑未放下且未摘盔");
   if (supportedNearStop !== next) {
     next = supportedNearStop;
     corrections.push("near-stop-support");
@@ -2817,13 +2872,12 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     let endingContinuity = next
       .replace(/领奖台为无镌刻哑光深灰金属台面/g, "领奖台中段台面高约1.0米、宽约1.5米，为无镌刻哑光深灰金属台面")
       .replace(/侧后方三米停放一台赛道摩托车整车正面示意外形/g, "侧后方三米停放同一台赛道摩托车，以侧撑支起且前后轮着地，整车正面示意外形")
+      .replace(/侧后方三米停放同一台赛道摩托车，以侧撑支起且前后轮着地，整车正面示意外形/g,
+        "领奖台右侧外沿、与台体错开视角处停放同一台赛道摩托车，以侧撑支起，侧撑尖、前轮与后轮三点着地，整车正面轮廓完整可见且不被台体遮挡")
       .replace(/冠军奖杯为双手托起的示意外形/g, "冠军奖杯连底座高约35厘米、底座直径约12厘米，为双手在胸口以上托起的示意外形");
-    if (!/全盔已放在领奖台台面右侧/.test(endingContinuity)) {
-      endingContinuity += " | 【跨镜实体延续】上一镜同一顶哑光全盔已放在领奖台台面右侧、盔口朝上，不凭空消失。";
-    }
     endingContinuity = endingContinuity.replace(
       /^(\s*\d{1,2}\.\s*【动作】)([^\n]*)$/m,
-      (_line, head: string, body: string) => `${head}起幅第一帧，上一镜同一顶哑光全盔已放在领奖台台面右侧、盔口朝上，李英子左腰际无盔、双手空出抱杯；${body}`,
+      (_line, head: string, body: string) => `${head}起幅第一帧，全盔已放在领奖台台面右侧、盔口朝上，左腰无盔；奖杯由双手在腰侧承托、不悬空；${body}`,
     );
     if (endingContinuity !== next) {
       next = endingContinuity;
@@ -3881,6 +3935,8 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
         ?? /^w\d+\b/i.exec(costume)?.[0]
         ?? "";
       const authoredCharacter = promptField("角色") || shotAuthoredText(shot, "character");
+      const dialogueField = promptField("台词");
+      const currentDialogue = Array.isArray(shot.dialogue) ? shot.dialogue : [];
       return {
         shotId: String(shot.shotId), durationSec: Number(shot.duration ?? 0) || undefined,
         scene: promptField("场景") || shotAuthoredText(shot, "scene"),
@@ -3890,7 +3946,9 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
         character: authoredCharacter,
         wardrobeId: explicitWardrobe || wardrobeFromCostume,
         costume,
-        dialogue: shot.dialogue ?? null, dialogueFree: (shot as Record<string, unknown>).dialogueFree === true,
+        dialogue: currentDialogue.length ? currentDialogue : null,
+        dialogueFree: (shot as Record<string, unknown>).dialogueFree === true
+          || (currentDialogue.length === 0 && (!dialogueField || /无台词|无对白|none/i.test(dialogueField))),
         product: shotAuthoredText(shot, "product") || reviewArchiveByShot.get(String(shot.shotId))?.id || "",
         promptText,
       };
