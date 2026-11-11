@@ -14,6 +14,7 @@ const hashPattern = /^[a-f0-9]{64}$/u;
 const newFieldSchemaExample = "从完整已审来源新创作本字段的非空文本";
 const FINAL_LENGTH_EDITABLE_FIELDS = ["lighting", "composition", "color_palette", "depth_of_field", "mood"] as const;
 const MARKETING_FINAL_AUDIO_BGM_CODE = "MARKETING_FINAL_AUDIO_BGM_CONFLICT";
+const MARKETING_FINAL_POST_TEXT_CODE = "MARKETING_FINAL_POST_TEXT_CONFLICT";
 // G6 semantic checks may also use upper-case HARD_* failure codes. Only the
 // compiler's exact vocabulary can describe a replayed compiler error.
 const PROMPT_COMPILER_ERROR_CODES: ReadonlySet<string> = new Set([
@@ -342,7 +343,8 @@ export interface PlanFieldAuthoringInput {
 }
 const immutableFields = new Set(["portraits", "constraint", "baseline", "dialogue", "negative", "consistency", "bright_constraint", "audio"]);
 function allowsDiagnosedField(field: string, code: unknown): boolean {
-  return !immutableFields.has(field) || field === "audio" && code === MARKETING_FINAL_AUDIO_BGM_CODE;
+  return !immutableFields.has(field) || field === "audio" && code === MARKETING_FINAL_AUDIO_BGM_CODE
+    || field === "negative" && code === MARKETING_FINAL_POST_TEXT_CODE;
 }
 
 const MARKETING_FINAL_MUTABLE_FIELDS = new Set([
@@ -410,6 +412,26 @@ export function marketingFinalFactFieldArtifact(input: {
           "MARKETING_FINAL_UNSUPPORTED_PERFORMANCE_HINT",
           "来源只支持已列客观规格，不支持本片具体的速度、加速或竞速效果。将表述限定为广告创意演绎中的画内位次、动作和剪辑节奏，不构成车辆性能宣称；保留叙事动作，不新增任何数字或成绩。");
       }
+    }
+  }
+  if (/竞品证据|竞品对比|竞品劣势|未支持[^。；\n]{0,30}竞品|可视化竞品/u.test(message)) {
+    const rivalContext = /(?:对手|对方|前车|并排|超车|超越|拉开[^。；\n]{0,10}车身|位次)/u;
+    for (const shot of input.shots) {
+      add(shot, "director_instruction", "MARKETING_FINAL_FICTIONAL_RIVAL_CONTEXT",
+        "明确本片需要出现的前方车辆均为无品牌、非商品化运动陪体，不对应任何真实竞品或车型；连续超车与位次变化仅为广告创意演绎，不比较或贬低任何竞品，也不主张市场领先、车辆性能或竞品劣势。");
+      for (const field of MARKETING_FINAL_MUTABLE_FIELDS) {
+        const value = shot.fields[field];
+        if (typeof value === "string" && rivalContext.test(value)) add(shot, field,
+          "MARKETING_FINAL_FICTIONAL_RIVAL_CONTEXT",
+          "把画面中的对手车限定为无品牌、非商品化运动陪体，不指认真实竞品或车型；保留用户要求的连续超车动作，但明确其为广告创意演绎，不作竞品性能对比、竞品劣势或市场领先主张。");
+      }
+    }
+  }
+  if (/免责烧录|安全字幕|商品名|无任何文字|画面无任何文字|文字.*冲突|字幕.*冲突/u.test(message)) {
+    for (const shot of input.shots) {
+      const negative = shot.fields.negative;
+      if (typeof negative === "string") add(shot, "negative", MARKETING_FINAL_POST_TEXT_CODE,
+        "把“画面无任何文字”限定为生成画面本身：no generated caption/text/logo/watermark。明确『创意演绎 · 赛道专用不可上路』与片尾商品名只由正式后期字幕/叠加层烧录，不属于生成帧文字，也不由生成模型输出；保留两条后期必需文字。");
     }
   }
   if (!diagnoses.length) return undefined;
@@ -660,6 +682,8 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       && ["g6-semantic", "host-diagnostic"].includes(entry.origin));
     const audioDiagnosed = writable.has("audio") && diagnoses.some(entry => entry.field === "audio"
       && entry.code === MARKETING_FINAL_AUDIO_BGM_CODE);
+    const negativeDiagnosed = writable.has("negative") && diagnoses.some(entry => entry.field === "negative"
+      && entry.code === MARKETING_FINAL_POST_TEXT_CODE);
     const witnessInput = (fields: JsonRecord) => ({ approvedProductionPlan: input.sourceContext.approvedProductionPlan,
       shotId: shot.shotId, duration: shot.duration, action: fields.action, timeline: fields.timeline,
       cameraMovement: fields.camera_movement, characterConstraint: fields.character_constraint });
@@ -836,11 +860,13 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       shot.fields = nextFields;
     const mutableRequestTextPaths = [...(timelineDiagnosed ? ["technical.timeline"] : []),
       ...(audioDiagnosed ? ["technical.audio"] : []),
+      ...(negativeDiagnosed ? ["parameters.negative_prompt"] : []),
         ...(rivalWitness ? ["technical.character_constraint"] : [])];
       const immutableRequest = (contract: PromptContract) => {
         const request = structuredClone(contract.request);
         if (timelineDiagnosed) delete request.technical.timeline;
       if (audioDiagnosed) delete request.technical.audio;
+      if (negativeDiagnosed) delete request.parameters.negative_prompt;
         if (rivalWitness) delete request.technical.character_constraint;
         return request;
       };

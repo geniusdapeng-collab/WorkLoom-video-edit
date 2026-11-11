@@ -331,7 +331,7 @@ describe("host diagnostic field authoring plan", () => {
     if (kind === "field-proof") shot.fieldProofs[0]!.valueSha256 = "f".repeat(64);
     expect(() => fieldPlan(shot)).toThrow("APPROVED_SOURCE_FIELDS_");
   });
-  it.each(["baseline", "dialogue", "negative", "consistency", "bright_constraint"])("keeps the existing request channel for %s immutable", field => {
+  it.each(["baseline", "dialogue", "consistency", "bright_constraint"])("keeps the existing request channel for %s immutable", field => {
     expect(() => fieldPlan(fixture().recovered, [field])).toThrow("DIAGNOSIS_SCOPE_INVALID");
   });
   it("keeps audio immutable for ordinary diagnoses but locates the exact final BGM conflict", () => {
@@ -345,6 +345,17 @@ describe("host diagnostic field authoring plan", () => {
     expect(artifact).toBeDefined();
     expect(planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
       diagnosedFindings: [artifact!] }).fieldsByShot).toEqual({ "scene-a": ["audio"] });
+  });
+  it("keeps negative immutable for ordinary diagnoses but locates the exact post-text conflict", () => {
+    expect(() => fieldPlan(fixture().recovered, ["negative"])).toThrow("DIAGNOSIS_SCOPE_INVALID");
+    const recovered = fixture().recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "免责烧录与画面无任何文字负面约束冲突",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    });
+    expect(planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact!] }).fieldsByShot).toEqual({ "scene-a": ["negative"] });
   });
   it("locates final livery and performance wording only in fact-mutable fields", () => {
     const recovered = fixture({
@@ -374,6 +385,17 @@ describe("host diagnostic field authoring plan", () => {
       diagnosedFindings: [artifact!] });
     expect(plan.fieldsByShot["scene-a"]).toContain("scene");
     expect(plan.diagnoses.find(entry => entry.field === "scene")?.code).toBe("MARKETING_FINAL_SCENE_TRUNCATED");
+  });
+  it("limits overtaking to unbranded fictional rivals and separates post overlays from generated text", () => {
+    const recovered = fixture({ action: "主角车连续超越两辆无品牌示意对手车。" }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "没有竞品证据却演示超越与相对位次；免责烧录与画面无任何文字冲突",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    });
+    const plan = planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact!] });
+    expect(plan.fieldsByShot["scene-a"]).toEqual(expect.arrayContaining(["negative", "director_instruction", "action"]));
   });
 });
 
@@ -543,6 +565,20 @@ describe("normal native dispatcher authoring with complete controlled artifacts"
     expect(result.shots[0]!.currentContract!.request).toEqual({ ...prior,
       technical: { ...prior.technical, audio } });
     expect(result.receipts[0]!.mutableRequestTextPaths).toEqual(["technical.audio"]);
+  });
+  it("separates generated text from post overlays through the exact final marketing diagnosis", async () => {
+    const shot = fixture({ negative: "no text anywhere in frame, no watermark。" }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({ failureMessage: "免责烧录与画面无任何文字负面约束冲突",
+      shots: [shot], sourceContextSha256: sha256Json(sourceContext) })!;
+    const plan = planFieldAuthoring({ shots: [shot], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact] });
+    const negative = "生成画面内 no generated text；安全字幕与片尾商品名仅由正式后期叠加，不属于生成画面。";
+    const { input } = authorInput(JSON.stringify({ shotId: shot.shotId, fields: { negative } }), {}, plan);
+    const result = await authorRepairFields(input);
+    const prior = shot.sourceContract.request;
+    expect(result.shots[0]!.currentContract!.request).toEqual({ ...prior,
+      parameters: { ...prior.parameters, negative_prompt: negative } });
+    expect(result.receipts[0]!.mutableRequestTextPaths).toEqual(["parameters.negative_prompt"]);
   });
   it("cannot change camera_fixed while correcting camera prose", async () => {
     const { input, requests } = authorInput(JSON.stringify({ shotId: "scene-a", fields: { camera_movement: "固定机位，保留原动作与时长。" } }));
