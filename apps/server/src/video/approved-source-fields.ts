@@ -531,7 +531,7 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       "完整冻结Brief、G1–G4原件、所有镜头字段和当前角色图绑定都在下方。只有当前镜头allowedFields可以写入；其余字段、身份、事实、顺序、时长、音频纪律和技术规格保持原样。",
       "逐项解决diagnoses。不要截断或摘要只读上下文，不要把缺失内容转移到别的字段，不要增加场景。",
       "只返回一个完整JSON对象：shotId、fields。fields必须恰好包含本镜所有allowedFields；已有字段保持原类型，每个值均有实际改变。sourceUnboundFields没有已保存的历史值与类型，只能按完整已审来源新写非空文本；不得声称恢复旧值或旧摘要。禁止额外键、Markdown和解释。",
-      canonicalJson({ sourceContext: input.sourceContext, allShots: input.plan.shots.map(source => ({
+      canonicalJson({ authoringPlanSha256: planSha256, sourceContext: input.sourceContext, allShots: input.plan.shots.map(source => ({
         shotId: source.shotId, duration: source.duration, fields: source.fields, sourceContractSha256: source.sourceContractSha256,
         request: source.sourceContract.request, modelCapabilities: source.sourceContract.modelCapabilities,
         portraitAssets: source.sourceContract.bindings.find(binding => binding.field === "portraits")?.assets ?? [],

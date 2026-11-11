@@ -43,6 +43,13 @@ function fieldPlan(recovered = fixture().recovered, fields = ["action"]) {
       blocking: true, repairClass: "semantic",
     })) })] });
 }
+function reviewedFieldPlan(recovered: ReturnType<typeof fixture>["recovered"], maxFinalPromptChars: number) {
+  return planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext), maxFinalPromptChars,
+    diagnosedFindings: [verified({ schemaVersion: "workloom.video-prompt-quality/v2", findings: [{
+      code: "FIXTURE_APPROVED_ACTION_MISSING", field: "action", shotId: recovered.shotId,
+      detail: "必须呈现已审动作的完整过程。", blocking: true, repairClass: "semantic",
+    }] })] });
+}
 function missingFixture(missing: string[] = ["action"], otherFields: Record<string, unknown> = {}) {
   const fields = { ...fixture().fields, ...otherFields };
   for (const key of missing) delete fields[key];
@@ -270,6 +277,20 @@ describe("host diagnostic field authoring plan", () => {
 });
 
 describe("normal native dispatcher authoring with complete controlled artifacts", () => {
+  it("scopes otherwise identical authoring prompts by the durable plan digest", async () => {
+    const shot = fixture().recovered;
+    const response = JSON.stringify({ shotId: shot.shotId, fields: { action: "完整呈现已审动作的前后过程。" } });
+    const first = authorInput(response, {}, reviewedFieldPlan(shot, 3000));
+    const second = authorInput(response, {}, reviewedFieldPlan(shot, 3001));
+    await authorRepairFields(first.input); await authorRepairFields(second.input);
+    const lastMessage = (request: Record<string, unknown>) =>
+      String((request.messages as Array<{ content: string }>).at(-1)!.content);
+    const firstPrompt = lastMessage(first.requests[0]!);
+    const secondPrompt = lastMessage(second.requests[0]!);
+    expect(firstPrompt).toContain(`\"authoringPlanSha256\":\"${first.input.plan.sha256}\"`);
+    expect(secondPrompt).toContain(`\"authoringPlanSha256\":\"${second.input.plan.sha256}\"`);
+    expect(secondPrompt).not.toBe(firstPrompt);
+  });
   const content = JSON.stringify({ shotId: "scene-a", fields: { action: "新写完整动作：先完成已审步骤，再保持原演员、道具与切点。" } });
   it("authors only diagnosed fields once and archives the full raw body and complete snapshot", async () => {
     const { input, requests, archives, events } = authorInput(content);
