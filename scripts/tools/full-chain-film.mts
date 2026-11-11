@@ -2741,9 +2741,11 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   }
   const supportedParking = next
     .replace(/她的赛车已停稳，侧撑放下并静止在画面右后方/g,
-      "她的赛车已停稳，侧撑已支起，侧撑尖与后轮共同在沥青上承重，车身向左侧微倾并停在画面右后方")
+      "她的赛车已停稳，侧撑已支起，侧撑尖、前轮与后轮三点着地，车身向左侧微倾并停在画面右后方")
+    .replace(/侧撑已支起，侧撑尖与后轮共同在沥青上承重/g,
+      "侧撑已支起，侧撑尖、前轮与后轮三点着地")
     .replace(/侧撑放下后，她已下车站在车侧，双脚落地承重/g,
-      "侧撑已支起、侧撑尖与后轮共同承重后，她已下车站在车侧，双脚落地承重");
+      "上一镜后已完成停车、支侧撑与下车；本镜起幅第一帧，车辆由前轮、后轮与侧撑尖三点着地，她已站在车侧、双脚落地承重");
   if (supportedParking !== next) {
     next = supportedParking;
     corrections.push("supported-parking-contact");
@@ -2751,6 +2753,7 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   const releasedHair = next
     .replace(/马尾顺势松开垂落/g, "发圈不解开，压束马尾顺势释放并垂落")
     .replace(/马尾松开顺肩背垂落/g, "发圈保持扎紧，发束自然垂落至肩背")
+    .replace(/同一根黑色发圈扎着的发圈不解开，发圈保持扎紧/g, "同一根黑色发圈保持扎紧")
     .replace(/压束马尾顺势释放并垂落到肩背/g, "发圈保持扎紧、扎点不变；被头盔压束的发束在头盔离头后失去压缩，整束垂落到肩背，发丝不散开、不变成披散长发")
     .replace(/no loose spread hair/gi, "no messy unstyled hair");
   if (releasedHair !== next) {
@@ -2785,9 +2788,15 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   }
   const supportedFinish = next
     .replace(/画幅上沿横跨一条纯色且无任何文字标识的冲线横条，横条两侧不出现任何赛事官方标志、主办方标识或赞助商字样/g,
-      "画幅上沿横跨一条纯色无字冲线横条，两端由画外金属龙门立柱受拉悬挂并轻微下垂，横条无任何赛事官方标志、主办方标识或赞助商字样")
+      "画幅上沿横跨一条纯色无字冲线横条，两端由画外金属龙门立柱受拉悬挂，横条下缘高于全盔至少0.5米且无任何赛事官方标志、主办方标识或赞助商字样")
+    .replace(/画幅上沿横跨一条纯色无字冲线横条，两端由画外金属龙门立柱受拉悬挂并轻微下垂/g,
+      "画幅上沿横跨一条纯色无字冲线横条，两端由画外金属龙门立柱受拉悬挂，横条下缘高于全盔至少0.5米")
     .replace(/冲线瞬间礼炮纸屑从上方落下/g,
       "画外赛道边沿礼炮先向上喷射纸屑，纸屑再受重力与空气阻力下落")
+    .replace(/车身贴油箱穿过横条/g, "车身贴油箱从横条下方通过")
+    .replace(/车头穿过冲线横条/g, "骑手与赛车从冲线横条下方通过，车头只越过地面冲线标记")
+    .replace(/车头穿过纯色横条/g, "骑手与赛车从纯色横条下方通过")
+    .replace(/高潮落在车头穿过横条一刻/g, "高潮落在骑手与赛车从横条下方通过一刻")
     .replace(/看台模糊人声/g, "不可辨看台气流声")
     .replace(/看台人声压成模糊气流/g, "不可辨看台气流声");
   if (supportedFinish !== next) {
@@ -2797,7 +2806,9 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
   const supportedNearStop = next
     .replace(/赛车沿减速区低矮边线直线滑行到近乎停住/g, "赛车沿边线滑行减速，停稳后左脚前掌点地、右脚留脚踏")
     .replace(/随车停住后收住/g, "随车停稳后收住")
-    .replace(/车速降至近乎停住/g, "停稳后左脚前掌点地");
+    .replace(/车速降至近乎停住/g, "近乎停住后左脚前掌点地")
+    .replace(/停稳后左脚前掌点地、右脚留脚踏/g, "近乎停住后左脚前掌点地、右脚留脚踏，前轮与后轮着地，侧撑尚未放下")
+    .replace(/停稳后左脚前掌点地/g, "近乎停住后左脚前掌点地");
   if (supportedNearStop !== next) {
     next = supportedNearStop;
     corrections.push("near-stop-support");
@@ -2810,6 +2821,10 @@ function correctFilmPlausibilityConflicts(prompt: string, shot: ShotCard): { pro
     if (!/全盔已放在领奖台台面右侧/.test(endingContinuity)) {
       endingContinuity += " | 【跨镜实体延续】上一镜同一顶哑光全盔已放在领奖台台面右侧、盔口朝上，不凭空消失。";
     }
+    endingContinuity = endingContinuity.replace(
+      /^(\s*\d{1,2}\.\s*【动作】)([^\n]*)$/m,
+      (_line, head: string, body: string) => `${head}起幅第一帧，上一镜同一顶哑光全盔已放在领奖台台面右侧、盔口朝上，李英子左腰际无盔、双手空出抱杯；${body}`,
+    );
     if (endingContinuity !== next) {
       next = endingContinuity;
       corrections.push("ending-scale-and-prop-continuity");
@@ -3854,23 +3869,30 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
       parameters: (archive.specs?.parameters ?? []).map((parameter) => ({ name: String(parameter?.name ?? ""), value: String(parameter?.value ?? "") })),
     })),
     shots: reviewShots.map((shot) => {
-      const costume = shotAuthoredText(shot, "costume");
+      const promptText = promptFor(String(shot.shotId));
+      const promptField = (label: string): string => {
+        const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const match = new RegExp(`^\\d+\\.【${escaped}】([^\\n]*)$`, "m").exec(promptText);
+        return match?.[1]?.trim() ?? "";
+      };
+      const costume = promptField("服装") || shotAuthoredText(shot, "costume");
       const explicitWardrobe = shotAuthoredText(shot, "wardrobeId");
       const wardrobeFromCostume = /(?:^|[\s，,；;:：])(w\d+)\b/i.exec(costume)?.[1]
         ?? /^w\d+\b/i.exec(costume)?.[0]
         ?? "";
-      const authoredCharacter = shotAuthoredText(shot, "character");
+      const authoredCharacter = promptField("角色") || shotAuthoredText(shot, "character");
       return {
         shotId: String(shot.shotId), durationSec: Number(shot.duration ?? 0) || undefined,
-        scene: shotAuthoredText(shot, "scene"),
+        scene: promptField("场景") || shotAuthoredText(shot, "scene"),
         sceneDescription: shotAuthoredText(shot, "sceneDescription"),
-        action: shotAuthoredText(shot, "action"), props: shotAuthoredText(shot, "props"),
+        action: promptField("动作") || shotAuthoredText(shot, "action"),
+        props: promptField("道具") || shotAuthoredText(shot, "props"),
         character: authoredCharacter,
         wardrobeId: explicitWardrobe || wardrobeFromCostume,
         costume,
         dialogue: shot.dialogue ?? null, dialogueFree: (shot as Record<string, unknown>).dialogueFree === true,
         product: shotAuthoredText(shot, "product") || reviewArchiveByShot.get(String(shot.shotId))?.id || "",
-        promptText: promptFor(String(shot.shotId)),
+        promptText,
       };
     }),
     images,

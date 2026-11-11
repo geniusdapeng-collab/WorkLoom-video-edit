@@ -641,6 +641,45 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
       product: "zxmoto-820rr-rc",
     });
   });
+  it("常识审核优先读取最终编号字段，不让已修复提示词被 stale 坐姿或穿横条字段推翻", () => {
+    const dir = mkdtempSync(join(tmpdir(), "current-prompt-fields-")); temporary.push(dir);
+    const promptFile = join(dir, "S1.txt");
+    writeFileSync(promptFile, [
+      "05.【场景】冲线横条下缘高于全盔至少0.5米。",
+      "08.【角色】李英子已下车站在车侧，双脚落地承重。",
+      "09.【动作】骑手与赛车从横条下方通过；视线抬起并对向镜头。",
+      "20.【服装】w2哑光全覆保护赛车服。",
+      "21.【道具】同一根黑色发圈保持扎紧。",
+    ].join("\n"));
+    const shot = {
+      shotId: "S1", duration: 5,
+      scene: "stale scene", action: "车头穿过横条",
+      fields: {
+        character: "李英子坐在已完全停稳的车上",
+        costume: "w1旧服装",
+      },
+    };
+    const context = {
+      policyBrief: null, productLibrary: { archives: [] }, selectProductArchive: () => ({ archive: null }),
+      PROJECT: "ISOLATED-CURRENT", RUN_ID: "fixture-run", PROMPT_DIR: dir,
+      shotlist: { platform: "douyin", durationSeconds: 5 }, totalSeconds: 5,
+      FILM_SPEECH_LANGUAGE: "zh-CN", ASPECT: "9:16", OUTPUT_RESOLUTION: "1080p",
+      lead: null, existsSync, readFileSync, join, isMaterialShot: () => false,
+      arg: (_name: string, fallback = "") => fallback,
+    };
+    const functions = ["shotAuthoredText", "plausibilityArchiveFor", "plausibilityContextFor"].map(currentCliParts().fn).join("\n");
+    const projected = evaluateCurrent(`${functions}; plausibilityContextFor("pre-render", [${JSON.stringify(shot)}])`, context) as {
+      shots: Array<Card>;
+    };
+    expect(projected.shots[0]).toMatchObject({
+      scene: "冲线横条下缘高于全盔至少0.5米。",
+      character: "李英子已下车站在车侧，双脚落地承重。",
+      action: "骑手与赛车从横条下方通过；视线抬起并对向镜头。",
+      wardrobeId: "w2",
+      costume: "w2哑光全覆保护赛车服。",
+      props: "同一根黑色发圈保持扎紧。",
+    });
+  });
   it("商品人物镜实际material分支提交两张原图+商品reference，补丁最终prompt与G-MAT1摘要一致", async () => {
     const f = currentSubmissionFixture("material"); await f.execute();
     expect(f.posts).toBe(1); expect(f.gets).toBe(1); const body = f.paidBodies[0]!;
