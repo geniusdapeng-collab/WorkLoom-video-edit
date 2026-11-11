@@ -270,7 +270,12 @@ function objectRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function completionUsage(data: OpenAiResponse, thinkingEnabled: boolean, outputCeiling: number) {
+function completionUsage(
+  data: OpenAiResponse,
+  thinkingEnabled: boolean,
+  outputCeiling: number,
+  options: { allowReasoningWhenDisabled?: boolean } = {},
+) {
   const promptTokens = data.usage?.prompt_tokens;
   const completionTokens = data.usage?.completion_tokens;
   const totalTokens = data.usage?.total_tokens;
@@ -282,7 +287,7 @@ function completionUsage(data: OpenAiResponse, thinkingEnabled: boolean, outputC
   if (reasoningTokens !== undefined && (!safeInteger(reasoningTokens) || reasoningTokens > completionTokens)) {
     throw new ModelProviderError("模型 reasoning_tokens 无效", "protocol", { retryable: false });
   }
-  if (!thinkingEnabled && reasoningTokens !== undefined && reasoningTokens !== 0) {
+  if (!thinkingEnabled && !options.allowReasoningWhenDisabled && reasoningTokens !== undefined && reasoningTokens !== 0) {
     throw new ModelProviderError("非思考场景返回了 reasoning tokens", "protocol", { retryable: false, unknown: true });
   }
   if (completionTokens > outputCeiling || totalTokens > DEEPSEEK_FLASH_CONTEXT_TOKENS) {
@@ -748,15 +753,11 @@ export class OpenAiCompatibleProvider implements ModelProvider {
           { retryable: false },
         );
       }
-      if (!thinkingEnabled && String(choice.message?.reasoning_content ?? "").trim()) {
-        throw new ModelProviderError("非思考场景返回了 reasoning_content", "protocol", {
-          retryable: false,
-          unknown: true,
-        });
-      }
+      const unrequestedReasoning = !thinkingEnabled && Boolean(String(choice.message?.reasoning_content ?? "").trim());
       const text = textFromContent(choice.message?.content);
       if (!text) {
         const error = new ModelProviderError("模型返回 content 为空", "empty", { retryable: false });
+        let blankAttested = false;
         // Preserve the ordinary empty-content error. Only the native nonstream
         // Chat JSON wire may supply evidence of a complete, measured failure.
         if (!structuredRequest && this.modelId === DEEPSEEK_FLASH_MODEL_ID && responseFormat?.type === "json_object" && attempt === 1
@@ -764,16 +765,34 @@ export class OpenAiCompatibleProvider implements ModelProvider {
           && isNativeEndpoint(transport.endpoint, DEEPSEEK_CHAT_PATH) && isNativeChatJsonMessage(data, "blank")
           && (choice.message?.content === null || !/[^ ]/u.test(choice.message?.content as string))) {
           try {
-            const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
+            // A provider can leave reasoning content/tokens on an otherwise
+            // fully measured blank JSON reply. That is still failure evidence,
+            // never a successful answer, and may enter the one bounded repair.
+            const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling, {
+              allowReasoningWhenDisabled: true,
+            });
             const receipt = Object.freeze({ ...usage, modelId: this.modelId,
               responseId: typeof data.id === "string" && data.id.trim() ? data.id : null, requestHash, responseHash });
             nativeBlankJsonErrors.set(error, receipt);
             nativeBlankJsonDispatches.set(receipt, { ...transport, provider: this, scene: opts.scene ?? "generic", mode, effort });
+            blankAttested = true;
           } catch (validationError) {
             if (!(validationError instanceof ModelProviderError)) throw validationError;
           }
         }
+        if (unrequestedReasoning && !blankAttested) {
+          throw new ModelProviderError("非思考场景返回了 reasoning_content", "protocol", {
+            retryable: false,
+            unknown: true,
+          });
+        }
         throw error;
+      }
+      if (unrequestedReasoning) {
+        throw new ModelProviderError("非思考场景返回了 reasoning_content", "protocol", {
+          retryable: false,
+          unknown: true,
+        });
       }
       const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
 
