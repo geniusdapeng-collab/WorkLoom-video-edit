@@ -361,6 +361,20 @@ describe("host diagnostic field authoring plan", () => {
       diagnosedFindings: [artifact!] });
     expect(plan.fieldsByShot["scene-a"]).toEqual(expect.arrayContaining(["director_instruction", "props", "action"]));
   });
+  it("locates a truncated scene fragment without inventing missing historical text", () => {
+    const recovered = fixture({
+      scene: '{"scene_id":"opening","scene_n，封闭赛道，阴天午后。',
+    }).recovered;
+    const artifact = marketingFinalFactFieldArtifact({
+      failureMessage: "场景字段值被截断，违反字段不得截断纪律",
+      shots: [recovered],
+      sourceContextSha256: sha256Json(sourceContext),
+    });
+    const plan = planFieldAuthoring({ shots: [recovered], sourceContextSha256: sha256Json(sourceContext),
+      diagnosedFindings: [artifact!] });
+    expect(plan.fieldsByShot["scene-a"]).toContain("scene");
+    expect(plan.diagnoses.find(entry => entry.field === "scene")?.code).toBe("MARKETING_FINAL_SCENE_TRUNCATED");
+  });
 });
 
 describe("normal native dispatcher authoring with complete controlled artifacts", () => {

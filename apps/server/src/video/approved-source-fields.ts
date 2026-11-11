@@ -391,7 +391,15 @@ export function marketingFinalFactFieldArtifact(input: {
       }
     }
   }
-  if (/性能|加速|极速|速度/u.test(message)) {
+  if (/截断|truncat/iu.test(message)) {
+    for (const shot of input.shots) {
+      const scene = shot.fields.scene;
+      if (typeof scene === "string" && /^\s*\{\s*"scene_id"\s*:/u.test(scene)) add(shot, "scene",
+        "MARKETING_FINAL_SCENE_TRUNCATED",
+        "最终事实审核指出场景字段保留被截断的 JSON 片段。把 scene 重写为完整、可读的中文场景描述：删除残缺的对象前缀与半句，保留已审地点、时间、空间、材质、天气、光向和禁止项；不得恢复或编造未保存的旧原文。");
+    }
+  }
+  if (/缺少来源支持[^。；\n]{0,40}性能|性能暗示|未支持[^。；\n]{0,24}性能/u.test(message)) {
     const performance = /(?:加速|速度差|高转|极速|狂飙|峰值|追近第[一二三四五六七八九十\d]+台|拉开(?:半个|一个|两个|\d+(?:\.\d+)?个)?车身|发动机转速)/u;
     for (const shot of input.shots) {
       add(shot, "director_instruction", "MARKETING_FINAL_PERFORMANCE_DISCLAIMER",
