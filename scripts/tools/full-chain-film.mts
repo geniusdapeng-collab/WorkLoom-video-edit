@@ -113,6 +113,7 @@ import {
 import { REALISM_CLAUSE, REALISM_NEGATIVE_TERMS } from "../../packages/video-studio/src/shot-spec.js";
 import { resolveFilmSpeechLanguage, dialogueLines, speechLanguageClause, exactDialogueClause, noSpeechClause, speechNegativeTerms } from "../../packages/video-studio/src/dialogue-contract.js";
 import { reviewPlausibility, applyPromptPatches, PLAUSIBILITY_POLICY_VERSION } from "../../packages/video-studio/src/plausibility-review.js";
+import { PRODUCT_APPEARANCE_PRIORITY_POLICY, reconcileProductAppearancePrompt } from "../../packages/video-studio/src/product-appearance-priority.js";
 import { createGenerationQuality } from "./generation-quality.mjs";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
 import { FullChainFilmWorker } from "../../packages/video-studio/src/film-worker-runtime.js";
@@ -3928,7 +3929,9 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
     reviewId: `${PROJECT}:${stage}:${RUN_ID}:${Date.now()}`,
     reviewScope: "physical-execution",
     approvedCreativeDirection: {
-      productAppearanceMode: "rights-safe-conceptual-silhouette",
+      productAppearanceMode: PRODUCT_APPEARANCE_PRIORITY_POLICY.appearanceMode,
+      exactAppearanceRequired: PRODUCT_APPEARANCE_PRIORITY_POLICY.exactAppearanceRequired,
+      appearanceConflictPolicy: PRODUCT_APPEARANCE_PRIORITY_POLICY,
       fictionalCompetition: true,
       mandatoryStoryBeats: ["封闭赛道竞速", "连续超车", "冲线", "停稳摘盔", "领奖台纪念奖杯"],
       disclosure: "广告创意演绎，不是真实赛事成绩、真实冠军、真实赛事官方活动或品牌背书",
@@ -3946,8 +3949,8 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
     } : null,
     products: archives.map((archive) => ({
       id: archive.id, displayName: archive.displayName, brand: archive.brand, category: archive.category,
-      appearanceMode: "rights-safe-conceptual-silhouette",
-      exactAppearanceRequired: false,
+      appearanceMode: PRODUCT_APPEARANCE_PRIORITY_POLICY.appearanceMode,
+      exactAppearanceRequired: PRODUCT_APPEARANCE_PRIORITY_POLICY.exactAppearanceRequired,
       allowedClaims: [
         String(archive.displayName ?? ""),
         "赛道专用车辆，不具备道路行驶资质",
@@ -4117,15 +4120,12 @@ function buildCurrentMaterialPrompt(shot: ShotCard): string {
     .test(String(productArchive?.category ?? "").trim());
   const productReferenceFiles = productReferencePaths(shot);
   const materialTask = productReference
-    ? `【素材参考任务】以参考资产集合为身份、外观、比例与必要实景依据，构建一段 ${duration} 秒实拍视频；参考图不是首帧，不得复刻参考图的构图，影棚背景、展示架、海报文字和可读 logo 必须移除。`
+    ? `【素材参考任务】以参考资产集合为身份、真实外观、比例与必要实景依据，构建一段 ${duration} 秒实拍视频；参考图不是首帧，不得复刻参考图的构图。影棚背景、展示架、原图海报文字与页面水印必须移除；商品车身中真实可见的涂装、品牌字标、号码与既有赞助标识按参考保留，不新增参考中不存在的文字或标识。`
     : `【素材参考任务】以实景参考资产为依据，构建一段 ${duration} 秒真实拍摄视频；参考图不是首帧，不得复刻参考图的构图。`;
   const referenceDiscipline = "【参考资产集合】必须完整使用本次绑定的全部参考图；禁止贴图式运动、禁止画面全程静止；有镜头位移时必须有真实三维视差。";
   const canonicalPrompt = String(card.prompt ?? "").trim();
   const productSafePrompt = productReference
-    ? canonicalPrompt
-        .replace(/本片不复制来源涂装[^。；]*/g, "本片以本次绑定的多角度商品参考锁定车型身份，不输出可读赞助文字")
-        .replace(/商品外观仅作权利安全示意/g, "商品外观以本次绑定参考为准")
-        .replace(/不宣称精确还原官方车型/g, "不得替换成其他车型")
+    ? reconcileProductAppearancePrompt(canonicalPrompt).prompt
     : canonicalPrompt;
   let prompt = canonicalPrompt
     ? `${materialTask}\n${productSafePrompt}\n${referenceDiscipline}`
@@ -4156,9 +4156,10 @@ function buildCurrentMaterialPrompt(shot: ShotCard): string {
       ? [dimensions.wheelbaseMm ? `轴距约 ${(dimensions.wheelbaseMm / 1000).toFixed(2)} m` : "",
         dimensions.seatHeightMm ? `座高约 ${(dimensions.seatHeightMm / 1000).toFixed(2)} m` : ""].filter(Boolean).join("、")
       : "";
-    extraLines.push(`商品身份硬约束：${String(productArchive?.displayName ?? "").trim() || "已绑定商品"}，`
-      + `本次 ${productReferenceFiles.length} 张参考图共同锁定外观；${appearance ? `可见外观：${appearance}；` : ""}`
-      + `${scale ? `比例锚：${scale}；` : ""}不得替换车型或重新设计轮廓，不得输出参考中的海报文字、价格、赞助商文字与可读 logo`);
+    extraLines.push(`商品真实外观硬约束：${String(productArchive?.displayName ?? "").trim() || "已绑定商品"}，`
+      + `本次 ${productReferenceFiles.length} 张参考图共同锁定真实商品外观、涂装、色块分区、车身已有字标与号码、既有赞助标识、结构比例和空间尺度；`
+      + `${appearance ? `可见外观：${appearance}；` : ""}${scale ? `比例锚：${scale}；` : ""}`
+      + `不得替换车型；只禁止新增参考中不存在的字幕、价格、海报文字、水印、号码或品牌标识`);
   }
   prompt += ` | ${extraLines.filter((line) => line.trim()).join(" | ")}`;
   const portrait = portraitVideoInputs(shot);

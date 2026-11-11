@@ -73,6 +73,23 @@ describe("实体与物理常识审核 agent", () => {
     expect(JSON.stringify(large)).toContain("长".repeat(2_000));
   });
 
+  it("有真实商品时默认把真实外观优先级写入审核方向", () => {
+    const context = buildPlausibilityContext({
+      ...baseContext,
+      products: [{ ...baseContext.products[0]!, appearanceMode: "reference-faithful", exactAppearanceRequired: true }],
+    });
+    expect(context.project).toMatchObject({
+      approvedCreativeDirection: {
+        productAppearanceMode: "reference-faithful",
+        exactAppearanceRequired: true,
+        appearanceConflictPolicy: {
+          conflictPriority: "real-product-reference-over-generic-redaction",
+          preserveFromReference: expect.arrayContaining(["涂装", "品牌字标", "车身号码", "既有赞助标识"]),
+        },
+      },
+    });
+  });
+
   it("多服装角色把默认服装和逐镜选择同时交给审核，避免把默认装当全片硬约束", () => {
     const context = buildPlausibilityContext({
       ...baseContext,
@@ -159,6 +176,39 @@ describe("实体与物理常识审核 agent", () => {
     });
     expect(passed.verdict).toBe("pass");
     expect(passed.findings).toHaveLength(1);
+  });
+
+  it("商品真实外观优先：通用去标识冲突降为 warning，并丢弃删除真实外观的补丁", async () => {
+    const result = await reviewPlausibility({
+      ...baseContext,
+      products: [{
+        ...baseContext.products[0]!,
+        appearanceMode: "reference-faithful",
+        exactAppearanceRequired: true,
+        appearance: "真实涂装、品牌字标与车身号码",
+      }],
+    }, {
+      env: llmEnv,
+      fetchImpl: (async () => jsonResponse({
+        verdict: "block",
+        findings: [{
+          id: "product-redaction-conflict",
+          severity: "blocker",
+          shotId: "SC-01",
+          issue: "商品参考锁定真实外观，但镜头卡要求无涂装、无标识和不可读文字",
+          why: "两条去标识要求与真实商品参考冲突",
+          fix: "删除真实涂装和品牌字标",
+        }],
+        promptPatches: [{
+          shotId: "SC-01",
+          clauses: ["删除商品参考中对真实涂装和品牌字标的精确还原要求"],
+        }],
+        reason: "商品外观口径冲突",
+      })) as unknown as typeof fetch,
+    });
+    expect(result.verdict).toBe("pass");
+    expect(result.findings[0]).toMatchObject({ id: "product-redaction-conflict", severity: "warning" });
+    expect(result.promptPatches).toEqual([]);
   });
 
   it("Flash 文本评审锁定官方模型、JSON 输出与 high thinking", async () => {

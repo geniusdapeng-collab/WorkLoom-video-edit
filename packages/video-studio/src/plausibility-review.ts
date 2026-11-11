@@ -23,6 +23,12 @@ import {
   OpenAiCompatibleProvider,
   type ModelContentPart,
 } from "@workloom/base/model-router";
+import {
+  PRODUCT_APPEARANCE_PRIORITY_CLAUSE,
+  PRODUCT_APPEARANCE_PRIORITY_POLICY,
+  isProductAppearanceRedactionPatch,
+  type ProductAppearancePriorityPolicy,
+} from "./product-appearance-priority.js";
 
 export const PLAUSIBILITY_POLICY_VERSION = "workloom.plausibility-review/v1" as const;
 /** @deprecated Character budgets are not a model context unit. */
@@ -40,7 +46,7 @@ export const PLAUSIBILITY_RUBRIC: string[] = [
   "人与物、物与环境的真实尺度比例：主体相对人、家具、餐具、手掌的量级是否合理？出现玩具比例、微缩模型感或明显放大即 blocker。",
   "物理自洽：重力、支撑、接触、承重、动力、惯性、流体/热气/火花等是否符合常识？悬空、穿模、无支撑、凭空出现/消失即 blocker。",
   "主体的使用状态是否明确？既没有使用动作、也没有明确的停放/展示/静置状态时，模型会自由发挥出无意义静物或凭空动作——按严重度报 warning 或 blocker。",
-  "商品保真：与给定商品档案（名称/品牌/类别/尺寸/角度照片/参数）相比，结构、比例、标识、配色是否被改写？改写即 blocker。",
+  "商品保真：与给定商品档案（名称/品牌/类别/尺寸/角度照片/参数）相比，结构、比例、标识、配色是否被改写？改写即 blocker。真实商品参考优先于通用的“无涂装/无标识/无文字”去标识要求；该优先级不豁免结构、比例、支撑、接触或真实感缺陷。",
   "真实感：画面是否像实拍摄影（真实光学、材质、使用痕迹），还是像 CG/游戏过场（超净表面、游戏式光照与镜头光晕）？像后者即 blocker，并给出实拍化修法。",
   "法规、安全与常识禁忌：这个主体在真实世界里有哪些「不能这样做」的硬边界（由你判断，并写明依据）？违反按严重度报 blocker/warning。",
   "镜头叙事逻辑：相邻镜的动作、视线、方向、时段与人物是否接得上？换人、断手断脚、人数突变、时间倒流即 blocker。",
@@ -87,6 +93,8 @@ export interface PlausibilityContextInput {
   reviewScope?: "full" | "physical-execution";
   approvedCreativeDirection?: {
     productAppearanceMode?: string;
+    exactAppearanceRequired?: boolean;
+    appearanceConflictPolicy?: ProductAppearancePriorityPolicy;
     fictionalCompetition?: boolean;
     mandatoryStoryBeats?: string[];
     disclosure?: string;
@@ -152,7 +160,16 @@ export function buildPlausibilityContext(input: PlausibilityContextInput): Recor
     project: {
       id: input.projectId, reviewId: input.reviewId ?? null,
       reviewScope: input.reviewScope ?? "full",
-      approvedCreativeDirection: input.approvedCreativeDirection ?? null,
+      approvedCreativeDirection: input.approvedCreativeDirection || (input.products?.length ?? 0) > 0
+        ? {
+            ...((input.products?.length ?? 0) > 0 ? {
+              productAppearanceMode: PRODUCT_APPEARANCE_PRIORITY_POLICY.appearanceMode,
+              exactAppearanceRequired: PRODUCT_APPEARANCE_PRIORITY_POLICY.exactAppearanceRequired,
+              appearanceConflictPolicy: PRODUCT_APPEARANCE_PRIORITY_POLICY,
+            } : {}),
+            ...(input.approvedCreativeDirection ?? {}),
+          }
+        : null,
       platform: input.platform ?? null, locale: input.locale ?? null,
       aspect: input.aspect ?? null, resolution: input.resolution ?? null, durationSeconds: input.durationSeconds ?? null,
     },
@@ -307,6 +324,15 @@ export async function reviewPlausibility(
       type: "text",
       text: [
         "你是影视监制中的【实体与物理常识审核 agent】。用你自己的世界知识判断，不要假设观众或审查方已提供任何品类规则表。",
+        ...((input.products?.length ?? 0) > 0
+          ? [
+              "商品外观冲突优先级（强制）：真实商品参考优先于镜头卡中的“无涂装/无标识/无可读文字/示意性轮廓/不得精确还原”。"
+              + "保留参考件中真实可见的涂装、色块分区、品牌字标、车身号码与既有赞助标识；"
+              + "只禁止新增参考中不存在的字幕、价格、海报文字、水印、号码或品牌标识。"
+              + "不得把上述通用去标识要求与真实商品参考之间的差异判成 blocker，也不得建议删除真实外观。",
+              PRODUCT_APPEARANCE_PRIORITY_CLAUSE,
+            ]
+          : []),
         ...(input.reviewScope === "physical-execution"
           ? [
               "本轮是下游【物理执行复核】：上游 G1-G7 已完成事实、权利、商品与创意方向审批。"
@@ -349,8 +375,20 @@ export async function reviewPlausibility(
     });
     const parsed = parsePlausibilityAnswer(result.text);
     const scopeShotIds = new Set(input.shots.map((shot) => shot.shotId));
-    const promptPatches = parsed.promptPatches.filter((patch) => scopeShotIds.has(patch.shotId));
-    const omittedPatchCount = parsed.promptPatches.length - promptPatches.length;
+    const scopedPatches = parsed.promptPatches.filter((patch) => scopeShotIds.has(patch.shotId));
+    const promptPatches = (input.products?.length ?? 0) > 0
+      ? scopedPatches
+          .map((patch) => ({
+            ...patch,
+            clauses: patch.clauses.filter((clause) => {
+              if (!isProductAppearanceRedactionPatch(clause)) return true;
+              log(`[plausibility][${input.stage}] 忽略要求删除真实商品外观的补丁：${clause}`);
+              return false;
+            }),
+          }))
+          .filter((patch) => patch.clauses.length > 0)
+      : scopedPatches;
+    const omittedPatchCount = parsed.promptPatches.length - scopedPatches.length;
     if (omittedPatchCount > 0) {
       log(`[plausibility][${input.stage}] 忽略 ${omittedPatchCount} 条当前送审范围外的提示词补丁`);
     }
@@ -358,6 +396,15 @@ export async function reviewPlausibility(
     const removalAction = /摘盔|摘下|解扣带|卸下|take\s*off|remove(?:d|s)?\s+(?:the\s+)?helmet/i.test(promptText);
     const declaredTimeOmission = /上一镜后已完成|镜外完成|时间跳切|硬切后的时间跳跃|起幅前已完成/.test(promptText);
     const findings = parsed.findings.map((finding) => {
+      const appearanceConflictText = [finding.issue, finding.why, finding.fix].join(" ");
+      const genericRedactionConflict = (input.products?.length ?? 0) > 0
+        && /商品|参考|车身|整车|外观|涂装|贴花|标识|logo|字标|号码/i.test(appearanceConflictText)
+        && /无涂装|无标识|无可读|示意性?轮廓|不复制.{0,20}涂装|不得输出.{0,20}(?:标识|logo|文字)|精确还原|锁定真实外观/i.test(appearanceConflictText)
+        && !/穿模|悬空|无人驾驶|未接地|无支撑|结构缺失|部件缺失|车型错误|比例错误|换人|人数突变|第二个人|接触失效/i.test(appearanceConflictText);
+      if (finding.severity === "blocker" && genericRedactionConflict) {
+        log(`[plausibility][${input.stage}] 将商品真实外观优先级的通用去标识冲突降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
       const temporalNegative = /no\s+[^.;。\n]{0,40}\s+left\s+(?:on|in)|不得(?:仍戴|继续留在|留在[^。；\n]{0,12}上)/i.test(finding.issue);
       if (finding.severity === "blocker" && removalAction && temporalNegative) {
         log(`[plausibility][${input.stage}] 将按时序成立的否定终态降为 warning：${finding.id}`);
