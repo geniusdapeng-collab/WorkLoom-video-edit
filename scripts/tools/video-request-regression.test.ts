@@ -542,11 +542,16 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
   const promptDir = join(dir, "prompts"), plateDir = join(dir, "plates"), clips = join(dir, "clips");
   for (const path of [promptDir, plateDir, clips]) mkdirSync(path);
   const photo = join(dir, "product.png"); writeFileSync(photo, Buffer.alloc(60_001, 4));
+  const sidePhoto = join(dir, "product-side.png"); writeFileSync(sidePhoto, Buffer.alloc(60_002, 3));
   const front = join(dir, "front.png"), closeup = join(dir, "closeup.png");
   writeFileSync(front, Buffer.alloc(60_003, 5)); writeFileSync(closeup, Buffer.alloc(60_005, 6));
   const images = [front, closeup].map((path, index) => ({ url: `data:image/png;base64,${readFileSync(path).toString("base64")}`, purpose: index ? "portrait-closeup" : "portrait-front",
     characterId: "fictional-adult", characterVersion: 2, angle: index ? "closeup" : "front", artifact: { path, sha256: mediaSha256(path), bytes: readFileSync(path).length, mime: "image/png" } }));
-  const shot = { shotId: "S1", duration: 13, character: "原创成年人物", ...(kind === "material" ? { photo } : {}), ...(kind === "asset" ? { assetRef: "asset://authorized-fixture-id" } : {}) };
+  const shot = { shotId: "S1", duration: 13, character: "原创成年人物",
+    ...(kind === "material" ? { photo, productRef: { category: "vehicle", displayName: "演示摩托车", photos: [
+      { path: photo, angle: "side" }, { path: sidePhoto, angle: "three-quarter" },
+    ] } } : {}),
+    ...(kind === "asset" ? { assetRef: "asset://authorized-fixture-id" } : {}) };
   writeFileSync(join(plateDir, "S1-plate.png"), Buffer.alloc(60_007, 7));
   writeFileSync(join(promptDir, "S1.txt"), `【约束】9:16 ${"正式原始镜头提示词，保持完整叙事与原生声音。".repeat(75)}`);
   const rows: Card[] = [], gates: Card[] = [], paidBodies: Card[] = [], snapshots = new Map(), accepted: Card[] = [], reviews: Card[] = [];
@@ -600,9 +605,9 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     retryInstruction: () => { throw new Error("PAID_POST_MUST_NOT_RETRY"); }, motionPolicyForShot: () => ({ intent: "ordinary" }),
     applySpeedRamp: () => { throw new Error("UNREQUESTED_RETIME"); }, applyCameraMovePunchCut: () => { throw new Error("UNREQUESTED_CAMERA_MOVE"); },
   };
-  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "shotAuthoredText", "renderSecondsFor", "plausibilityArchiveFor", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
+  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "shotAuthoredText", "renderSecondsFor", "plausibilityArchiveFor", "productReferencePaths", "productNeedsMultiAngleReferences", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
   const execute = () => evaluateCurrent(`(async()=>{${functions}\n${kind === "material" ? parts.material : parts.videos}\n})()`, context) as Promise<void>;
-  return { dir, execute, context, gates, paidBodies, rows, accepted, reviews, get posts() { return posts; }, get gets() { return gets; }, images, front, closeup };
+  return { dir, execute, context, gates, paidBodies, rows, accepted, reviews, get posts() { return posts; }, get gets() { return gets; }, images, productRefs: [photo, sidePhoto], front, closeup };
 }
 
 describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供应商，不代表生产通过）", () => {
@@ -724,16 +729,18 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
     expect(corrected.prompt).not.toContain("高马尾");
     expect(corrected.corrections).toEqual(expect.arrayContaining(["helmet-seam-without-shell-hole", "helmet-shell-negative"]));
   });
-  it("商品人物镜实际material分支提交两张原图+商品reference，补丁最终prompt与G-MAT1摘要一致", async () => {
+  it("商品人物镜实际material分支提交人物双角度+商品多角度reference，补丁最终prompt与G-MAT1摘要一致", async () => {
     const f = currentSubmissionFixture("material"); await f.execute();
     expect(f.posts).toBe(1); expect(f.gets).toBe(1); const body = f.paidBodies[0]!;
     expect(body.duration).toBe(13); expect(body).not.toHaveProperty("seed"); expect(body.omni_reference_task_type).toBe("reference");
     const content = body.content as Array<Card>; expect(content[0]!.text).toContain("真正提交应包含这条最终常识补丁");
-    expect(content.slice(1).map((part) => part.role)).toEqual(["reference_image", "reference_image", "reference_image"]);
+    expect(content.slice(1).map((part) => part.role)).toEqual(["reference_image", "reference_image", "reference_image", "reference_image"]);
     expect((content[1]!.image_url as Card).url).toBe(f.images[0]!.url); expect((content[2]!.image_url as Card).url).toBe(f.images[1]!.url);
     const gate = f.gates.find((entry) => entry.stepKey === "material-generate")!; const evidence = gate.evidence as Card;
     expect(evidence.videoInputMode).toBe("reference-image"); expect(evidence.wireRequestSha256).toBe(fixtureSha(JSON.stringify(body)));
     expect(evidence.promptSha256).toBe(fixtureSha(String(content[0]!.text)));
+    expect((gate.checks as Array<Card>).find((check) => check.id === "product-reference-inputs")).toMatchObject({ pass: true });
+    expect(evidence.productReferenceFiles).toEqual(f.productRefs);
     expect((f.reviews[0]!.images as Array<Card>)[0]!.path).toBe(join(f.dir, "plates/S1-material.jpg"));
     expect(f.accepted.length).toBe(2); expect(JSON.stringify(f.accepted)).toContain("ack.json");
   });

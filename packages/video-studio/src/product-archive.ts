@@ -372,12 +372,43 @@ export function productPhotoPath(entry: LoadedProductArchive, photo: ProductArch
 }
 
 /**
+ * Multi-angle inputs for a product video reference. A single hero image is not
+ * enough for vehicles: the model must see the whole silhouette, the side
+ * profile and at least one structural detail before it can preserve identity
+ * across a moving shot.
+ */
+export function productReferencePhotos(archive: ProductArchive, limit = 4): ProductArchivePhoto[] {
+  if (!Number.isInteger(limit) || limit < 1) throw new Error("PRODUCT_REFERENCE_LIMIT_INVALID");
+  const photos = archive.photos ?? [];
+  const selected: ProductArchivePhoto[] = [];
+  const seen = new Set<string>();
+  const take = (photo: ProductArchivePhoto | null | undefined): void => {
+    if (!photo || selected.length >= limit || seen.has(photo.file)) return;
+    seen.add(photo.file);
+    selected.push(photo);
+  };
+  take(productHeroPhoto(archive));
+  for (const angle of ["three-quarter", "side", "front", "rear", "action", "detail", "top"] as const) {
+    take(photos.find((photo) => photo.angle === angle));
+  }
+  for (const photo of photos) take(photo);
+  return selected;
+}
+
+/**
  * 提示词口径（只写**画面语言**）：产品外观以参考照片为准，不得改结构、按键布局与品牌标识；
  * 参数事实只在有来源时登记（不把检索页的宣传语当已核实参数）。
  */
 export function productArchivePromptLines(archive: ProductArchive): string[] {
   const lines: string[] = [];
   const vehicleProduct = /^(?:vehicle|motorcycle|motorbike|motor|car|automobile)$|摩托车|机车|汽车/i.test(String(archive.category ?? "").trim());
+  const identityText = [
+    archive.category,
+    archive.displayName,
+    archive.model,
+    ...(archive.specs?.parameters ?? []).map((parameter) => `${parameter.name} ${parameter.value}`),
+  ].map((value) => String(value ?? "")).join(" ");
+  const motorcycleProduct = /摩托车|机车|motorcycle|motorbike/i.test(identityText);
   const name = archive.displayName?.trim() || archive.id;
   lines.push(`真实商品：${name}${archive.brand ? `（品牌 ${archive.brand}）` : ""}${archive.company ? `，厂商 ${archive.company}` : ""}`);
   const appearance = archive.specs?.appearance?.trim();
@@ -417,6 +448,12 @@ export function productArchivePromptLines(archive: ProductArchive): string[] {
   if (vehicleProduct) {
     lines.push("使用规则（机动车硬约束）：行驶/起步/压弯等运动镜必须由画面内可见的成年骑手操控并佩戴全盔与护具；"
       + "禁止无人驾驶、禁止车辆自行启动或自行行驶；骑手姿态、重心与轮胎接地符合真实物理");
+  }
+  if (motorcycleProduct) {
+    lines.push("车型身份硬约束：本片所有主体车、前车、对手车、赛车和停放车辆都必须是两轮摩托车，"
+      + "不得出现汽车、轿车、SUV、跑车、GT 赛车、四轮车或带封闭座舱的车辆；"
+      + "每辆对手摩托车都必须由画面内可见的全盔成年骑手跨坐操控，必须呈现油箱、座垫、车把、前叉、前后轮与骑行姿态，"
+      + "严禁汽车外形、四轮车、无人驾驶或车辆自行行驶");
   }
   if (vehicleProduct) {
     lines.push("产品一致性硬约束：车身轮廓、导流罩开口与配色分区、定风翼形态、轮辋、制动卡钳、排气出口和已出现的车身标识位置必须与对应角度参考照片一致；不得重新设计外观、不得替换为相似机型、不得新增或补造贴花文字");

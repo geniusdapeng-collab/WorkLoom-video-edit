@@ -98,7 +98,7 @@ import {
 import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../../packages/video-studio/src/shot-intent.js";
 import { DEFAULT_COVER_INTRO_SECONDS, canonicalCoverIntroPath, canonicalCoverIntroRelativePath, parseCoverIntroSeconds } from "./lib/cover-delivery-policy.mjs";
 import { verifyAvSyncEvidence } from "../../packages/video-studio/src/av-sync.js";
-import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, selectProductArchive, autoBindProductSelector } from "../../packages/video-studio/src/product-archive.js";
+import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, productReferencePhotos, selectProductArchive, autoBindProductSelector } from "../../packages/video-studio/src/product-archive.js";
 import { assertShotMatchesCertifiedAsset, assetIdOf, hasIdentityAnchor, identityAnchorContext, identityAnchorPath, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, referenceAssetRefs, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
 import { auditFilmRedlines, PROMPT_REDLINE_POLICY_VERSION } from "../../packages/video-studio/src/prompt-redlines.js";
 import { assessFilmFirstPass, FIRST_PASS_POLICY_VERSION } from "../../packages/video-studio/src/first-pass.js";
@@ -1803,6 +1803,19 @@ const generatedShots = (): ShotCard[] => pendingShots().filter((shot) => !isMate
 const materialShots = (): ShotCard[] => shots.filter((shot) => isMaterialShot(shot));
 /** 商品镜：素材镜里由 G-PROD1 绑定真实商品档案的镜头（参考图锁的是**产品外观**，不要求复刻参考构图） */
 const isProductMaterialShot = (shot: ShotCard): boolean => Boolean((shot as Record<string, unknown>).productRef);
+function productReferencePaths(shot: ShotCard): string[] {
+  const productRef = (shot as Record<string, unknown>).productRef as Record<string, unknown> | undefined;
+  if (!productRef || !Array.isArray(productRef.photos)) return [];
+  return [...new Set(productRef.photos
+    .map((photo) => photo && typeof photo === "object" ? String((photo as Record<string, unknown>).path ?? "").trim() : "")
+    .filter((file) => file && existsSync(file)))];
+}
+function productNeedsMultiAngleReferences(shot: ShotCard): boolean {
+  const productRef = (shot as Record<string, unknown>).productRef as Record<string, unknown> | undefined;
+  return /^(?:vehicle|motorcycle|motorbike|motor|car|automobile)$|摩托车|机车|汽车/i.test(
+    `${String(productRef?.category ?? "")} ${String(productRef?.displayName ?? "")}`.trim()
+  );
+}
 /** 需要提示词文生关键帧/台词的人镜两类：生成镜 + 授权真人素材镜（素材镜另有动效提示词） */
 const promptShots = (): ShotCard[] => pendingShots().filter((shot) => !isMaterialShot(shot));
 const assetShots = (): ShotCard[] => shots.filter((shot) => isAssetShot(shot) && !isMaterialShot(shot));
@@ -2082,11 +2095,19 @@ for (const shot of preRenderShots) {
   }
   card.productRef = {
     id: match.archive.id,
+    displayName: match.archive.displayName,
+    category: match.archive.category ?? null,
     sourceKind: match.archive.source.kind,
     priority: match.archive.source.priority,
     matchedBy: match.matchedBy,
     photo: hero.file,
     photoSha256: hero.sha256,
+    photos: productReferencePhotos(match.archive, 4).map((photo) => ({
+      file: photo.file,
+      path: productPhotoPath(entry, photo),
+      angle: photo.angle ?? null,
+      sha256: photo.sha256,
+    })),
     reviewStatus: match.archive.source.reviewStatus ?? null,
     bound
   };
@@ -4107,6 +4128,17 @@ function buildCurrentMaterialPrompt(shot: ShotCard): string {
     extraLines.push(noSpeechClause());
   }
   extraLines.push(speechNegativeTerms(FILM_SPEECH_LANGUAGE));
+  const productReferenceFiles = productReferencePaths(shot);
+  if (productReferenceFiles.length > 0) {
+    extraLines.push(`商品身份硬约束：商品主体必须同时对齐本次提交的 ${productReferenceFiles.length} 张同型号参考图；`
+      + "保持参考图对应的外形轮廓、配色分区与已登记结构关系一致；"
+      + "参考图中的纯白影棚、展示架、滚轮架、海报文字、价格、赞助商文字与可读 logo 全部移除，不得把参考图当作静态首帧");
+  }
+  if (productNeedsMultiAngleReferences(shot)) {
+    extraLines.push("车型身份硬约束：画面中主角车、前车和每一辆对手车都必须是两轮摩托车；"
+      + "严禁出现汽车、轿车、SUV、跑车、GT 赛车、四轮车或封闭座舱；"
+      + "每辆对手摩托车都由全盔成年骑手跨坐操控，必须呈现油箱、座垫、车把、前叉、前后轮与骑行姿态");
+  }
   prompt += ` | ${extraLines.filter((line) => line.trim()).join(" | ")}`;
   const portrait = portraitVideoInputs(shot);
   if (portrait.images.length) prompt += `\n${portraitReferenceClauseFor(shot)}`;
@@ -4487,11 +4519,16 @@ if (STAGES.has("material-gen")) {
        */
       let prompt = buildCurrentMaterialPrompt(shot);
       const portrait = portraitVideoInputs(shot);
+      const productReferenceFiles = productReferencePaths(shot);
+      const requiredProductReferences = productNeedsMultiAngleReferences(shot) ? 2 : 1;
       const plausibility = !DRY_RUN ? await runPlausibilityGate("pre-submit", [shot]) : null;
       prompt = readFileSync(promptFile, "utf8");
-      const submissionPlan = videoPlan({ prompt, refs: [...portrait.images, videoImage(prepared, "product-reference")],
+      const submissionPlan = videoPlan({ prompt, refs: [
+        ...portrait.images,
+        ...productReferenceFiles.map((file) => videoImage(file, "product-reference")),
+      ],
         seconds: renderSecondsFor(duration), generateAudio: ENV.SEEDANCE_GENERATE_AUDIO !== "0", seed: 20260926 });
-      const inputPaths = [photo, prepared, promptFile, ...portrait.paths];
+      const inputPaths = [photo, prepared, promptFile, ...productReferenceFiles, ...portrait.paths];
       rememberInputs("material-gen", inputPaths, shot.shotId);
       const materialSha = sha256FileSync(photo);
       /**
@@ -4524,12 +4561,18 @@ if (STAGES.has("material-gen")) {
           { id: "aspect-constraint", pass: prompt.includes(ASPECT), hard: true, detail: `含画幅约束 ${ASPECT}` },
           { id: "duration-limit", pass: Number.isInteger(duration) && duration === submissionPlan.body.duration, hard: true, detail: `模型能力校验通过，实际请求 ${duration}s（无夹断或变速）` },
           { id: "plausibility-pre-submit", pass: plausibility?.verdict === "pass", hard: true, detail: `当前商品准备件及最终提示词常识审核：${plausibility?.verdict ?? "unverified"}` },
-          { id: "video-inputs", pass: submissionPlan.mode === "reference-image" && (!leadVisibleInShot(shot) || portrait.images.length === 2), hard: true, detail: `reference_image ${submissionPlan.inputs.length} 张；人物原图 ${portrait.images.length} 张；无 first_frame` }
+          { id: "video-inputs", pass: submissionPlan.mode === "reference-image" && (!leadVisibleInShot(shot) || portrait.images.length === 2), hard: true, detail: `reference_image ${submissionPlan.inputs.length} 张；人物原图 ${portrait.images.length} 张；无 first_frame` },
+          {
+            id: "product-reference-inputs",
+            pass: productReferenceFiles.length >= requiredProductReferences,
+            hard: true,
+            detail: `同型号商品参考 ${productReferenceFiles.length} 张（要求 ≥${requiredProductReferences}，来源为已绑定商品档案的真实角度图）`
+          }
         ],
         inputPaths, exactInputPaths: true,
         evidence: {
           videoInputMode: submissionPlan.mode, plateUsage: "not-submitted", promptSha256: submissionPlan.promptSha256, wireRequestSha256: submissionPlan.wireRequestSha256, inputPlanSha256: submissionPlan.inputPlanSha256, inputs: submissionPlan.inputs,
-          mode: "submit", policy: MATERIAL_POLICY_VERSION, material: photo, materialSha256: materialSha,
+          mode: "submit", policy: MATERIAL_POLICY_VERSION, material: photo, materialSha256: materialSha, productReferenceFiles,
           promptFile, promptChars: prompt.trim().length, model: VIDEO_MODEL, seconds: duration
         }
       });
