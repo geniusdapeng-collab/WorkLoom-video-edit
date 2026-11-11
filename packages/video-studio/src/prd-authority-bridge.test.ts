@@ -2235,6 +2235,37 @@ describe("bounded blank JSON correction at the actual frozen PromptFusion entry"
     expect(firstPrompt).toContain("冻结动作原文 3");
   });
 
+  it("corrects one schema-valid primary Fusion envelope whose authored values are all empty", async () => {
+    const empty = fusionOutput("opening");
+    for (const key of Object.keys(empty.shots[0]!.fields)) empty.shots[0]!.fields[key] = "";
+    const h = fusionRun("EMPTY-FIELDS", [
+      providerReply(JSON.stringify(empty), "fixture-empty-fields"),
+      providerReply(JSON.stringify(fusionOutput("opening")), "fixture-complete-fields"),
+    ]);
+    await h.accepted(async () => {
+      const output = await h.execute();
+      expect(output).toMatchObject({ shotId: "opening", duration: 10, degraded: false });
+      expect(Object.values((output as RequirementRecord).fields as RequirementRecord)
+        .every(value => String(value).trim().length > 0)).toBe(true);
+    });
+    expect(h.requests).toHaveLength(2);
+    expect(h.requests[1]!.url).toBe(h.requests[0]!.url);
+    expect(prompt(h.requests[1]!.body)).toContain("完整结构修正");
+  });
+
+  it("keeps a second all-empty primary Fusion envelope fatal", async () => {
+    const empty = fusionOutput("opening");
+    for (const key of Object.keys(empty.shots[0]!.fields)) empty.shots[0]!.fields[key] = "";
+    const h = fusionRun("EMPTY-FIELDS-TWICE", [
+      providerReply(JSON.stringify(empty), "fixture-empty-first"),
+      providerReply(JSON.stringify(empty), "fixture-empty-second"),
+    ]);
+    await expect(h.accepted(async () => {
+      try { await h.execute(); } catch { /* the authority retains the native failure */ }
+    })).rejects.toThrow("PRD_PRODUCTION_MODEL_UNVERIFIED");
+    expect(h.requests).toHaveLength(2);
+  });
+
   it.each(["wrong-shot", "missing-field", "extra-field", "another-blank", "unmeasured", "refusal", "same-response"] as const)(
     "keeps the correction fatal when the second exact native response is %s", async kind => {
       const output = fusionOutput(kind === "wrong-shot" ? "scene-1" : "opening");

@@ -1801,6 +1801,14 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       const fusion = primaryFusion.getStore();
       const primary = fusion?.scope === scope && fusion.receiver === this && !fusion.started ? fusion : undefined;
       if (primary) primary.started = true;
+      const schemaRecord = schema && typeof schema === "object" && !Array.isArray(schema)
+        ? schema as RequirementRecord : undefined;
+      const schemaShots = schemaRecord && Array.isArray(schemaRecord.shots) ? schemaRecord.shots : [];
+      const schemaShot = schemaShots.length === 1 && schemaShots[0] && typeof schemaShots[0] === "object"
+        && !Array.isArray(schemaShots[0]) ? schemaShots[0] as RequirementRecord : undefined;
+      const primaryContract = Boolean(primary && schemaShot
+        && Object.keys(schemaShot.fields && typeof schemaShot.fields === "object" && !Array.isArray(schemaShot.fields)
+          ? schemaShot.fields as RequirementRecord : {}).length === 25);
       const focusedFusionFill = fusion?.scope === scope && fusion.receiver === this && fusion.started
         && options.critical === true && options.fieldFill === true;
       const now = Date.now();
@@ -1881,14 +1889,32 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       };
       if (first.success && valid(first.data)) {
         if (sceneDesign && !strictObject(first)) prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", "原生场景设计正文未通过严格 JSON 校验");
-        return { result: first.data, degraded: false, degradeReason: null, attempts: 1 };
+        // A schema-valid Fusion envelope with empty authored values is not a
+        // usable field response. Give that exact primary call one same-route
+        // structural correction instead of letting the vendor emit a degraded
+        // rule fallback.
+        const firstData = first.data && typeof first.data === "object" && !Array.isArray(first.data)
+          ? first.data as RequirementRecord : undefined;
+        const firstShots = firstData && Array.isArray(firstData.shots) ? firstData.shots : [];
+        const firstFields = firstShots.length === 1 && firstShots[0] && typeof firstShots[0] === "object"
+          && !Array.isArray(firstShots[0]) && (firstShots[0] as RequirementRecord).fields
+          && typeof (firstShots[0] as RequirementRecord).fields === "object"
+          && !Array.isArray((firstShots[0] as RequirementRecord).fields)
+          ? (firstShots[0] as RequirementRecord).fields as RequirementRecord : undefined;
+        const hasAuthoredValue = Boolean(firstFields
+          && Object.values(firstFields).some(value => value !== undefined && value !== null && String(value).trim()));
+        if (!primaryContract || hasAuthoredValue) {
+          return { result: first.data, degraded: false, degradeReason: null, attempts: 1 };
+        }
       }
       const used = sceneBlank ? sceneDesignBlankCorrectionUsed : blankCorrectionUsed;
       const otherBlankUsed = blank && !sceneBlank && !primary
         ? productionBlankCorrectionUsed.get(scope)?.has(name) === true : false;
       const blankUsed = sceneBlank ? sceneDesignBlankCorrectionUsed.has(scope)
         : primary ? used.has(scope) : otherBlankUsed;
-      if (maxAttempts < 2 || (blank ? blankUsed : !first.success && nativeReasonFailure(first) !== "json-syntax")) {
+      const fusionBlankIneligible = blank && name === "PromptFusionAgent" && !primaryContract && !focusedFusionFill;
+      if (maxAttempts < 2 || fusionBlankIneligible
+        || (blank ? blankUsed : !first.success && nativeReasonFailure(first) !== "json-syntax")) {
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 的原生制作响应未通过校验`);
       }
       if (blank) {
@@ -1902,16 +1928,26 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
       }
       const correction = first.success ? "原回复缺失或不符合目标字段结构。" : "原回复不是合法 JSON。";
       const instruction = sceneBlank ? SCENE_DESIGN_BLANK_JSON_CORRECTION
-        : blank ? (primary ? FUSION_BLANK_JSON_CORRECTION : PRODUCTION_BLANK_JSON_CORRECTION)
+        : blank ? (primaryContract || focusedFusionFill ? FUSION_BLANK_JSON_CORRECTION : PRODUCTION_BLANK_JSON_CORRECTION)
         : `## 完整结构修正\n${correction}重新按上文完整任务和同一目标结构生成一次完整 JSON。保留每个镜头、事实与约束；不要引用原错误内容，不要缩减任务或字段。`;
       const second = await invoke(`${fullPrompt}\n\n${instruction}`, blank ? first : undefined, sceneBlank ? sceneDeadline : deadline);
       const secondValidation = validation(second.data);
+      const primaryCorrectionProven = !primaryContract || (blank
+        ? nativeBlankJsonCorrected(first, second)
+        // A successful structured envelope may omit an optional response id.
+        // Both calls use this same checked engine in `invoke`; prove two
+        // measured, distinct successful objects. The exact 25-field contract
+        // below still rejects unchanged, partial or empty content.
+        : measured(first) && first.success === true && measured(second) && second.success === true
+          && requirementHash(first.data) !== requirementHash(second.data));
+      const primaryExact = !primaryContract || exactFusionCorrection(second.data, schema, primary!.shotId);
       if ((!nativeReasonCompleted(second) && !measured(second)) || !second.success || secondValidation.valid !== true
         || (sceneDesign && !sceneBlank && !strictObject(second))
-        || (blank && primary && (!nativeBlankJsonCorrected(first, second) || !exactFusionCorrection(second.data, schema, primary.shotId)))) {
+        || (primaryContract && (!primaryCorrectionProven || !primaryExact))) {
         const reason = typeof secondValidation.reason === "string" ? `：${secondValidation.reason}` : "";
         prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED",
-          `${name} 的一次完整结构修正未通过校验${reason}；第二次数据形状 ${productionAgentDataShape(second.data)}`);
+          `${name} 的一次完整结构修正未通过校验${reason}；第二次数据形状 ${productionAgentDataShape(second.data)}`
+          + (primaryContract ? `；nativeRoute=${String(primaryCorrectionProven)}；exact25=${String(primaryExact)}` : ""));
       }
       if (sceneBlank) {
         const correctedShots = (second.data as { shots: Array<{ shotId: string }> }).shots;
