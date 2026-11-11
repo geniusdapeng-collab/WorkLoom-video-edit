@@ -1462,10 +1462,13 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     }
     return value;
   };
-  const rivalIdentity = (scope: Scope, shot: RequirementRecord) => reviewedRivalIdentity({
-    contract: scope.contract!, cuts: frozenCuts(scope)!, reviewedPrd: scope.reviewedResult!,
-    shotId: String(shot.shotId ?? shot.shot_id), duration: shot.duration,
-  });
+  const rivalIdentity = (scope: Scope, shot: RequirementRecord) => {
+    const cuts = frozenCuts(scope);
+    return cuts ? reviewedRivalIdentity({
+      contract: scope.contract!, cuts, reviewedPrd: scope.reviewedResult!,
+      shotId: String(shot.shotId ?? shot.shot_id), duration: shot.duration,
+    }) : undefined;
+  };
   if (deps.ruleCheckPrototype) add(deps.ruleCheckPrototype, "_checkFormat", original => function (shot, ...args) {
     const scope = frozenFieldScope(this, shot);
     const identity = scope && rivalIdentity(scope, shot as RequirementRecord);
