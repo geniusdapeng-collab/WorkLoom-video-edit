@@ -76,6 +76,12 @@ describe("花钱前提示词红线（提高一次过率）", () => {
         + "三块台体可见边界均不被裁切或遮挡；左侧与右侧低台均低于中央冠军台",
     }, { aspect: "9:16" }).map((issue) => issue.id))
       .not.toContain("vertical-horizontal-structure-framing");
+    expect(auditShotRedlines({
+      ...nested,
+      composition: "采用领奖台近侧三分之四斜侧机位；左右两块低台允许外缘轻微出画，"
+        + "三块台体的层数、内缘和高差清晰可辨；左侧与右侧低台均低于中央冠军台",
+    }, { aspect: "9:16" }).map((issue) => issue.id))
+      .not.toContain("vertical-horizontal-structure-framing");
   });
   it("普通画面文案中的“显示”不会误判为电子屏幕", () => {
     expect(auditShotRedlines({

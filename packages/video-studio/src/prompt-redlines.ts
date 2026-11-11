@@ -114,7 +114,7 @@ export function auditShotRedlines(shot: RedlineShotLike, options: {
   const groupedStructure = /三层|多层|左右|两侧|左中右|联排|并列|横向|一整排/.test(visual);
   if (portrait && horizontalStructure && groupedStructure) {
     const lockedCamera = /(?:领奖台|舞台|展台|台体|结构)[^；。\n]{0,60}(?:三分之四|3\s*\/\s*4|斜侧|近侧斜侧|偏侧)[^；。\n]{0,30}(?:机位|视角|构图)|(?:三分之四|3\s*\/\s*4|斜侧|近侧斜侧|偏侧)[^；。\n]{0,30}(?:机位|视角|构图)[^；。\n]{0,60}(?:领奖台|舞台|展台|台体|结构)/.test(visual);
-    const lockedBoundary = /(?:左右|两侧|左中右)[^；。\n]{0,60}(?:完整入画|可见边界|边缘完整|不被裁切|不裁切|不被遮挡|均清晰可辨|全部在画内)|(?:每块|三个|三块)[^；。\n]{0,30}(?:台体|台面)[^；。\n]{0,30}(?:可见|边界|不重叠)/.test(visual);
+    const lockedBoundary = /(?:左右|两侧|左中右)[^；。\n]{0,60}(?:完整入画|可见边界|边缘完整|不被裁切|不裁切|不被遮挡|均清晰可辨|全部在画内)|(?:每块|三个|三块)[^；。\n]{0,30}(?:台体|台面)[^；。\n]{0,30}(?:可见|边界|不重叠)|(?:左右|两侧)[^；。\n]{0,100}(?:贴近画框|部分出画|轻微出画)[^；。\n]{0,100}(?:层数|高差|内缘)[^；。\n]{0,50}(?:清晰|可辨)|(?:层数|高差|内缘)[^；。\n]{0,50}(?:清晰|可辨)[^；。\n]{0,100}(?:贴近画框|部分出画|轻微出画)/.test(visual);
     const lockedRelativePosition = /(?:左|右|两侧)[^；。\n]{0,50}(?:低于|低台|矮台|次高)|(?:中央|中间)[^；。\n]{0,40}(?:最高|高台)/.test(visual);
     if (!(lockedCamera && lockedBoundary && lockedRelativePosition)) {
       add(
