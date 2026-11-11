@@ -594,6 +594,7 @@ export async function authorRepairFields(input: AuthorRepairFieldsInput): Promis
       "完整冻结Brief、G1–G4原件、所有镜头字段和当前角色图绑定都在下方。只有当前镜头allowedFields可以写入；其余字段、身份、事实、顺序、时长、音频纪律和技术规格保持原样。",
       "逐项解决diagnoses。不要截断或摘要只读上下文，不要把缺失内容转移到别的字段，不要增加场景。",
       "若allowedFields包含timeline，输出必须用T00:00–T00:xx等显式区间从头到尾无缝覆盖本镜总时长；不得用孤立时点、缺口、重叠或越界时间替代完整时间轴。",
+      "若allowedFields包含camera_movement，只能写一套可执行的速度与方向计划；不得同时写固定m/s和加速/减速阶段，不得追加未定时的收尾定格模板。",
       "若存在hardFinalPromptBudget，allowedFields所有文本值的UTF-16字符数合计不得超过maxAllowedFieldChars；这是提交前硬后置条件，不能只做轻微压缩。",
       "只返回一个完整JSON对象：shotId、fields。fields必须恰好包含本镜所有allowedFields；已有字段保持原类型，每个值均有实际改变。sourceUnboundFields没有已保存的历史值与类型，只能按完整已审来源新写非空文本；不得声称恢复旧值或旧摘要。禁止额外键、Markdown和解释。",
       canonicalJson({ authoringPlanSha256: planSha256, sourceContext: input.sourceContext, allShots: input.plan.shots.map(source => ({

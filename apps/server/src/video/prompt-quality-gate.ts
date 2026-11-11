@@ -896,6 +896,7 @@ function repairPrompt(
       "没有语义缺陷的可写描述字段只精简同义重复，保留原有光向、色彩、构图、景深、情绪、可见环境、导演目的、节奏变化和妆容特征。不得截断、清空或把内容移到其他字段。",
     ] : []),
     ...(allowedFields.includes("transition") ? ["仅按独立评审指向的具体矛盾修复转场文字，保留原硬切、切点、原生末态与自然动作；不得增加过渡、延长时长或冻结画面。"] : []),
+    ...(allowedFields.includes("camera_movement") ? ["运镜只能保留一套实际可执行的速度、方向与起落幅计划；不得同时出现固定 m/s 与加速/减速阶段，也不得追加未定时的收尾定格模板。"] : []),
     ...(finalPromptFieldBudget ? [
       `实际编译中固定部分已占 ${finalPromptFieldBudget.fixedChars} 字；所有可写字段修复后的值总长（含未改可写字段）最多 ${finalPromptFieldBudget.maxEditableValueChars} 字，建议不超过 ${finalPromptFieldBudget.targetEditableValueChars} 字。请在本次响应内核算全部可写字段的总长，留出安全余量。`,
       `必须同时解决正式评审指出的语义缺陷。仅以下字段可按对应 findings 补齐或调整制作语义：${JSON.stringify(finalPromptFieldBudget.semanticFields)}；其余可写字段只能缩写。保持演员身份、资产、服装、声场、技术规格和每镜总时长；不得省略已审动作或增加段落。`,

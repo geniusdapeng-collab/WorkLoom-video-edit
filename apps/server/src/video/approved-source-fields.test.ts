@@ -494,6 +494,7 @@ describe("normal native dispatcher authoring with complete controlled artifacts"
     input.plan = fieldPlan(input.plan.shots[0], ["camera_movement"]);
     await expect(authorRepairFields(input)).rejects.toThrow("AUTHORING_REQUEST_DRIFT");
     expect(requests).toHaveLength(1);
+    expect(JSON.stringify(requests[0])).toContain("不得同时写固定m/s和加速/减速阶段");
   });
   it.each(["delivery", "audio-switch", "model", "asset-bytes", "asset-order"])("rejects a corrupt persisted plan changing %s before dispatch", async kind => {
     const { input, requests } = authorInput(content);
