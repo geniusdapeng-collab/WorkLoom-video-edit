@@ -481,9 +481,10 @@ describe("normal native dispatcher authoring with complete controlled artifacts"
   });
   it("permits only the currently diagnosed timeline text channel", async () => {
     const timeline = "T00:00至T00:05，先落实已审动作；T00:05至T00:10，保留完整结尾。";
-    const { input } = authorInput(JSON.stringify({ shotId: "scene-a", fields: { timeline } }));
+    const { input, requests } = authorInput(JSON.stringify({ shotId: "scene-a", fields: { timeline } }));
     input.plan = fieldPlan(input.plan.shots[0], ["timeline"]);
     const result = await authorRepairFields(input);
+    expect(JSON.stringify(requests[0])).toContain("T00:00–T00:xx");
     const prior = input.plan.shots[0]!.sourceContract.request;
     expect(result.shots[0]!.currentContract!.request).toEqual({ ...prior, technical: { ...prior.technical, timeline } });
     expect(result.receipts[0]!.mutableRequestTextPaths).toEqual(["technical.timeline"]);
