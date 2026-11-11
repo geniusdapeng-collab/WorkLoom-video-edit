@@ -36,20 +36,25 @@ let receiptFault: "none" | "author-no-usage" | "author-no-id" | "author-socket-l
 let factNativeCalls: number;
 let activeEngine: WorkloomLLMEngine | undefined;
 const originalFromEnv = WorkloomLLMEngine.fromEnv.bind(WorkloomLLMEngine);
+async function buildFixture(options: { emptyContractAssetsShot?: string } = {}) {
+  const model = getModel("doubao-seedance-2-5")!, providerModel = resolveProviderModel(model);
+  fixture = await approvedSourceFixture({ workDir, scope: { ...scope, projectId, runId: "RUN-source", attempt: 4 }, createdAt,
+    compileModel: { modelId: model.id, provider: model.provider, providerModel, version: `workloom.media-catalog/v1:${providerModel}`,
+      modes: [...model.modes], durationSec: { min: model.limits!.durationSec!.min, max: model.limits!.durationSec!.max }, aspectRatios: model.limits!.aspectRatios!, resolutions: model.limits!.resolutions!,
+      maxReferenceImages: model.limits!.maxReferenceImages!, maxPromptChars: model.limits!.maxPromptChars! },
+    ...options });
+  vi.stubEnv("HR_PORTRAIT_REUSE_MANIFEST", fixture.portraitManifest.path);
+  rows = [{ ...fixture.row, project_id: projectId, workspace_id: scope.workspaceId, kind: "marketing", stage_id: "preproduction" }];
+  held = false;
+}
 beforeEach(async () => {
   vi.restoreAllMocks();
   for (const [key, value] of Object.entries({ LLM_PROVIDER: "deepseek", LLM_BASE_URL: "http://offline-worker.invalid/v1", LLM_API_KEY: "offline-only",
     LLM_MODEL: "deepseek-flash", LLM_FORCE_MODEL: "deepseek-flash", ARCHIVE_ENABLED: "1", PROMPT_CONTRACT_V2: "enforce", PIPELINE_SYSTEM_AUTO_APPROVAL: "enforce", VM_PRODUCER_RETRY: "9" })) vi.stubEnv(key, value);
   workDir = await realpath(await mkdtemp(path.join(tmpdir(), "approved-source-worker-")));
   vi.stubEnv("HR_WORK_DIR", workDir);
-  const model = getModel("doubao-seedance-2-5")!, providerModel = resolveProviderModel(model);
-  fixture = await approvedSourceFixture({ workDir, scope: { ...scope, projectId, runId: "RUN-source", attempt: 4 }, createdAt,
-    compileModel: { modelId: model.id, provider: model.provider, providerModel, version: `workloom.media-catalog/v1:${providerModel}`,
-      modes: [...model.modes], durationSec: { min: model.limits!.durationSec!.min, max: model.limits!.durationSec!.max }, aspectRatios: model.limits!.aspectRatios!, resolutions: model.limits!.resolutions!,
-      maxReferenceImages: model.limits!.maxReferenceImages!, maxPromptChars: model.limits!.maxPromptChars! } });
-  vi.stubEnv("HR_PORTRAIT_REUSE_MANIFEST", fixture.portraitManifest.path);
-  rows = [{ ...fixture.row, project_id: projectId, workspace_id: scope.workspaceId, kind: "marketing", stage_id: "preproduction" }];
-  held = false; modelRequests = []; boundary.events.length = 0; boundary.traces.length = 0; failAuthor = false; failG6 = false; failFacts = false;
+  await buildFixture();
+  modelRequests = []; boundary.events.length = 0; boundary.traces.length = 0; failAuthor = false; failG6 = false; failFacts = false;
   receiptFault = "none"; factNativeCalls = 0;
   activeEngine = undefined;
   vi.spyOn(WorkloomLLMEngine, "fromEnv").mockImplementation(env => {
@@ -190,6 +195,20 @@ describe("approved-source host worker", { timeout: 30_000 }, () => {
     expect(rows).toHaveLength(2); expect(modelRequests).toHaveLength(5);
     expect(await readFile(path.join(fixture.store.root, fixture.row.input_ref))).toEqual(fixture.sourceInputBytes);
     expect(await readFile(path.join(fixture.store.root, fixture.row.output_ref))).toEqual(fixture.sourceOutputBytes);
+  });
+  it("rebinds verified current portrait bytes before G6 when the adopted source contract had none", async () => {
+    await rm(workDir, { recursive: true, force: true });
+    workDir = await realpath(await mkdtemp(path.join(tmpdir(), "approved-source-worker-assets-")));
+    vi.stubEnv("HR_WORK_DIR", workDir);
+    await buildFixture({ emptyContractAssetsShot: "ending" });
+    const { receipt } = await start(), entry = await finished(receipt.runId);
+    expect(entry).toMatchObject({ status: "finished", error: null });
+    const row = rows.at(-1)!, output = JSON.parse(await readFile(path.join(fixture.store.root, row.output_ref), "utf8"));
+    const ending = output.productionEvidence.gates.find((gate: Json) => gate.gate === "G6_PROMPT")
+      .promptQuality.evidence.contracts.find((item: Json) => item.shotId === "ending");
+    expect(ending.contract.bindings.find((binding: Json) => binding.field === "portraits").assets)
+      .toHaveLength(2);
+    expect(ending.contract.request.inputMode).toBe("reference-image");
   });
   it("keeps a genuine G6 rejection, full current contracts and diagnosis available for the next explicitly requested repair", async () => {
     failG6 = true;

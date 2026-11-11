@@ -119,12 +119,13 @@ function sourceMissingDiagnoses(evidence: readonly VerifiedFieldArtifact[], shot
   for (const item of evidence) {
     const { parsed, sha256 } = artifact(item);
     if (parsed.schemaVersion !== "workloom.video-prompt-quality/v2" || !Array.isArray(parsed.findings)) return fail("MISSING_EVIDENCE_INVALID");
-    let used = false;
+    let used = false, hardErrorUsed = false;
     for (const raw of parsed.findings) {
       const finding = record(raw);
       if (finding.shotId === shotId && finding.blocking === true && typeof finding.code === "string"
         && (finding.code.startsWith("HARD_") || ["deterministic", "local_patch"].includes(String(finding.repairClass)))) {
         allowedHardErrors.add(`${finding.code}:${typeof finding.field === "string" ? finding.field : "stage"}`);
+        hardErrorUsed = true;
       }
       if (finding.shotId !== shotId || finding.code !== "HARD_FIELD_VALUE_MISSING" || finding.blocking !== true
         || !["deterministic", "local_patch"].includes(String(finding.repairClass)) || typeof finding.field !== "string") continue;
@@ -133,7 +134,9 @@ function sourceMissingDiagnoses(evidence: readonly VerifiedFieldArtifact[], shot
       byField.set(finding.field, hashes);
       used = true;
     }
-    if (used && !originals.some(original => original.sha256 === sha256)) originals.push({ text: Buffer.from(item.bytes).toString("utf8"), sha256 });
+    if ((used || hardErrorUsed) && !originals.some(original => original.sha256 === sha256)) {
+      originals.push({ text: Buffer.from(item.bytes).toString("utf8"), sha256 });
+    }
   }
   return { byField, allowedHardErrors, originals };
 }
@@ -290,7 +293,7 @@ export function recoverContractFields(input: RecoverContractFieldsInput): Recove
     shotId: contract.shotId, duration: Number(parameters.duration_sec), ...structuredClone(metadata), fields,
     prompt: contract.prompt, sourceContractText: Buffer.from(input.contractBytes).toString("utf8"),
     sourceContractSha256: sha256, sourceContract: structuredClone(contract), compileOptions,
-    fieldProofs, unboundFields, missingFieldEvidence: unboundFields.length ? missingDiagnoses.originals : [], rawAliasState: "not-retained",
+    fieldProofs, unboundFields, missingFieldEvidence: missingDiagnoses.originals, rawAliasState: "not-retained",
   };
 }
 

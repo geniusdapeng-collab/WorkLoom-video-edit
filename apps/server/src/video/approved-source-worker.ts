@@ -29,7 +29,7 @@ import { acceptPortraitArchiveReuse, portraitReuseEvidence, readCurrentPortraitA
 import { resolveScenePolicyForIntent } from "./scene-policy-routing.js";
 import {
   createLlmSemanticQualityReviewer, evaluatePromptPackage, promptContractSummary, promptQualityAutoChecks,
-  promptQualityRunProjection, verifyCurrentPromptContracts, writePromptQualityEvidence,
+  promptQualityRunProjection, resolvePromptAssets, verifyCurrentPromptContracts, writePromptQualityEvidence,
 } from "./prompt-quality-gate.js";
 import type { RunEntry } from "./studio-worker.js";
 
@@ -197,8 +197,16 @@ export async function startApprovedSourceRepairWorker(
       await verifyCurrent();
       entry.currentGate = "G6_PROMPT";
       const compiledAt = new Date().toISOString();
-      const shots = authored.shots.map(shot => ({ source: sourceShot(shot), compile: { ...structuredClone(shot.compileOptions),
-        createdAt: shot.currentContract?.createdAt ?? compiledAt } }));
+      const charactersDir = path.join(plan.workDir, "characters", projectId);
+      const shots = authored.shots.map(shot => {
+        const source = sourceShot(shot);
+        return { source, compile: { ...structuredClone(shot.compileOptions),
+          // The adopted source contract may predate G5 and therefore carry no
+          // asset bytes. Re-resolve only against the current byte-verified
+          // project copies after field authoring and before this G6 run.
+          assets: resolvePromptAssets({ source, workDir: plan.workDir, charactersDir, archiveCopies: copies }),
+          createdAt: shot.currentContract?.createdAt ?? compiledAt } };
+      });
       const quality = await evaluatePromptPackage({ mode: "enforce", projectId, runId: entry.runId, stageRunId: `${entry.runId}:g6`,
         revision: ctx.attempt, shots, reviewer: createLlmSemanticQualityReviewer(llm, verifyDispatch, async outcome => {
           modelCallOutcomes.push({ stage: "prompt-quality", nativeInvocationStarted: true, ...outcome });
