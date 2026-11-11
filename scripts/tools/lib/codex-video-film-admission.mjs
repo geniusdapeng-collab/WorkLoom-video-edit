@@ -66,12 +66,25 @@ export async function admitFilmBudget({ env, shotDurations, aspect, resolution, 
   }
   const videoScope = readback.scope?.video;
   const used = readback.usage;
+  const allowedSeconds = videoScope?.allowedSeconds;
+  const totalSeconds = videoScope?.totalSeconds;
+  const nonUniform = Array.isArray(allowedSeconds);
+  const shotSeconds = nonUniform
+    ? shotDurations.reduce((total, duration) => total + duration, 0)
+    : shotDurations.length * videoScope?.seconds;
   check(videoScope?.ratio === aspect && videoScope.resolution === (resolution === "2160p" ? "1080p" : resolution)
-    && Number.isSafeInteger(videoScope.seconds) && shotDurations.every((duration) => duration === videoScope.seconds)
+    && (nonUniform
+      ? allowedSeconds.length > 0 && allowedSeconds.every((duration) => Number.isSafeInteger(duration)
+          && duration >= 4 && duration <= 30) && new Set(allowedSeconds).size === allowedSeconds.length
+        && Number.isSafeInteger(totalSeconds) && totalSeconds >= 4
+        && shotDurations.every((duration) => allowedSeconds.includes(duration))
+        && shotSeconds === totalSeconds
+      : Number.isSafeInteger(videoScope?.seconds) && shotDurations.every((duration) => duration === videoScope.seconds))
     && Number.isSafeInteger(used?.videoCalls) && used.videoCalls >= 0
     && (caps.videoCalls === null || used.videoCalls + shotDurations.length <= caps.videoCalls)
     && Number.isSafeInteger(used.videoSeconds) && used.videoSeconds >= 0
-    && (caps.totalVideoSeconds === null || used.videoSeconds + shotDurations.length * videoScope.seconds <= caps.totalVideoSeconds)
+    && (caps.totalVideoSeconds === null || used.videoSeconds + shotSeconds <= caps.totalVideoSeconds)
+    && (!nonUniform || used.videoSeconds + shotSeconds <= totalSeconds)
     && Number.isSafeInteger(used.imageCalls) && used.imageCalls >= 0
     && (caps.imageCalls === null || used.imageCalls < caps.imageCalls)
     && Number.isSafeInteger(used.llmCalls) && used.llmCalls >= 0
@@ -81,7 +94,12 @@ export async function admitFilmBudget({ env, shotDurations, aspect, resolution, 
       estimateCapMicroCny: hasApprovedCap ? approvedMicroCny : null,
       approvedMicroCny: hasApprovedCap ? approvedMicroCny : null,
       observedMicroCny: used.microCny,
-      videoScope: { seconds: videoScope.seconds, ratio: videoScope.ratio, resolution: videoScope.resolution } },
+      videoScope: {
+        seconds: videoScope.seconds,
+        ...(nonUniform ? { allowedSeconds: [...allowedSeconds], totalSeconds } : {}),
+        ratio: videoScope.ratio,
+        resolution: videoScope.resolution,
+      } },
     environment: { WORKLOOM_FILM_BUDGET_RELAY: "1", LLM_PROVIDER: "deepseek", LLM_MODEL: DEEPSEEK_MODEL,
       LLM_BASE_URL: origin, LLM_API_KEY: token, ARK_BASE_URL: env.ARK_BASE_URL,
       VOLCENGINE_ARK_API_KEY: token, SEEDREAM_MODEL, SEEDANCE_MODEL },

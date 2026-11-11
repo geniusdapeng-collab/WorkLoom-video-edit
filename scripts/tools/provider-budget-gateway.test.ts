@@ -291,6 +291,29 @@ describe("task-local provider budget gateway", () => {
     expect(upstream).toHaveBeenCalledTimes(2);
   });
 
+  it("admits only the approved non-uniform durations and their exact total without changing structured-scene scope", async () => {
+    let submissions = 0;
+    const upstream = vi.fn(async () => Response.json({ id: `nonuniform-${++submissions}` }));
+    const scope = {
+      video: {
+        seconds: 30, allowedSeconds: [4, 5, 8], totalSeconds: 17,
+        ratio: "9:16", resolution: "1080p",
+      },
+    };
+    const { server } = await gate(upstream, { scope, profile: "workflow-v2" });
+    for (const duration of [4, 5, 8]) {
+      expect((await call(server, ARK_VIDEO_PATH, video(`approved ${duration}s`, duration))).status).toBe(200);
+    }
+    expect(code(await call(server, ARK_VIDEO_PATH, video("exceeds total", 4)))).toBe("BUDGET_VIDEO_SCOPE_MISMATCH");
+    expect(code(await call(server, ARK_VIDEO_PATH, video("not in approved set", 6)))).toBe("BUDGET_VIDEO_SCOPE_MISMATCH");
+    expect(upstream).toHaveBeenCalledTimes(3);
+    expect((await call(server, "/budget/status")).data).toMatchObject({
+      scope,
+      state: "held",
+      usage: { videoCalls: 3, videoSeconds: 17 },
+    });
+  });
+
   it("reserves multiple 10s clips at 1080p, recovers acknowledged tasks across restart, and never resubmits exact bytes", async () => {
     let postCount = 0;
     const upstream = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
