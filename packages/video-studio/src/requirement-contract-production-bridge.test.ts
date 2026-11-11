@@ -1670,7 +1670,9 @@ describe("actual native scoped RiskAssessor Responses", () => {
     expect(riskPrompts).toHaveLength(3);
     expect(riskPrompts[0]).not.toContain("上一次原生需求 JSON 语法纠正");
     expect(riskPrompts[1]).toContain("上一次原生需求 JSON 语法纠正");
-    expect(riskPrompts[2]).toContain("上一次原生需求 JSON 语法纠正");
+    expect(riskPrompts[1]).not.toContain("末次格式重生成");
+    expect(riskPrompts[2]).toContain("两次原生需求 JSON 语法失败后的末次格式重生成");
+    expect(riskPrompts[2]).not.toBe(riskPrompts[1]);
   });
 
   it.each([

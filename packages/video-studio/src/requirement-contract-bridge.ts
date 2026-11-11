@@ -58,6 +58,9 @@ const receivers = new WeakMap<object, Scope>();
 const discoveryJsonCorrection = "\n\n## 上一次原生需求 JSON 语法纠正\n"
   + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成完整 JSON 对象。"
   + "检查逗号、对象与数组闭合、引号和转义。只输出对象，禁止代码围栏或解释。";
+const discoveryJsonFinalCorrection = "\n\n## 两次原生需求 JSON 语法失败后的末次格式重生成\n"
+  + "前两次正文均无法解析且未作为输入。严格依据本请求的完整原始输入与同一 schema 重新生成完整 JSON 对象；"
+  + "逐项写完完整对象成员或数组元素，检查相邻值之间恰有一个 ASCII 逗号，不使用代码围栏或解释。";
 const sceneJsonCorrection = "\n\n## 上一次原生场景 JSON 语法纠正\n"
   + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成一个完整 JSON 对象。"
   + "检查数组元素之间的逗号、对象与数组逐层闭合，以及字符串内引号和换行的合法转义。只输出对象，禁止代码围栏或解释。";
@@ -597,10 +600,13 @@ export function installRequirementContractBridge(
                   if (typeof prompt !== "string" || !prompt.trim() || genericRiskCorrectionComplete) {
                     throw unverified("风险评审调用窗口或一次性语法纠正已失效");
                   }
-                  const correcting = attemptFeedback === discoveryJsonCorrection;
+                  const correcting = attemptFeedback === discoveryJsonCorrection
+                    || attemptFeedback === discoveryJsonFinalCorrection;
                   if (correcting && !genericRiskSyntaxFailure) throw unverified("风险评审缺少首次同路由语法失败");
+                  const correctionText = attemptFeedback === discoveryJsonFinalCorrection
+                    ? discoveryJsonFinalCorrection : discoveryJsonCorrection;
                   const result = await Reflect.apply(reason, model, [
-                    correcting ? prompt + discoveryJsonCorrection : prompt, nativeSchema, options,
+                    correcting ? prompt + correctionText : prompt, nativeSchema, options,
                   ]) as LLMReasonResult;
                   requireActiveScope();
                   if (correcting) {
@@ -615,7 +621,7 @@ export function installRequirementContractBridge(
                     if (nativeReasonFailure(result) === "json-syntax" && correctionAttempts < 2) {
                       genericRiskSyntaxFailure = result;
                       genericRiskSyntaxFailures += 1;
-                      pendingFeedback = discoveryJsonCorrection;
+                      pendingFeedback = discoveryJsonFinalCorrection;
                       throw unverified("风险 JSON 语法纠正仍不是有效 JSON，进入最后一次同路由纠正");
                     }
                     genericRiskCorrectionComplete = true;
