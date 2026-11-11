@@ -27,8 +27,91 @@ interface Prepared {
 }
 interface Ack { schemaVersion: "workloom.video-submission-ack/v1"; taskId: string; preparedSha256: string; acknowledgedAt: string; httpStatus: number; requestId: string | null }
 interface TerminalRecord { preparedSha256?: string; taskId?: string; status?: string; httpStatus?: number; errorCode?: string; at?: string }
+interface ProviderTaskEvidence { id: string; model: string; createdAt: number }
+interface ProviderReconciliation {
+  schemaVersion: "workloom.video-provider-reconciliation/v1";
+  verdict: "no-task-created";
+  preparedSha256: string;
+  wireRequestSha256: string;
+  dispatchStartedSha256: string;
+  observedAt: string;
+  providerTotal: number;
+  providerTasks: ProviderTaskEvidence[];
+}
 function retryablePreDispatchTerminal(terminal: TerminalRecord): boolean {
   return terminal.status === "submit-rejected" && !terminal.taskId && terminal.errorCode === "BUDGET_FROZEN";
+}
+function safeIsoAfter(value: unknown, minimum: number): value is string {
+  const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > minimum;
+}
+/**
+ * A transport-unknown POST is retryable only after an explicit read-only
+ * provider reconciliation proves that the complete task listing predates the
+ * failed dispatch. The frozen request bytes and provider snapshot evidence are
+ * both bound by hash; stale, partial, mismatched or future-task evidence fails
+ * closed.
+ */
+function retryableProviderReconciledUnknown(
+  terminal: TerminalRecord,
+  directory: string,
+  preparedFile: string,
+  dispatchFile: string,
+  prepared: Prepared,
+): boolean {
+  if (terminal.status !== "submit-rejected" || terminal.taskId || terminal.errorCode !== "BUDGET_OUTCOME_UNKNOWN") return false;
+  const reconciliationFile = join(directory, "provider-reconciliation.json");
+  if (!existsSync(reconciliationFile) || !existsSync(dispatchFile)) return false;
+  const evidence = readJson<ProviderReconciliation>(reconciliationFile);
+  const dispatch = readJson<{ preparedSha256?: string; dispatchedAt?: string }>(dispatchFile);
+  const preparedSha256 = hash(readFileSync(preparedFile));
+  const dispatchStartedSha256 = hash(readFileSync(dispatchFile));
+  const dispatchedAt = typeof dispatch.dispatchedAt === "string" ? Date.parse(dispatch.dispatchedAt) : Number.NaN;
+  if (evidence.schemaVersion !== "workloom.video-provider-reconciliation/v1"
+    || evidence.verdict !== "no-task-created"
+    || evidence.preparedSha256 !== preparedSha256
+    || terminal.preparedSha256 !== preparedSha256
+    || dispatch.preparedSha256 !== preparedSha256
+    || evidence.wireRequestSha256 !== prepared.wireRequestSha256
+    || evidence.dispatchStartedSha256 !== dispatchStartedSha256
+    || !Number.isFinite(dispatchedAt)
+    || !safeIsoAfter(evidence.observedAt, dispatchedAt)
+    || !Number.isSafeInteger(evidence.providerTotal)
+    || evidence.providerTotal < 0
+    || evidence.providerTotal > 100
+    || !Array.isArray(evidence.providerTasks)
+    || evidence.providerTasks.length !== evidence.providerTotal) return false;
+  const ids = new Set<string>();
+  let latestCreatedAt = -1;
+  for (const task of evidence.providerTasks) {
+    if (!task || typeof task.id !== "string" || !/^[A-Za-z0-9._:-]{1,256}$/.test(task.id)
+      || ids.has(task.id)
+      || task.model !== prepared.model
+      || !Number.isSafeInteger(task.createdAt)
+      || task.createdAt < 0) return false;
+    ids.add(task.id);
+    latestCreatedAt = Math.max(latestCreatedAt, task.createdAt);
+  }
+  // The provider timestamp is whole seconds. No task may begin in the same
+  // second as, or after, the durable dispatch record.
+  return latestCreatedAt * 1000 < dispatchedAt;
+}
+function archiveProviderReconciledUnknown(
+  directory: string,
+  dispatchFile: string,
+  terminalFile: string,
+  terminal: TerminalRecord,
+  now: () => number,
+): void {
+  const evidenceRoot = join(directory, "provider-reconciled-unknown");
+  privateDirectory(evidenceRoot);
+  const target = join(evidenceRoot, `${Date.parse(String(terminal.at ?? "")) || now()}-${randomUUID()}`);
+  mkdirSync(target, { recursive: false, mode: 0o700 });
+  renameSync(terminalFile, join(target, "terminal.json"));
+  renameSync(dispatchFile, join(target, "dispatch-started.json"));
+  renameSync(join(directory, "provider-reconciliation.json"), join(target, "provider-reconciliation.json"));
+  syncDirectory(target);
+  syncDirectory(evidenceRoot);
 }
 /** Preserve a known pre-dispatch rejection, then allow the exact frozen contract to attempt once more after gateway recovery. */
 function archivePreDispatchTerminal(directory: string, dispatchFile: string, terminalFile: string, terminal: TerminalRecord, now: () => number): void {
@@ -110,7 +193,9 @@ export function readVideoSubmissionRecovery(scope: { directory: string; projectI
   if (existsSync(join(directory, "terminal.json"))) {
     const terminal = readJson<TerminalRecord>(join(directory, "terminal.json"));
     if (terminal.preparedSha256 !== hash(readFileSync(preparedFile))) throw new VideoSubmissionError("VIDEO_SUBMISSION_TERMINAL_INVALID");
-    if (!existsSync(join(directory, "ack.json")) && retryablePreDispatchTerminal(terminal)) return null;
+    if (!existsSync(join(directory, "ack.json"))
+      && (retryablePreDispatchTerminal(terminal)
+        || retryableProviderReconciledUnknown(terminal, directory, preparedFile, join(directory, "dispatch-started.json"), prepared))) return null;
     throw new VideoSubmissionError(`VIDEO_SUBMISSION_TERMINAL: ${terminal.status ?? "unknown"}; HTTP ${terminal.httpStatus ?? "n/a"}; ${terminal.errorCode ?? "unknown"}; not resubmitted`, typeof terminal.taskId === "string" ? terminal.taskId : null);
   }
   if (!existsSync(join(directory, "ack.json"))) {
@@ -180,6 +265,9 @@ export async function runVideoSubmission(scope: VideoSubmissionScope, options: {
     const terminal = readJson<TerminalRecord>(terminalFile);
     if (terminal.preparedSha256 !== preparedSha256) throw new VideoSubmissionError("VIDEO_SUBMISSION_TERMINAL_INVALID", ack?.taskId ?? null);
     if (!ack && retryablePreDispatchTerminal(terminal)) archivePreDispatchTerminal(directory, dispatchFile, terminalFile, terminal, now);
+    else if (!ack && retryableProviderReconciledUnknown(terminal, directory, preparedFile, dispatchFile, prepared)) {
+      archiveProviderReconciledUnknown(directory, dispatchFile, terminalFile, terminal, now);
+    }
     else throw new VideoSubmissionError(`VIDEO_SUBMISSION_TERMINAL: ${terminal.status ?? "unknown"}; not resubmitted`, ack?.taskId ?? null);
   }
   if (!ack) {
