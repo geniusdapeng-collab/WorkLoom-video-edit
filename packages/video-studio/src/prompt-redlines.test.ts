@@ -59,4 +59,22 @@ describe("花钱前提示词红线（提高一次过率）", () => {
     expect(auditShotRedlines({ ...structure, constraint: "16:9画幅，1920x1080，30fps，MP4格式" }, { aspect: "16:9" })
       .map((issue) => issue.id)).not.toContain("vertical-horizontal-structure-framing");
   });
+  it("素材镜同时审核嵌套 fields 与实际顶层 prompt", () => {
+    const nested = {
+      shotId: "material-ending",
+      fields: {
+        constraint: "9:16画幅，1080x1920，30fps，MP4格式",
+        scene: "国际大赛式三层领奖台，中央最高，左右低台",
+        composition: "中全景，人物与左右两层低台完整入画",
+      },
+    };
+    expect(auditShotRedlines(nested, { aspect: "9:16" }).map((issue) => issue.id))
+      .toContain("vertical-horizontal-structure-framing");
+    expect(auditShotRedlines({
+      ...nested,
+      composition: "采用领奖台近侧三分之四斜侧机位；左右两块低台从中央最高台两侧完整入画，"
+        + "三块台体可见边界均不被裁切或遮挡；左侧与右侧低台均低于中央冠军台",
+    }, { aspect: "9:16" }).map((issue) => issue.id))
+      .not.toContain("vertical-horizontal-structure-framing");
+  });
 });

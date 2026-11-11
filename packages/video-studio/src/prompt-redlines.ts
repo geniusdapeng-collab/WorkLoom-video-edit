@@ -20,6 +20,7 @@ export interface RedlineShotLike {
   shotId?: string;
   scene?: unknown; sceneDescription?: unknown; action?: unknown; props?: unknown; negative?: unknown;
   composition?: unknown; camera_movement?: unknown; timeline?: unknown; constraint?: unknown;
+  fields?: unknown; prompt?: unknown;
   [key: string]: unknown;
 }
 
@@ -37,17 +38,22 @@ function positiveOnly(value: string): string {
     .join("；");
 }
 const text = (value: unknown): string => String(value ?? "");
-const allText = (shot: RedlineShotLike, keys: string[]): string => keys.map((key) => text(shot[key])).join("；");
+const allText = (shot: RedlineShotLike, keys: string[]): string => {
+  const nested = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
+    ? shot.fields as Record<string, unknown>
+    : {};
+  return keys.flatMap((key) => [shot[key], nested[key]]).map(text).filter(Boolean).join("；");
+};
 
 export function auditShotRedlines(shot: RedlineShotLike, options: {
   fps?: number; aspect?: string; bulletTimeCapabilities?: BulletTimeCapabilities;
 } = {}): RedlineIssue[] {
   const issues: RedlineIssue[] = [];
   const add = (id: string, detail: string, why: string, hard = true): void => { issues.push({ id, detail, why, hard }); };
-  const visual = positiveOnly(allText(shot, ["scene", "sceneDescription", "composition", "action", "props"]));
-  const negative = text((shot as Record<string, unknown>).negative);
-  const camera = text((shot as Record<string, unknown>).camera_movement);
-  const timeline = text((shot as Record<string, unknown>).timeline);
+  const visual = positiveOnly(allText(shot, ["scene", "sceneDescription", "composition", "action", "props", "prompt"]));
+  const negative = allText(shot, ["negative"]);
+  const camera = allText(shot, ["camera_movement"]);
+  const timeline = allText(shot, ["timeline"]);
 
   // ① 屏幕文字：出现屏幕就必须写明"虚化/不可辨认/光晕"，并把文字与 LOGO 放进负面清单
   if (/屏幕|触控|显示|界面/.test(visual) && !/(背对|不可见|不朝镜头)/.test(allText(shot, ["sceneDescription","composition"]))) {
@@ -100,7 +106,7 @@ export function auditShotRedlines(shot: RedlineShotLike, options: {
   }
   // ⑧ 竖屏横向结构：领奖台、舞台、联排台阶等横向分组结构若只用“三层/左右/两侧”
   // 一笔带过，模型常优先保住人物中近景而裁掉侧翼。这里要求把几何关系写成可执行约束。
-  const declaredAspect = text((shot as Record<string, unknown>).constraint).match(/(\d+)\s*:\s*(\d+)\s*画幅/);
+  const declaredAspect = allText(shot, ["constraint"]).match(/(\d+)\s*:\s*(\d+)\s*画幅/);
   const fallbackAspect = String(options.aspect ?? "").match(/^(\d+)\s*:\s*(\d+)$/);
   const aspect = declaredAspect ?? fallbackAspect;
   const portrait = aspect && Number(aspect[1]) < Number(aspect[2]);
