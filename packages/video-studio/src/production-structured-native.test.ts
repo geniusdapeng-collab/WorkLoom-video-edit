@@ -162,12 +162,12 @@ describe("host-bound Studio production with the native SceneDesignAgent", () => 
       : nativeShots;
     const original = f.agent._buildPrompt(input, blueprint);
     const operation = f.run(() => f.agent.process(input, blueprint));
-    if (["corrected", "empty-string", "normal"].includes(mode)) {
+    if (["corrected", "empty-string", "normal", "null"].includes(mode)) {
       await expect(operation).resolves.toMatchObject({ degraded: false, shots: designs });
     } else {
       await expect(operation).rejects.toThrow(mode === "late-first" ? "PRD_PRODUCTION_MODEL_DEADLINE" : "PRD_PRODUCTION_MODEL_UNVERIFIED");
     }
-    expect(f.wires).toHaveLength(["corrected", "empty-string", "second-blank", "wrong-order", "duplicate-key", "same-id",
+    expect(f.wires).toHaveLength(["corrected", "empty-string", "null", "second-blank", "wrong-order", "duplicate-key", "same-id",
       "late-second"].includes(mode) ? 2 : 1);
     const [one, two] = f.wires;
     const originalWire = one!.messages.at(-1)!.content;

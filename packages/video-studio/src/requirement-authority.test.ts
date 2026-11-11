@@ -143,7 +143,7 @@ describe("current requirement authority and original transport", () => {
     for (const [relative, hash] of [
       ["index.js", "acb46563f99b61babb1156858fb83c083a258b052ff21169d3b3e7d5bddec5cf"],
       ["engines/requirement-discovery-engine.js", "d372d61aa6c851e8f4c5976ab2bb97604722d101054aabe3fae9b31c835697b6"],
-      ["skills/creative-theme-generator/index.js", "e79065e6bb87b0aa1418c9a509deabb575750635ef22f4b162148e6456fbeaae"],
+      ["skills/creative-theme-generator/index.js", "dc0b8d21e83358fe0fdbe853381424dc0185ab76490cb8966f9474343ddf4fbd"],
       ["skills/creative-theme-generator/dynamic-type-resolver.js", "65bf2ea16a8871c65c21bea0621af92b98ff5f924b753be4dc96223561c61368"]
     ]) expect(digest(readFileSync(path.join(vendor, relative!), "utf8"))).toBe(hash);
   });
