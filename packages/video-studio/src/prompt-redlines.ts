@@ -56,7 +56,7 @@ export function auditShotRedlines(shot: RedlineShotLike, options: {
   const timeline = allText(shot, ["timeline"]);
 
   // ① 屏幕文字：出现屏幕就必须写明"虚化/不可辨认/光晕"，并把文字与 LOGO 放进负面清单
-  if (/屏幕|触控|显示|界面/.test(visual) && !/(背对|不可见|不朝镜头)/.test(allText(shot, ["sceneDescription","composition"]))) {
+  if (/屏幕|触控(?:屏|面)|显示器|操作界面|用户界面|屏幕界面/.test(visual) && !/(背对|不可见|不朝镜头)/.test(allText(shot, ["sceneDescription","composition"]))) {
     if (!/(虚化|不可辨|光晕|过曝成色块|不出现任何可读)/.test(visual)) {
       add("screen-must-be-blurred", `${shot.shotId}：画面含屏幕，但没有写「界面虚化/不可辨认/只保留柔光光晕」`, "模型默认会把界面渲染成可读文字（FP-02 真机返修）");
     }

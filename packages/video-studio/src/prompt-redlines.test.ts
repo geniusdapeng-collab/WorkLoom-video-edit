@@ -77,4 +77,11 @@ describe("花钱前提示词红线（提高一次过率）", () => {
     }, { aspect: "9:16" }).map((issue) => issue.id))
       .not.toContain("vertical-horizontal-structure-framing");
   });
+  it("普通画面文案中的“显示”不会误判为电子屏幕", () => {
+    expect(auditShotRedlines({
+      ...base,
+      scene: "背景显示三层领奖台与灯光矩阵",
+      negative: "无界面文字、无图标、无LOGO、无屏幕可读文字",
+    }).map((issue) => issue.id)).not.toEqual(expect.arrayContaining(["screen-must-be-blurred", "screen-no-text-negative"]));
+  });
 });
