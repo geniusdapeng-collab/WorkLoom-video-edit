@@ -392,6 +392,14 @@ export async function reviewPlausibility(
         log(`[plausibility][${input.stage}] 将已声明画外时间省略的跨镜状态说明降为 warning：${finding.id}`);
         return { ...finding, severity: "warning" as const };
       }
+      const missingOpponentGearDetail = /对手|陪体/.test(finding.issue)
+        && /赛车服|护具|手套|赛车靴|靴/.test(finding.issue)
+        && /未|缺|没有/.test(finding.issue)
+        && !/裸手|便装|短袖|无人驾驶|未戴全盔|没有全盔/.test(finding.issue);
+      if (finding.severity === "blocker" && missingOpponentGearDetail) {
+        log(`[plausibility][${input.stage}] 将缺少补充护具描述的陪体骑手细节降为 warning：${finding.id}`);
+        return { ...finding, severity: "warning" as const };
+      }
       return finding;
     });
     const blockers = findings.filter((finding) => finding.severity === "blocker");
