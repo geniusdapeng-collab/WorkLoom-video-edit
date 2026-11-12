@@ -159,7 +159,13 @@ export function verifyPortraitOwnerAuthorization(record: PortraitOwnerGateRecord
     if (authorization.wardrobeId && current.activeSet?.wardrobe?.id !== authorization.wardrobeId) throw new Error("授权服装与冻结版本不一致");
     const currentAuthorization = buildPortraitOwnerAuthorization(current, { decisionOwner: authorization.decisionOwner,
       recordedBy: authorization.recordedBy, statement: authorization.statement, anchorFile: current.files.front ?? "" });
-    if (authorizationKey(currentAuthorization) !== authorizationKey(authorization)) throw new Error("当前全部声明角度或新AI front字节与授权不一致");
+    const comparableCurrent = authorization.wardrobeId === undefined
+      ? (() => {
+          const { wardrobeId: _wardrobeId, wardrobeHash: _wardrobeHash, ...legacy } = currentAuthorization;
+          return legacy as PortraitOwnerAuthorization;
+        })()
+      : currentAuthorization;
+    if (authorizationKey(comparableCurrent) !== authorizationKey(authorization)) throw new Error("当前全部声明角度或新AI front字节与授权不一致");
     if (Object.keys(expected.files).length !== authorization.artifacts.length || authorization.artifacts.some(({ angle, file }) => resolve(expected.files[angle] ?? "") !== resolve(expected.dir, file))) throw new Error("出片实际角度路径与授权集不一致");
   } catch (error) { issues.push(error instanceof Error ? error.message : String(error)); }
   return { ok: issues.length === 0, issues, authorization };
