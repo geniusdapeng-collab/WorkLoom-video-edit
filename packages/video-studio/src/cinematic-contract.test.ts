@@ -33,6 +33,10 @@ describe("cinematic execution contract", () => {
     s.cinematic.lighting = "single overhead shop practical"; const next = appendCinematicContract(p, buildCinematicContract(s));
     expect(next).toContain(s.cinematic.lighting); expect(next).not.toContain("window from left"); expect(next.match(/【摄影执行合同 [a-f0-9]{64}】/g)).toHaveLength(1);
   });
+  it("does not re-expand an explicit provider-budget projection", () => {
+    const projected = "【供应商提示词投影】compact decisions";
+    expect(appendCinematicContract(projected, buildCinematicContract(shot()))).toBe(projected);
+  });
   it("a plate gets spatial decisions; movement and sound stay in the video route", () => {
     const c = buildCinematicContract(shot()); const plate = appendCinematicContract("base", c, "plate"); const video = appendCinematicContract("base", c);
     expect(plate).toContain(c.framing); expect(plate).not.toContain(c.camera); expect(plate).not.toContain(c.sound); expect(video).toContain(c.camera); expect(video).toContain(c.sound);

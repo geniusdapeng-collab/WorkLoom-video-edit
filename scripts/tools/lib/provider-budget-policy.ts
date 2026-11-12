@@ -12,6 +12,8 @@ export { DEEPSEEK_CHAT_PATH, DEEPSEEK_RESPONSES_PATH };
 export const DEEPSEEK_MODEL = EDIT_CANONICAL_CASE_BUDGET.modelId;
 export const SEEDREAM_MODEL = "doubao-seedream-5-0-pro-260628";
 export const SEEDANCE_MODEL = "doubao-seedance-2-5-260628";
+/** Seedance 2.5 media-catalog limit; prompt occupies one additional content item. */
+export const SEEDANCE_MAX_REFERENCE_IMAGES = 30;
 
 export type TaskCaps = {
   llmCalls: number | null;
@@ -360,7 +362,8 @@ function videoClaim(body: JsonObject, scope: BudgetScope, known: FindImage): Cla
     && body.duration <= TASK_CAPS.maxVideoSeconds && (body.resolution === "720p" || body.resolution === "1080p"));
   check(["generate_audio", "watermark", "return_last_frame"].every((key) => body[key] === undefined || typeof body[key] === "boolean"));
   check(body.output_format === undefined || body.output_format === "mp4");
-  check(Array.isArray(body.content) && body.content.length >= 1 && body.content.length <= 5);
+  check(Array.isArray(body.content) && body.content.length >= 1
+    && body.content.length <= 1 + SEEDANCE_MAX_REFERENCE_IMAGES);
   const [prompt, ...images] = body.content as unknown[];
   fields(prompt, ["type", "text"]);
   check(prompt.type === "text" && someText(prompt.text));

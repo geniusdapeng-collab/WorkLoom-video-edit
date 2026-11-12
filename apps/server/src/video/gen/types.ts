@@ -37,7 +37,17 @@ export interface ModelLimits {
   resolutions?: string[];
   aspectRatios?: string[];
   maxReferenceImages?: number;
+  /** Local compiler safety ceiling; not necessarily a provider-enforced prompt limit. */
   maxPromptChars?: number;
+}
+
+export interface PromptGuidance {
+  kind: "recommendation";
+  chineseChars?: number;
+  englishWords?: number;
+  source: string;
+  verifiedAt: string;
+  note?: string;
 }
 
 export interface ModelPricing {
@@ -65,6 +75,7 @@ export interface MediaModel {
   tier: MediaTier;
   supports: ParamCapability[];
   limits?: ModelLimits;
+  promptGuidance?: PromptGuidance;
   pricing: ModelPricing | null;
   /** 供应商侧产物保留天数（决定"必须尽快入库"的紧迫度；null=未知） */
   retentionDays: number | null;

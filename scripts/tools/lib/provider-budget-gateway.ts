@@ -110,6 +110,30 @@ async function upstreamBody(response: Response): Promise<Buffer> {
   return Buffer.concat(chunks, bytes);
 }
 
+async function safeUpstreamErrorCode(response: Response): Promise<string | null> {
+  const length = Number(response.headers.get("content-length") ?? 0);
+  if (!response.body || length > 64 * 1024) {
+    await response.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(await response.text());
+  } catch {
+    return null;
+  }
+  const record = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const error = record.error && typeof record.error === "object" && !Array.isArray(record.error)
+    ? record.error as Record<string, unknown>
+    : record;
+  const candidate = error.code;
+  return typeof candidate === "string" && /^[A-Za-z0-9._:-]{1,128}$/.test(candidate)
+    ? candidate
+    : null;
+}
+
 function ensureLocalToken(input: string | undefined, expected: Buffer): void {
   const actual = Buffer.from(input ?? "");
   check(actual.length === expected.length && timingSafeEqual(actual, expected), "BUDGET_UNAUTHORIZED", 401);
@@ -179,7 +203,17 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
     const encoding = response.headers.get("content-encoding") ?? "identity";
     if (!response.ok || encoding !== "identity"
       || response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !== "application/json") {
-      await response.body?.cancel().catch(() => undefined);
+      const providerErrorCode = response.ok ? null : await safeUpstreamErrorCode(response);
+      if (response.ok) await response.body?.cancel().catch(() => undefined);
+      // The upstream error body may contain signed URLs or provider details.
+      // Log only non-secret protocol facts so an unknown outcome can be triaged.
+      console.error(JSON.stringify({
+        code: "BUDGET_UPSTREAM_HTTP_UNVERIFIED",
+        status: response.status,
+        contentEncoding: encoding,
+        contentType: response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() ?? null,
+        providerErrorCode,
+      }));
       throw new BudgetError("BUDGET_UPSTREAM_HTTP_UNVERIFIED", 502);
     }
     const body = await upstreamBody(response);

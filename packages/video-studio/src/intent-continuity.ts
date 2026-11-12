@@ -399,6 +399,19 @@ function requiredDirectives(
 }
 
 /**
+ * Stable binding for the complete applicable directive set.
+ *
+ * Provider prompts have model-specific character ceilings. The full contract
+ * stays in the project artifacts; a constrained provider projection can bind
+ * every applicable clause with this digest instead of repeating every ID.
+ */
+export function productionIntentDirectiveSetSha256(
+  directives: readonly ProductionIntentDirective[],
+): string {
+  return sha256(directives.map((directive) => directive.id).sort());
+}
+
+/**
  * Render the same authority block at every model boundary. The block fails
  * closed instead of truncating directives when a caller sets a hard budget.
  */
@@ -409,6 +422,8 @@ export function productionIntentPrompt(
     shot?: Record<string, unknown>;
     maxChars?: number;
     compact?: boolean;
+    /** Bind the complete applicable set with a digest when the provider has a hard prompt ceiling. */
+    directiveDigest?: boolean;
     /** Allowed only when the complete Brief is included beside this block. */
     includeOtherStatements?: boolean;
   },
@@ -434,7 +449,12 @@ export function productionIntentPrompt(
   };
   const grouped = new Map<ProductionIntentCategory, ProductionIntentDirective[]>();
   for (const directive of directives) grouped.set(directive.category, [...(grouped.get(directive.category) ?? []), directive]);
-  const lines = options.compact
+  const lines = options.directiveDigest
+    ? [
+        `directiveCount=${directives.length}｜directiveSetSha256=${productionIntentDirectiveSetSha256(directives)}`,
+        `categories=${[...grouped.keys()].join(",")}｜全部适用客户条款由完整合同冻结并绑定；冲突时修复来源，不得静默降级。`,
+      ]
+    : options.compact
     ? [...grouped.entries()].map(([category, rows]) => `- [${category}｜${rows.map((row) => row.id).join(",")}] ${categoryInstruction[category]}`
       + (category === "other" && options.includeOtherStatements !== false
         ? ` 原文：${rows.map((row) => row.statement).join("；")}`
@@ -442,7 +462,9 @@ export function productionIntentPrompt(
     : directives.map((directive) => `- [${directive.category}｜${directive.id}] ${directive.statement}`);
   const block = [
     `${PRODUCTION_INTENT_PROMPT_HEADING}${contract.schemaVersion}｜${contract.contractSha256}`,
-    `阶段=${options.stage}。以下为客户原始需求，后续镜头卡、模型输出、默认参数和后期策略必须继承；冲突时修复来源，不得静默降级。`,
+    ...(options.directiveDigest
+      ? [`阶段=${options.stage}；完整合同与来源哈希保留在任务产物，供应商提示词只提交可校验投影。`]
+      : ["阶段=" + options.stage + "。以下为客户原始需求，后续镜头卡、模型输出、默认参数和后期策略必须继承；冲突时修复来源，不得静默降级。"]),
     ...(motion ? [motion] : []),
     ...lines,
   ].join("\n");
@@ -485,8 +507,11 @@ export function auditProductionIntentPrompt(
   const issues: string[] = [];
   if (!prompt.includes(PRODUCTION_INTENT_PROMPT_HEADING)) issues.push("最终提示词缺少需求意图延续合同");
   if (!prompt.includes(contract.contractSha256)) issues.push("最终提示词未绑定当前需求合同摘要");
+  const directiveSetSha256 = productionIntentDirectiveSetSha256(required);
+  const digestBound = prompt.includes(`directiveCount=${required.length}`)
+    && prompt.includes(`directiveSetSha256=${directiveSetSha256}`);
   for (const directive of required) {
-    if (!prompt.includes(directive.id) || (!options.compact && !prompt.includes(directive.statement))) {
+    if (!digestBound && (!prompt.includes(directive.id) || (!options.compact && !prompt.includes(directive.statement)))) {
       issues.push(`最终提示词遗漏客户意图 ${directive.id}`);
     }
   }

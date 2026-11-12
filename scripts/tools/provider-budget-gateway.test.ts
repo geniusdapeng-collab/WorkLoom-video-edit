@@ -180,6 +180,16 @@ describe("task-local provider budget gateway", () => {
     expect(code(await call(server, ARK_VIDEO_PATH, { ...compiled.body, camera_fixed: false }))).toBe("BUDGET_UNSUPPORTED_REQUEST");
     expect(upstream).toHaveBeenCalledTimes(1);
   });
+  it("accepts the model catalog's full Seedance reference set instead of the former prompt-plus-four cap", async () => {
+    const upstream = vi.fn(async () => Response.json({ id: "many-refs-video-wire" }));
+    const { server } = await gate(upstream, { scope: { ...videoScope, inlineImageSha256: [digest(IMAGE_BYTES)] } });
+    const reference = { type: "image_url", role: "reference_image", image_url: { url: IMAGE_DATA } };
+    const tenReferences = { ...video(), content: [...video().content, ...Array.from({ length: 10 }, () => structuredClone(reference))] };
+    expect((await call(server, ARK_VIDEO_PATH, tenReferences)).data).toEqual({ id: "many-refs-video-wire" });
+    const thirtyOneReferences = { ...video("too many refs"), content: [...video().content, ...Array.from({ length: 31 }, () => structuredClone(reference))] };
+    expect(code(await call(server, ARK_VIDEO_PATH, thirtyOneReferences))).toBe("BUDGET_UNSUPPORTED_REQUEST");
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
 
   it("authenticates and denies off-contract routes, methods, models, media and noncanonical JSON before any upstream call", async () => {
     const upstream = vi.fn(async () => llmResponse());
@@ -368,6 +378,26 @@ describe("task-local provider budget gateway", () => {
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("prevent another dispatch")))).toBe("BUDGET_FROZEN");
     expect(upstream).toHaveBeenCalledTimes(1);
     expect(readFileSync(first.journalPath, "utf8")).not.toMatch(/do not|unknown paid receipt/);
+  });
+
+  it("logs only the safe provider error code when an upstream JSON rejection is unverified", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const upstream = vi.fn(async () => Response.json({
+        error: { code: "AccountOverdueError", message: "private billing detail and URL https://example.test/secret" },
+      }, { status: 403 }));
+      const { server } = await gate(upstream, { scope: videoScope });
+      expect(code(await call(server, ARK_VIDEO_PATH, video()))).toBe("BUDGET_OUTCOME_UNKNOWN");
+      expect(error).toHaveBeenCalledTimes(1);
+      const diagnostic = String(error.mock.calls[0]?.[0] ?? "");
+      expect(diagnostic).toContain('"status":403');
+      expect(diagnostic).toContain('"providerErrorCode":"AccountOverdueError"');
+      expect(diagnostic).not.toContain("private billing detail");
+      expect(diagnostic).not.toContain("example.test");
+      expect(upstream).toHaveBeenCalledTimes(1);
+    } finally {
+      error.mockRestore();
+    }
   });
 
   it("reconciles a confirmed overrun and freezes before any new paid request", async () => {

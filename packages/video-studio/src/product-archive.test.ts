@@ -227,6 +227,13 @@ describe("product archive（真实商品档案）", () => {
       }
     });
     expect(productArchivePromptLines(system).join("\n")).toContain("未经客户确认");
+    system.source.reviewStatus = "owner-confirmed";
+    system.source.referencePolicy = "exact-copy";
+    system.source.ownerDecision = "用户给什么就用什么，原图百分百复刻";
+    expect(productArchivePromptLines(system).join("\n")).toContain("产品所有者已确认本片使用的当前参考图");
+    expect(productArchivePromptLines(system).join("\n")).not.toContain("未经客户确认");
+    expect(productArchivePromptLines(system).join("\n")).toContain("exact-copy");
+    expect(productArchivePromptLines(system).join("\n")).toContain("原样复刻");
   });
 
   it("名称归一：全角/半角、空格与分隔符不影响命中", () => {

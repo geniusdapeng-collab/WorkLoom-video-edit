@@ -852,7 +852,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "fe0f822885dcf9fbd215b8764ce2e25edbdbb8f183d94d170630acdb06a5380f",
+    "digest": "777d01f1eaf79842e817114ef5c5bed65e02d3378df16c2d577af2a5c016a408",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -1290,7 +1290,7 @@
       "library/luts/manifest.json": "d5769109fbde5421d6dffd901c4ae18d89d9b4267590f359f984011bdb705266",
       "library/luts/sgamut3cine-to-rec709.cube": "71bd64354954e62d6a44604d6c646b95e42654c756c8aa19dc489f82501044a4",
       "library/luts/slog3-to-rec709.cube": "63ff904e3535404f23f6f23048233726b5c09839a87c0f436724ccba0e43d01e",
-      "library/media-catalog/media-catalog.json": "a74058f9e50f3be589fc0be98ac8de2a483050fc1b2b0d58647f3cef0b102e14",
+      "library/media-catalog/media-catalog.json": "b96d0cf89775d96208cce168f938a7a399a15deabc3955611a66323f8d6e2bac",
       "library/products/README.md": "4baef4acd54a7faa0af4bdf373e6c6ba5f00dde151bddaa879594dc05fabaabc",
       "library/products/zxmoto-820rr-rc/photos/01-sina-release-8.jpg": "a1441cd4f2ce003686ee872924a182c409992754185d2031f99cabd3afff63e7",
       "library/products/zxmoto-820rr-rc/photos/02-chejiahao-1.jpg": "575d2bb914d62fafecfa34e16dd8b37ce06e5f020ff1872a7d9a8b489c2e888d",

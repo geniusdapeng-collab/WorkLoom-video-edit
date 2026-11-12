@@ -2155,20 +2155,6 @@ for (const shot of preRenderShots) {
   });
   log(`真实商品绑定 ${shot.shotId} ← ${match.archive.id}（${match.archive.source.kind}，priority=${match.archive.source.priority}）主图 ${hero.file}`);
 }
-/**
- * A project that declares products cannot render a person shot without the
- * product anchor. This prevents "person reference present, product silently
- * absent" and the inverse drift where the model invents the product.
- */
-if (needsNewRender && declaredProducts.length > 0) {
-  const missingProductAnchor = pendingShots()
-    .filter((shot) => leadVisibleInShot(shot) && !productSelectorOf(shot))
-    .map((shot) => String(shot.shotId));
-  if (missingProductAnchor.length > 0) {
-    throw new Error(`PRODUCT_REFERENCE_REQUIRED: 本片声明商品 ${declaredProducts.join("、")}，`
-      + `以下人物镜头没有商品档案/参考图绑定：${missingProductAnchor.join("、")}`);
-  }
-}
 if (productBindings.length > 0) {
   const systemGenerated = productBindings.filter((entry) => entry.sourceKind === "system-generated");
   const productGate = recordGate({
@@ -2221,10 +2207,15 @@ interface CharacterEntryLike {
  * `bundles/ai-video/library/characters/*`（系统默认 1 号模特 = 陈卓），并读取 registry.json 的别名表——
  * 这样"未指定模特时自动用陈卓""镜头卡写'陈卓'时解析到该档案"两条规则才能在管线里生效。
  */
+function characterLibraryRoots(): string[] {
+  const repoCharacters = join(REPO_ROOT, "bundles/ai-video/library/characters");
+  return resolve(LIBRARY) === resolve(repoCharacters)
+    ? [repoCharacters]
+    : [repoCharacters, resolve(LIBRARY)];
+}
 function loadCharacters(): Map<string, CharacterEntryLike> {
   const library = new Map<string, CharacterEntryLike>();
-  const repoCharacters = join(REPO_ROOT, "bundles/ai-video/library/characters");
-  for (const root of [LIBRARY, repoCharacters]) {
+  for (const root of characterLibraryRoots()) {
     if (existsSync(root)) loadCharacterRoot(root, library);
   }
   return library;
@@ -2361,6 +2352,22 @@ const lead = (() => {
 })();
 if (lead && characterRegistry.defaultModel && lead.id === characterRegistry.defaultModel) {
   log(`未显式指定模特 → 使用系统默认模特：${lead.name}（${lead.id}，1 号）`);
+}
+/**
+ * A project that declares products cannot render a person shot without the
+ * product anchor. This prevents "person reference present, product silently
+ * absent" and the inverse drift where the model invents the product. Run this
+ * only after visibility and lead initialization so startup cannot reference
+ * declarations that have not been created yet.
+ */
+if (needsNewRender && declaredProducts.length > 0) {
+  const missingProductAnchor = pendingShots()
+    .filter((shot) => leadVisibleInShot(shot) && !productSelectorOf(shot))
+    .map((shot) => String(shot.shotId));
+  if (missingProductAnchor.length > 0) {
+    throw new Error(`PRODUCT_REFERENCE_REQUIRED: 本片声明商品 ${declaredProducts.join("、")}，`
+      + `以下人物镜头没有商品档案/参考图绑定：${missingProductAnchor.join("、")}`);
+  }
 }
 
 /* ---------- ⓪-0 G5 定妆照确认（step_key: g5-portrait-confirm） ---------- */
@@ -2715,13 +2722,41 @@ function wardrobeIdForShot(shot: ShotCard): string | undefined {
   return lead.activeWardrobeId ?? undefined;
 }
 
+function verifiedSyntheticPortraitSource(current: NonNullable<ReturnType<typeof loadCharacterEntry>>): boolean {
+  const set = current.activeSet;
+  if (set?.source === "pure-t2i") return true;
+  if (set?.source !== "img2img" || !Array.isArray(set.anchors) || set.anchors.length === 0) return false;
+  try {
+    return set.anchors.every((stored) => {
+      if (!stored || isAbsolute(stored)) return false;
+      const file = resolve(current.dir, stored);
+      const rel = relative(current.dir, file);
+      return rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
+        && existsSync(file) && readPortraitArtifact(file, current.dir).bytes > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
+function declaredSourceCharacterId(): string | undefined {
+  const explicit = (sourceDocument.character as { id?: unknown } | undefined)?.id;
+  if (typeof explicit === "string" && explicit.trim()) return explicit.trim();
+  const declared = sourceDocument.characters;
+  if (!Array.isArray(declared) || declared.length !== 1) return undefined;
+  const id = declared[0] && typeof declared[0] === "object" && !Array.isArray(declared[0])
+    ? (declared[0] as { id?: unknown }).id
+    : undefined;
+  return typeof id === "string" && id.trim() ? id.trim() : undefined;
+}
+
 function portraitVideoInputs(shot: ShotCard): {
   images: VideoSubmissionImage[];
   paths: string[];
   person?: PersonReferenceRequirement;
 } {
   if (!leadVisibleInShot(shot)) return { images: [], paths: [] };
-  if (!lead || (sourceDocument.character as { id?: string } | undefined)?.id !== lead.id) {
+  if (!lead || declaredSourceCharacterId() !== lead.id) {
     throw new Error(`PORTRAIT_REFERENCE_AUTHORIZATION_REQUIRED: ${shot.shotId}; explicit source character is required`);
   }
   if (portraitRefsDisabled) throw new Error(`PORTRAIT_REFERENCE_DISABLED: ${shot.shotId}; person shots cannot disable reference anchors`);
@@ -2733,7 +2768,7 @@ function portraitVideoInputs(shot: ShotCard): {
     ...(wardrobeId ? { wardrobeId } : {}),
   });
   if (!current || current.id !== lead.id || !current.activeSet || current.verification.status !== "passed"
-    || current.kind !== "generated" || current.activeSet.source !== "pure-t2i"
+    || current.kind !== "generated" || !verifiedSyntheticPortraitSource(current)
     || (requestedVersion && Number(requestedVersion) !== current.activeSet.version)) {
     const wardrobeHint = wardrobeId ? `；服装 ${wardrobeId} 必须有独立、已验收的定妆照版本` : "";
     throw new Error(`PORTRAIT_REFERENCE_VERSION_INVALID: ${shot.shotId}; ${current?.verification.issues.join("；") || "当前角色版本无效"}${wardrobeHint}`);
@@ -2779,9 +2814,55 @@ function portraitVideoInputs(shot: ShotCard): {
   }
   const angles = referencePlan.applicable ? referencePlan.angles : ["front", "closeup"];
   const paths = [...authorization.paths];
-  for (const file of [join(lead.dir, "portrait-sets", `v${version}.json`), join(lead.dir, "provenance", `v${version}.json`)]) {
+  const portraitSetFile = join(lead.dir, "portrait-sets", `v${version}.json`);
+  const provenanceFile = join(lead.dir, "provenance", `v${version}.json`);
+  for (const file of [portraitSetFile, provenanceFile]) {
     if (!existsSync(file)) throw new Error(`PORTRAIT_REFERENCE_PROVENANCE_MISSING: ${file}`);
     paths.push(file);
+  }
+  const sourceType = (current.activeSet as unknown as { sourceType?: unknown }).sourceType;
+  const sourceMode = current.activeSet.source;
+  if (!["pure-t2i", "img2img"].includes(sourceMode)
+    || (sourceMode === "img2img" && sourceType !== "accepted-render-frame-set")) {
+    throw new Error(`PORTRAIT_REFERENCE_SOURCE_UNVERIFIED: ${shot.shotId}; ${String(sourceMode)}/${String(sourceType ?? "no-source-type")}`);
+  }
+  const acceptedRenderProof = sourceMode === "img2img"
+    ? JSON.parse(readFileSync(provenanceFile, "utf8")) as {
+        schemaVersion?: string;
+        characterId?: string;
+        version?: number;
+        wardrobeId?: string;
+        wardrobeHash?: string;
+        sourceHash?: string;
+        requestHash?: string;
+        artifacts?: Record<string, { sha256?: string; bytes?: number }>;
+        anchors?: string[];
+        anchorArtifacts?: Record<string, { sha256?: string; bytes?: number }>;
+      }
+    : null;
+  if (acceptedRenderProof) {
+    if (acceptedRenderProof.schemaVersion !== "workloom.render-derived-portrait-source/v1"
+      || acceptedRenderProof.characterId !== lead.id
+      || acceptedRenderProof.version !== version
+      || acceptedRenderProof.wardrobeId !== sealedWardrobeId
+      || acceptedRenderProof.wardrobeHash !== current.activeSet.wardrobeHash
+      || acceptedRenderProof.sourceHash !== current.activeSet.sourceHash
+      || acceptedRenderProof.requestHash !== current.activeSet.requestHash) {
+      throw new Error(`PORTRAIT_REFERENCE_RENDER_DERIVED_PROOF_INVALID: ${shot.shotId}`);
+    }
+    for (const stored of acceptedRenderProof.anchors ?? []) {
+      if (!stored || isAbsolute(stored)) throw new Error(`PORTRAIT_REFERENCE_ANCHOR_INVALID: ${shot.shotId}`);
+      const file = resolve(lead.dir, stored);
+      const rel = relative(lead.dir, file);
+      if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error(`PORTRAIT_REFERENCE_ANCHOR_INVALID: ${shot.shotId}`);
+      const angle = basename(file).replace(/\.[^.]+$/, "");
+      const expected = acceptedRenderProof.anchorArtifacts?.[angle];
+      const actual = readPortraitArtifact(file, lead.dir);
+      if (!expected || expected.sha256 !== actual.sha256 || expected.bytes !== actual.bytes) {
+        throw new Error(`PORTRAIT_REFERENCE_ANCHOR_CHANGED: ${shot.shotId}; ${angle}`);
+      }
+      paths.push(file);
+    }
   }
   const images = angles.map((angle) => {
     const file = current.files[angle];
@@ -2789,18 +2870,28 @@ function portraitVideoInputs(shot: ShotCard): {
     if (!file || !authorized || resolve(file) !== resolve(lead.dir, authorized.file)) throw new Error(`PORTRAIT_REFERENCE_PATH_INVALID: ${angle}`);
     const artifact = readPortraitArtifact(file, lead.dir);
     if (artifact.sha256 !== authorized.sha256) throw new Error(`PORTRAIT_REFERENCE_BYTES_CHANGED: ${angle}`);
-    const provenanceFile = join(lead.dir, "provenance", `v${version}`, `${angle}.provenance.json`);
-    const dispatchFile = join(lead.dir, "provenance", `v${version}`, `${angle}.dispatch.json`);
-    const provenance = JSON.parse(readFileSync(provenanceFile, "utf8")) as { characterId?: string; angle?: string; source?: string; request?: { body?: Record<string, unknown>; bodySha256?: string; imageFieldPresent?: boolean }; output?: { sha256?: string; bytes?: number; modified?: boolean } };
-    const dispatch = JSON.parse(readFileSync(dispatchFile, "utf8")) as { request?: Record<string, unknown>; requestSha256?: string; imageInputPresent?: boolean };
-    const requestHash = createHash("sha256").update(JSON.stringify(provenance.request?.body)).digest("hex");
-    if (provenance.characterId !== lead.id || provenance.angle !== angle || provenance.source !== "original-pure-text-to-image"
-      || provenance.request?.imageFieldPresent !== false || Object.hasOwn(provenance.request?.body ?? {}, "image")
-      || provenance.request?.bodySha256 !== requestHash || dispatch.requestSha256 !== requestHash
-      || dispatch.imageInputPresent !== false || Object.hasOwn(dispatch.request ?? {}, "image")
-      || JSON.stringify(dispatch.request) !== JSON.stringify(provenance.request?.body)
-      || provenance.output?.sha256 !== artifact.sha256 || provenance.output.bytes !== artifact.bytes || provenance.output.modified !== false) throw new Error(`PORTRAIT_REFERENCE_ORIGINAL_UNVERIFIED: ${angle}`);
-    paths.push(file, provenanceFile, dispatchFile);
+    if (sourceMode === "pure-t2i") {
+      const angleProvenanceFile = join(lead.dir, "provenance", `v${version}`, `${angle}.provenance.json`);
+      const dispatchFile = join(lead.dir, "provenance", `v${version}`, `${angle}.dispatch.json`);
+      const provenance = JSON.parse(readFileSync(angleProvenanceFile, "utf8")) as { characterId?: string; angle?: string; source?: string; request?: { body?: Record<string, unknown>; bodySha256?: string; imageFieldPresent?: boolean }; output?: { sha256?: string; bytes?: number; modified?: boolean } };
+      const dispatch = JSON.parse(readFileSync(dispatchFile, "utf8")) as { request?: Record<string, unknown>; requestSha256?: string; imageInputPresent?: boolean };
+      const requestHash = createHash("sha256").update(JSON.stringify(provenance.request?.body)).digest("hex");
+      if (provenance.characterId !== lead.id || provenance.angle !== angle || provenance.source !== "original-pure-text-to-image"
+        || provenance.request?.imageFieldPresent !== false || Object.hasOwn(provenance.request?.body ?? {}, "image")
+        || provenance.request?.bodySha256 !== requestHash || dispatch.requestSha256 !== requestHash
+        || dispatch.imageInputPresent !== false || Object.hasOwn(dispatch.request ?? {}, "image")
+        || JSON.stringify(dispatch.request) !== JSON.stringify(provenance.request?.body)
+        || provenance.output?.sha256 !== artifact.sha256 || provenance.output.bytes !== artifact.bytes || provenance.output.modified !== false) throw new Error(`PORTRAIT_REFERENCE_ORIGINAL_UNVERIFIED: ${angle}`);
+      paths.push(file, angleProvenanceFile, dispatchFile);
+    } else {
+      const expected = acceptedRenderProof?.artifacts?.[angle];
+      const angleRequest = current.activeSet.angleRequests?.[angle];
+      if (!expected || expected.sha256 !== artifact.sha256 || expected.bytes !== artifact.bytes
+        || !/^[a-f0-9]{64}$/.test(angleRequest ?? "")) {
+        throw new Error(`PORTRAIT_REFERENCE_RENDER_DERIVED_BYTES_CHANGED: ${angle}`);
+      }
+      paths.push(file);
+    }
     return videoImage(file, `portrait-${angle}`, {
       characterId: lead.id,
       characterVersion: version,
@@ -3911,7 +4002,12 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
       const plate = join(PLATE_DIR, `${shot.shotId}-plate.png`);
       const material = join(PLATE_DIR, `${shot.shotId}-material.jpg`);
       const file = isMaterialShot(shot) ? (existsSync(material) ? material : null) : (existsSync(plate) ? plate : null);
-      return file ? [{ label: `镜头 ${String(shot.shotId)} ${isMaterialShot(shot) ? "当前商品参考准备件" : "预生产构图稿（不表示实际视频首帧）"}`, path: file }] : [];
+      const rows = file ? [{ label: `镜头 ${String(shot.shotId)} ${isMaterialShot(shot) ? "当前商品参考准备件" : "预生产构图稿（不表示实际视频首帧）"}`, path: file }] : [];
+      const reviewReference = join(PLATE_DIR, `${shot.shotId}-review-reference.jpg`);
+      if (isMaterialShot(shot) && existsSync(reviewReference)) {
+        rows.push({ label: `镜头 ${String(shot.shotId)} 上一版构图与骑行装备审阅参考（不是本轮首帧、不具当前字节或速度授权）`, path: reviewReference });
+      }
+      return rows;
     })
     : [];
   return {
@@ -3930,20 +4026,28 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
     products: archives.map((archive) => ({
       id: archive.id, displayName: archive.displayName, brand: archive.brand, category: archive.category,
       sourceKind: archive.source?.kind, reviewStatus: archive.source?.reviewStatus,
+      referencePolicy: archive.source?.referencePolicy, ownerDecision: archive.source?.ownerDecision,
       dimensions: archive.specs?.dimensions as Record<string, unknown> | undefined,
       photoAngles: [...new Set((archive.photos ?? []).map((photo) => photo.angle).filter(Boolean) as string[])],
       appearance: archive.specs?.appearance, features: archive.specs?.features,
       parameters: (archive.specs?.parameters ?? []).map((parameter) => ({ name: String(parameter?.name ?? ""), value: String(parameter?.value ?? "") })),
     })),
-    shots: reviewShots.map((shot) => ({
-      shotId: String(shot.shotId), durationSec: Number(shot.duration ?? 0) || undefined,
-      scene: String(shot.scene ?? ""), sceneDescription: String(shot.sceneDescription ?? ""),
-      action: String(shot.action ?? ""), props: String(shot.props ?? ""), character: String(shot.character ?? ""),
-      wardrobeId: String((shot as Record<string, unknown>).wardrobeId ?? ""),
-      costume: String((shot as Record<string, unknown>).costume ?? ""),
-      dialogue: shot.dialogue ?? null, dialogueFree: (shot as Record<string, unknown>).dialogueFree === true,
-      product: String((shot as Record<string, unknown>).product ?? ""), promptText: promptFor(String(shot.shotId)),
-    })),
+    shots: reviewShots.map((shot) => {
+      const card = shot as unknown as Record<string, unknown>;
+      const fields = card.fields && typeof card.fields === "object" && !Array.isArray(card.fields)
+        ? card.fields as Record<string, unknown>
+        : {};
+      const field = (key: string): string => String(fields[key] ?? card[key] ?? "");
+      return {
+        shotId: String(shot.shotId), durationSec: Number(shot.duration ?? 0) || undefined,
+        scene: field("scene"), sceneDescription: String(shot.sceneDescription ?? ""),
+        action: field("action"), props: field("props"), character: field("character"),
+        wardrobeId: field("wardrobeId"),
+        costume: field("costume"),
+        dialogue: shot.dialogue ?? null, dialogueFree: (shot as Record<string, unknown>).dialogueFree === true,
+        product: field("product"), promptText: promptFor(String(shot.shotId)),
+      };
+    }),
     images,
     stage,
   };

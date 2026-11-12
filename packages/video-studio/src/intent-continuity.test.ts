@@ -4,6 +4,7 @@ import {
   auditProductionIntentPrompt,
   deriveProductionIntentContract,
   motionIntentForShot,
+  productionIntentDirectiveSetSha256,
   productionIntentPrompt,
 } from "./intent-continuity.js";
 
@@ -57,6 +58,27 @@ describe("production intent continuity", () => {
     });
     expect(audit.ok).toBe(false);
     expect(audit.issues.join("；")).toContain("恒速");
+  });
+
+  it("binds the complete directive set with a digest under a provider character ceiling", () => {
+    const requirements = Array.from({ length: 140 }, (_, index) =>
+      `硬约束${index + 1}：保持镜头${index + 1}的动作、人物、商品和声音连续`);
+    const contract = deriveProductionIntentContract({
+      rawIntent: "李英子骑同一辆 820RR-RC 在封闭赛道全程高燃、极速追近、并排超越并冲线。",
+      brief: { tone: "全程高燃", requirements, productionRequirements: { nativeAudio: true } },
+    });
+    const prompt = productionIntentPrompt(contract, {
+      stage: "material-provider-prompt",
+      maxChars: 900,
+      compact: true,
+      directiveDigest: true,
+    });
+    expect(prompt.length).toBeLessThanOrEqual(900);
+    expect(prompt).toContain(`directiveCount=${contract.directives.length}`);
+    const directiveSetSha256 = productionIntentDirectiveSetSha256(contract.directives);
+    expect(prompt).toContain(`directiveSetSha256=${directiveSetSha256}`);
+    expect(auditProductionIntentPrompt(contract, prompt, undefined, { compact: true }).ok).toBe(true);
+    expect(auditProductionIntentPrompt(contract, prompt.replace(directiveSetSha256, "0".repeat(64)), undefined, { compact: true }).ok).toBe(false);
   });
 
   it("derives a fast action profile without hard-coding a specific project", () => {

@@ -82,6 +82,12 @@ export function auditCinematicContracts(shots: Card[], options: { required?: boo
 /** Inject actual decisions into each generation route, with an idempotent source-bound section. */
 export function appendCinematicContract(prompt: string, contract: CinematicContract, mode: "video" | "plate" = "video"): string {
   const clean = prompt.replace(/(?:\n| \| )?【摄影执行合同 [a-f0-9]{64}】[\s\S]*?【摄影执行合同结束】/g, "");
+  /**
+   * Provider-constrained material prompts already carry the executable
+   * decisions in a compact projection. Re-expanding them would duplicate the
+   * same prose and exceed the model's frozen character ceiling.
+   */
+  if (clean.includes("【供应商提示词投影】")) return clean;
   const entries: Array<[string, string]> = [["叙事用途", contract.purpose], ["构图与主体比例", contract.framing], ["空间层次与清晰范围", contract.depth],
     ["动机光源与光向", contract.lighting], [mode === "plate" ? "关键帧动作状态" : "动作进程与完整性", contract.action],
     ...(mode === "video" ? [["运镜及叙事理由", contract.camera] as [string, string]] : []), ["美术与材质关系", contract.artDirection],

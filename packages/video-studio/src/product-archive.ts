@@ -69,6 +69,9 @@ export interface ProductArchiveSource {
   generatedAt?: string;
   generator?: string;
   reviewStatus?: "pending-owner-review" | "owner-confirmed";
+  /** Owner may require exact reproduction of the supplied product reference. */
+  referencePolicy?: "exact-copy" | "pending-owner-review";
+  ownerDecision?: string;
   searchedQueries?: string[];
   evidence?: ProductArchiveEvidence[];
   disclaimer?: string;
@@ -419,10 +422,27 @@ export function productArchivePromptLines(archive: ProductArchive): string[] {
       + "禁止无人驾驶、禁止车辆自行启动或自行行驶；骑手姿态、重心与轮胎接地符合真实物理");
   }
   if (vehicleProduct) {
-    lines.push("产品一致性硬约束：车身轮廓、导流罩开口与配色分区、定风翼形态、轮辋、制动卡钳、排气出口和已出现的车身标识位置必须与对应角度参考照片一致；不得重新设计外观、不得替换为相似机型、不得新增或补造贴花文字");
+    const features = (archive.specs?.features ?? []).map(String);
+    const visibleParts = [
+      "车身轮廓",
+      "导流罩开口与配色分区",
+      ...(features.some((feature) => /定风翼|翼片/.test(feature)) ? ["定风翼形态"] : []),
+      ...(features.some((feature) => /轮辋|轮毂/.test(feature)) ? ["轮辋"] : []),
+      ...(features.some((feature) => /卡钳|制动/.test(feature)) ? ["制动卡钳"] : []),
+      ...(features.some((feature) => /排气/.test(feature)) ? ["排气出口"] : []),
+      "已出现的车身标识位置",
+    ];
+    lines.push(`产品一致性硬约束：${visibleParts.join("、")}必须与对应角度参考照片一致；档案未登记的定风翼、翼片、尾翼、灯具、后视镜与牌照架不得补造；不得重新设计外观、不得替换为相似机型、不得新增或补造贴花文字`);
   } else {
     lines.push("产品一致性硬约束：机身轮廓、屏幕比例、按键与卡口布局、品牌标识位置必须与参考照片完全一致，不得重新设计外观、不得替换为相似机型");
   }
-  if (archive.source.kind === "system-generated") lines.push("素材来源声明：本商品资料由系统检索生成、未经客户确认，正式投放前须由客户核对产品外观与参数");
+  if (archive.source.kind === "system-generated") {
+    lines.push(archive.source.reviewStatus === "owner-confirmed"
+      ? "素材来源声明：本商品资料原由系统检索生成，产品所有者已确认本片使用的当前参考图与可见外观；新投放仍须核对素材授权"
+      : "素材来源声明：本商品资料由系统检索生成、未经客户确认，正式投放前须由客户核对产品外观与参数");
+  }
+  if (archive.source.reviewStatus === "owner-confirmed" && archive.source.referencePolicy === "exact-copy") {
+    lines.push("产品所有者裁定（exact-copy）：用户提供的商品参考图是唯一外观权威；图中已有的品牌名、号码、赞助标识、配色分区和可见结构必须按其位置原样复刻，不得删除、改写、模糊或另作权利安全重绘");
+  }
   return lines;
 }
