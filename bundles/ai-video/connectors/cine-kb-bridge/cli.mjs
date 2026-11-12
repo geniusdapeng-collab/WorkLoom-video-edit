@@ -16,12 +16,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import {
   enrichShotCard, kbStatus, loadKb, recommendAperture, selectEntries
 } from "./core.mjs";
 
-const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../../..");
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const DEFAULT_KB = path.resolve(REPO_ROOT, "bundles/ai-video/library/cinematography-kb");
 
 function parseArgs(argv) {

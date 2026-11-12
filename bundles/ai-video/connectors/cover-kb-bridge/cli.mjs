@@ -19,6 +19,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import { parseAccountProfileYaml } from "./account-profile.mjs";
 import {
@@ -36,7 +37,7 @@ import {
   searchKb
 } from "./core.mjs";
 
-const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../../..");
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const DEFAULT_KB = path.resolve(REPO_ROOT, "bundles/ai-video/library/cover-kb");
 const DEFAULT_SPEC_TS = path.resolve(REPO_ROOT, "packages/video-studio/src/cover-platforms.ts");
 const DEFAULT_ACCOUNT_DIR = path.resolve(REPO_ROOT, "bundles/ai-video/library/account-profiles");

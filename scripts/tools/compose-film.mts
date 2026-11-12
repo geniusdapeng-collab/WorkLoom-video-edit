@@ -30,6 +30,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { buildCutAudioStep } from "../../packages/video-studio/src/av-sync.js";
+import { planFrameCadence } from "../../packages/video-studio/src/frame-cadence.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -85,6 +86,12 @@ const out = abs(arg("--out", "outputs/film-master.mp4"));
 const width = Number(arg("--width", "1080"));
 const height = Number(arg("--height", "1920"));
 const fps = Number(arg("--fps", "30"));
+/**
+ * Cadence conversion. `fps` preserves the historical duplicate/drop behavior;
+ * high-energy projects can explicitly request interpolation when a provider
+ * source is below the delivery frame rate.
+ */
+const frameInterp = arg("--frame-interp", "fps");
 const fade = Number(arg("--fade", "0.5"));
 /**
  * 逐刀转场（2026-09-25 新增）：
@@ -137,6 +144,7 @@ console.log(`拼接 ${clips.length} 个镜头 → ${width}x${height} @${fps}fps�
 const normalized: string[] = [];
 const inputBindings = await Promise.all(clips.map(async path => ({ path, sha256: await sha256File(path) })));
 const colorNormalizations: Array<Record<string, unknown>> = [];
+const frameCadencePlans: Array<Record<string, unknown>> = [];
 for (const [index, clip] of clips.entries()) {
   const sourceColor = resolveColorManagement({ probe: await probeColorMedia(clip, { bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } }) });
 
@@ -150,13 +158,14 @@ for (const [index, clip] of clips.entries()) {
    */
   const sourceClock = await probeVideoFacts(clip, { bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } });
   if (!(sourceClock.videoDuration > 0)) throw new Error(`COMPOSE_SOURCE_VIDEO_CLOCK_MISSING: ${clip}`);
+  const cadence = planFrameCadence({ sourceFps: sourceClock.fps, targetFps: fps, mode: frameInterp });
   const inFrames = Math.max(1, Math.round(sourceClock.videoDuration * fps));
   const targetDuration = inFrames / fps;
   const hasSourceAudio = run(FFPROBE, ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=index", "-of", "csv=p=0", clip]).trim().length > 0;
   run(FFMPEG, [
     "-y", "-i", clip,
     ...(!hasSourceAudio ? ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000", "-map", "0:v:0", "-map", "1:a:0"] : []),
-    "-vf", `${sourceColor.chain},scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=${fps}`,
+    "-vf", `${sourceColor.chain},scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,${cadence.filter}`,
     "-af", "apad",
     "-t", targetDuration.toFixed(6),
     "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
@@ -172,7 +181,8 @@ for (const [index, clip] of clips.entries()) {
   const avDelta = Math.abs(targetVideo - targetAudio);
   normalized.push(target);
   colorNormalizations.push({ sourcePath: clip, ...sourceColor });
-  console.log(`  ① 归一化 ${basename(clip)} → ${targetVideo.toFixed(2)}s（音轨 ${targetAudio.toFixed(2)}s，Δ${(avDelta * 1000).toFixed(0)}ms）`);
+  frameCadencePlans.push({ sourcePath: clip, outputPath: target, ...cadence });
+  console.log(`  ① 归一化 ${basename(clip)} → ${targetVideo.toFixed(2)}s（音轨 ${targetAudio.toFixed(2)}s，Δ${(avDelta * 1000).toFixed(0)}ms；${cadence.note}）`);
   if (avDelta > 0.01) {
       console.log(`       编码后的流时长差 ${(avDelta * 1000).toFixed(0)}ms；下游按视频帧时长切补音轨`);
   }
@@ -357,7 +367,7 @@ for (const binding of inputBindings) if (await sha256File(binding.path) !== bind
 writeFileSync(avReportPath, `${JSON.stringify({
   schemaVersion: "workloom.compose-timeline/v1", generatedAt: new Date().toISOString(),
   output: out, outputSha256: await sha256File(out), clipCount: normalized.length, inputBindings,
-  shotCount: normalized.length, cuts: executedCuts.map(cut => ({ ...cut, at: cut.at * retimeFactor })), colorNormalizations,
+  shotCount: normalized.length, cuts: executedCuts.map(cut => ({ ...cut, at: cut.at * retimeFactor })), colorNormalizations, frameCadence: frameCadencePlans,
   timelineSeconds: shotSeconds, retimeFactor, outputDurationSec: outDuration,
   outputVideoDurationSec: outVideoDuration, outputAudioDurationSec: outAudioDuration,
   processing: "video-timeline-with-audio-pad-trim", acousticComparison: "not_performed",
@@ -442,6 +452,11 @@ const summary = {
   width, height, fps,
   master: out,
   masterSeconds: Number(outDuration.toFixed(3)),
+  frameInterpolation: {
+    mode: frameInterp,
+    appliedClips: frameCadencePlans.filter((plan) => plan.applied === true).length,
+    plans: frameCadencePlans,
+  },
   graded: gradedPath,
   color: colorReport ? { mode: colorMode, verdict: colorReport.verdict ?? "grade", winner: colorReport.winner ?? gradeProfile ?? null } : null
 };

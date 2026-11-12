@@ -8,6 +8,7 @@ import {
 import { TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
 import { MARKETING_REFERENCE_BOUNDARY } from "./marketing-prd-contract.js";
 import type { PrdPortraitReferenceSelection, PrdPortraitSource } from "./prd-portrait-source.js";
+import { deriveProductionIntentContract, productionIntentPrompt } from "./intent-continuity.js";
 
 export interface PrdMarketingScope {
   tenantId: string;
@@ -261,8 +262,22 @@ function postTailOverlayPlan(profile: PrdProductionProfile): string {
 export function prdAuthorityPrompt(authority: PrdAuthority, contract: RequirementContract): string {
   const execution = prdContractExecutionView(authority, contract);
   const tail = postTailOverlayPlan(authority.profile);
+  const intent = deriveProductionIntentContract({
+    rawIntent: authority.metadata.customerOriginalIntent,
+    brief: authority.metadata.brief,
+    creativeContext: execution,
+  });
   return `\n\n## 本次宿主 PRD 权威输入（补充前述通用模板，冲突时以本节为准）\n`
     + `完整客户 Brief：\n${JSON.stringify(authority.metadata.brief)}\n`
+    + (intent.directives.length > 0
+      ? `${productionIntentPrompt(intent, {
+          stage: "prd-authority",
+          maxChars: 3000,
+          compact: true,
+          includeOtherStatements: false,
+        })}\n`
+        + "上面的原始需求合同与完整 Brief 同时有效。后续创意核心、视觉规格、逐镜字段和后期策略都不得以通用模板或默认值覆盖它；客户意图之间的冲突必须在当前审核中暴露，不能静默选择更容易执行的版本。\n"
+      : "")
     + `当前已核验商品营销路线的交付类型是商业广告；本次获批类型细分可继续描述创作风格。${MARKETING_REFERENCE_BOUNDARY}\n`
     + `在 visualReferences 和 audioReferences 中填写本片可执行的摄影或声音手法，不能照抄示例片名、导演或品牌。\n`
     + `客户明确提供的生产/交付要求（缺省字段没有客户权威，不得伪称客户已指定；分辨率为交付档声明，不替代模型原生能力与提交前验证）：\n${JSON.stringify(authority.profile)}\n`

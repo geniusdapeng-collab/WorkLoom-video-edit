@@ -604,9 +604,14 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     readStageHistory: () => [], findRenderedShotAcceptance: () => null,
     preflightSubmitGuard: (input: Card) => { if (kind === "material") expect(input.prompt).toContain("真正提交应包含这条最终常识补丁"); },
     retryInstruction: () => { throw new Error("PAID_POST_MUST_NOT_RETRY"); }, motionPolicyForShot: () => ({ intent: "ordinary" }),
+    PRODUCTION_INTENT: { schemaVersion: "workloom.production-intent-contract/v1", contractSha256: fixtureSha("isolated-intent"),
+      sourceRootSha256: fixtureSha("isolated-intent-source"), directives: [], sources: [],
+      motion: { profile: "unspecified", highEnergy: false, actionDriven: false, requiresAcceleration: false, evidence: [] } },
+    auditProductionIntentPrompt: () => ({ ok: true, contractSha256: fixtureSha("isolated-intent"), requiredDirectiveIds: [], issues: [] }),
+    dialogueText: () => "", MATERIAL_SPEED_RAMP: false,
     applySpeedRamp: () => { throw new Error("UNREQUESTED_RETIME"); }, applyCameraMovePunchCut: () => { throw new Error("UNREQUESTED_CAMERA_MOVE"); },
   };
-  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "renderSecondsFor", "productSelectorOf", "plausibilityArchiveFor", "shotFieldText", "wardrobeIdForShot", "productReferenceInputs", "personRequirementForSubmission", "auditShotReferenceAnchors", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
+  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishRenderedClip", "portraitReferenceClauseFor", "renderSecondsFor", "productSelectorOf", "plausibilityArchiveFor", "shotFieldText", "wardrobeIdForShot", "productReferenceInputs", "personRequirementForSubmission", "auditShotReferenceAnchors", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
   const execute = () => evaluateCurrent(`(async()=>{${functions}\n${kind === "material" ? parts.material : parts.videos}\n})()`, context) as Promise<void>;
   return { dir, execute, context, gates, paidBodies, rows, accepted, reviews, get posts() { return posts; }, get gets() { return gets; }, images, front, closeup };
 }
@@ -634,7 +639,7 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
     expect((body.content as Array<Card>).slice(1).map((part) => part.role)).toEqual(["reference_image", "reference_image"]);
     const gate = f.gates.find((entry) => entry.stepKey === "g8-render-submit")!; const evidence = gate.evidence as Card;
     expect(evidence.plateUsage).toBe("preproduction-only"); expect(evidence.wireRequestSha256).toBe(fixtureSha(JSON.stringify(body)));
-    expect(f.accepted).toHaveLength(1);
+    expect(f.accepted).toHaveLength(2);
   });
   it("普通镜MAX_ATTEMPTS=3遇供应商终态失败也只POST一次，保留真实task", async () => {
     const f = currentSubmissionFixture("normal", "pass", "failed"); await expect(f.execute()).rejects.toThrow("VIDEO_SHOT_NOT_COMPLETED");

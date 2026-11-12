@@ -1,5 +1,12 @@
 import type { QualityStatus } from "./quality-evidence.js";
 import { sanitizeAudioField } from "./shot-spec.js";
+import {
+  motionIntentForShot,
+  productionIntentPrompt,
+  type MotionIntentContract,
+  type ProductionIntentContract,
+  type ShotMotionIntentDecision,
+} from "./intent-continuity.js";
 
 /**
  * material-policy —— 真实素材（实拍照片/视频）的**用途硬约束**（2026-09-25 产品所有者规定）。
@@ -159,6 +166,8 @@ export interface MaterialMotionPromptOptions {
    * 现在按 `motionStrength` 追加**量化运动要求**（`assertive` 用于重跑升级）。
    */
   motionStrength?: "standard" | "assertive";
+  /** Frozen customer intent that must survive every model and post step. */
+  projectIntent?: ProductionIntentContract;
 }
 
 /**
@@ -190,7 +199,15 @@ export function buildMaterialMotionPrompt(shot: Record<string, unknown>, options
     "【必须生成真实运动】画面要有符合原场景的物理变化；仅对场景内存在的元素，例如云层与天空缓慢流动、水面波纹、树叶随风轻摆，按原意自然表现；不得凭空增加水域、人群、车流、灯笼或光源；"
       + "运动幅度以「明显可辨但不变形」为准，禁止用整幅画面平移、缩放、旋转等贴图式运动伪造真实运镜。",
     motionIntent ? `【镜头运动】${motionIntent}` : "【镜头运动】缓速推进后稳住，保持主体构图稳定。",
-    motionDirection(shot, options.motionStrength === "assertive"),
+    motionDirection(shot, options.motionStrength === "assertive", options.projectIntent),
+    options.projectIntent
+      ? productionIntentPrompt(options.projectIntent, {
+          stage: "material-motion-prompt",
+          shot,
+          maxChars: 1000,
+          compact: true,
+        })
+      : "",
     `【禁止静态直出】画面不得全程静止、不得整幅不变、不得出现"照片被平移/放大"的贴图感；`
       + `若模型无法生成运动，宁可输出极缓的自然运动（云、水、光的变化）也不得复刻首帧静止画面。`,
     /**
@@ -526,7 +543,15 @@ export function buildMaterialScenePrompt(shot: Record<string, unknown>, options:
     `【${productReference ? "参考一致性" : "实景依据·保持一致"}】${mustKeep}。参考素材与场景说明：${scene || (productReference ? "按镜头卡构建真实场景" : "实拍地标")}${sceneDescription ? `；${sceneDescription}` : ""}`,
     "【必须由你构建的部分】机位与取景遵循镜头卡，不得用参考照片平移缩放冒充视频；有镜头位移时应有真实三维视差，固定机位则保持取景稳定。环境与主体仅按场景中实际存在的元素自然变化，不新增云、水、人群或道具。补全画面应遵守真实空间，不能出现参考图的边界或黑边。",
     motionIntent ? `【镜头运动（本镜意图）】${motionIntent}` : "【镜头运动（本镜意图）】缓速推进后稳住。",
-    motionDirection(shot, options.motionStrength === "assertive"),
+    motionDirection(shot, options.motionStrength === "assertive", options.projectIntent),
+    options.projectIntent
+      ? productionIntentPrompt(options.projectIntent, {
+          stage: "material-scene-prompt",
+          shot,
+          maxChars: 1000,
+          compact: true,
+        })
+      : "",
     /**
      * 与出片闸门 G-MAT1 逐字对齐（真机 2026-09-29）：闸门要求提示词里出现
      * 「实景依据 / 构建一段 / 不得复刻参考图的构图 / 贴图式运动 / 画面全程静止」五处字面，
@@ -631,6 +656,9 @@ export interface MotionPolicy {
   minMeanEnergy: number;
   minRampRatio: number;
   intent?: "locked" | "steady" | "dynamic" | "speed-ramp";
+  source?: ShotMotionIntentDecision["source"];
+  reason?: string;
+  projectIntentSha256?: string;
 }
 
 export const MATERIAL_MOTION_POLICY: MotionPolicy = {
@@ -671,20 +699,44 @@ export function assessMotionRichness(
   };
 }
 
+const EMPTY_PROJECT_MOTION: MotionIntentContract = {
+  profile: "unspecified",
+  highEnergy: false,
+  actionDriven: false,
+  requiresAcceleration: false,
+  evidence: [],
+};
+
 /** Numeric profiles are screening thresholds, not proof of camera motion or physical realism. */
-export function motionPolicyForShot(shot: Record<string, unknown>): MotionPolicy {
-  const text = String(shot.motion ?? shot.camera_movement ?? "").toLowerCase();
-  const explicit = shot.motionProfile;
-  if (explicit === "locked" || /固定|锁定|静态机位|locked|static|tripod/.test(text)) return { intent: "locked", minMeanEnergy: 0.01, minRampRatio: 0 };
-  if (explicit === "speed-ramp" || /(?<!不)(?<!无)速度坡道|speed[ -]?ramp/.test(text) && !/不要.*速度坡道|无速度坡道|no speed[ -]?ramp/.test(text)) return { intent: "speed-ramp", ...MATERIAL_MOTION_POLICY };
-  if (explicit === "dynamic" || /高速|快速|甩镜|whip|fast|rapid/.test(text)) return { intent: "dynamic", minMeanEnergy: 4, minRampRatio: 0 };
-  return { intent: "steady", minMeanEnergy: 0.2, minRampRatio: 0 };
+export function motionPolicyForShot(
+  shot: Record<string, unknown>,
+  projectIntent?: ProductionIntentContract,
+): MotionPolicy {
+  const decision = motionIntentForShot(shot, projectIntent?.motion ?? EMPTY_PROJECT_MOTION);
+  const common = {
+    source: decision.source,
+    reason: decision.reason,
+    ...(projectIntent ? { projectIntentSha256: projectIntent.contractSha256 } : {}),
+  };
+  if (decision.intent === "locked") return { intent: "locked", minMeanEnergy: 0.01, minRampRatio: 0, ...common };
+  if (decision.intent === "speed-ramp") {
+    return projectIntent?.motion.profile === "high-energy-action"
+      ? { intent: "speed-ramp", minMeanEnergy: 6, minRampRatio: 1.25, ...common }
+      : { intent: "speed-ramp", ...MATERIAL_MOTION_POLICY, ...common };
+  }
+  if (decision.intent === "dynamic") return { intent: "dynamic", minMeanEnergy: 4, minRampRatio: 0, ...common };
+  return { intent: "steady", minMeanEnergy: 0.2, minRampRatio: 0, ...common };
 }
-function motionDirection(shot: Record<string, unknown>, retry: boolean): string {
-  const policy = motionPolicyForShot(shot);
-  return "【运动强度要求】保持本镜意图；" + (policy.intent === "locked"
+function motionDirection(
+  shot: Record<string, unknown>,
+  retry: boolean,
+  projectIntent?: ProductionIntentContract,
+): string {
+  const policy = motionPolicyForShot(shot, projectIntent);
+  return "【运动强度要求】" + (policy.intent === "locked"
     ? "固定机位允许成立，主体与环境按剧本自然变化，不额外加入推拉或速度坡道。"
-    : policy.intent === "speed-ramp" ? "按已声明的速度坡道组织节奏，空间视差与加减速必须物理自洽。"
-    : "按已声明的速度与方向完成真实三维运镜，有视差，不强加速度坡道或甩镜。")
+    : policy.intent === "speed-ramp"
+      ? `按已声明的速度坡道组织节奏，空间视差与加减速必须物理自洽（${policy.reason}）。`
+      : "按已声明的速度与方向完成真实三维运镜，有视差，不强加速度坡道或甩镜。")
     + (retry ? "【上一版复核】修正已发现的问题，保留原动作、运镜和节奏，不因重试擅自加大运动。" : "");
 }

@@ -79,7 +79,7 @@ test("本仓固定指南返回全文、版本、产品身份及原始字节摘�
   assert.equal(result.markdown, GUIDE_BYTES.toString("utf8"));
   assert.equal(result.sha256, hash(GUIDE_BYTES));
   assert.equal(result.byteCount, GUIDE_BYTES.length);
-  assert.equal(result.guideVersion, "2026-11-12.1");
+  assert.equal(result.guideVersion, "2026-11-12.2");
   assert.match(result.markdown, /从失败处接着修/u);
   assert.match(result.markdown, /video\.studio\.promptRepairPlan/u);
   assert.match(result.markdown, /video\.studio\.repairPrompts/u);
@@ -104,6 +104,10 @@ test("本仓固定指南返回全文、版本、产品身份及原始字节摘�
   assert.match(result.markdown, /publish\.recommended/u);
   assert.match(result.markdown, /dialogue-only/u);
   assert.match(result.markdown, /服务端 worker 作业没有新增这几个参数的自动透传/u);
+  assert.match(result.markdown, /workloom\.production-intent-contract\/v1/u);
+  assert.match(result.markdown, /G-INT1/u);
+  assert.match(result.markdown, /--frame-interp auto/u);
+  assert.match(result.markdown, /速度只是其中一个可机检类别/u);
 });
 
 test("指南锚定模块所在产品根，不被cwd或产物根替换", (t) => {

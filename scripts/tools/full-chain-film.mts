@@ -20,7 +20,7 @@
  *     [--danmaku <items.json> | --auto-danmaku | --no-danmaku] \
  *     [--aspect 9:16|16:9|1:1|4:5] [--resolution 720p|1080p|2160p] [--quality hd|uhd] \
  *     [--enhance-kind live-action|animation] [--enhance-engine-dir <本地引擎目录>] \
- *     [--fps 30] [--max-attempts 2] \
+ *     [--fps 30] [--frame-interp auto|fps|blend|motion] [--max-attempts 2] \
  *     [--keys-file ~/.workloom/live.env] [--brief <brief.json>] [--no-resume] [--dry-run]
  *
  * 封面平台化与知识库（2026-09-27）：
@@ -74,6 +74,8 @@ import {
   applyMicromotion, assessVariantDistinctness, auditContinuity, buildDeliveryManifest, buildGateEvent,
   assessMotionRichness, motionPolicyForShot, buildMaterialMotionPrompt, buildPlatePrompt, buildRevisionPlan, buildRevisionReport, buildVariantPlan,
   buildMaterialScenePrompt, assessReferenceIndependence, decidePlateCache, plateRequestSha256, MATERIAL_MOTION_POLICY, MATERIAL_RAW_MOTION_POLICY, MATERIAL_SCENE_POLICY_VERSION,
+  auditProductionIntentPrompt, deriveProductionIntentContract, motionIntentForShot, productionIntentPrompt, normalizeFrameCadenceMode,
+  measureVideoMotion,
   isDoubledNarration, speechAcceptance,
   termPronunciationCheck,
   REFERENCE_INDEPENDENCE_POLICY,
@@ -98,6 +100,7 @@ import {
   planMicromotion, MICROMOTION_MARKER, MICROMOTION_POLICY_VERSION,
   type CoverAccountProfile, type CoverDesignInput,
   type CoverPlatformSpec, type GateCheck, type GateEvent, type PipelineGateStepKey,
+  type ProductionIntentContract,
   type DeviceCategory, type DeviceDefect, type EnvDefect, type HookCard, type MicromotionTrace, type PlatePromptShot,
   type ProducerVerdict, type SceneBible, type ScenePolicyReport
 } from "../../packages/video-studio/src/index.js";
@@ -282,6 +285,7 @@ if (!["live-action", "animation"].includes(ENHANCE_KIND)) {
 const ENHANCE_ENGINE_DIR = arg("--enhance-engine-dir", "");
 const ENHANCE_REQUESTED = flag("--enhance") || Boolean(ENHANCE_ENGINE_DIR);
 const FPS = Number(arg("--fps", "30"));
+const FRAME_INTERP_ARG = arg("--frame-interp", "auto");
 const MAX_ATTEMPTS = Math.max(1, Number(arg("--max-attempts", "1")) || 1);   // 默认不做盲重试（T-2026-0929-0009）
 /** 转场淡入淡出时长（秒）：快剪片（小红书/瞭望塔风格）用 0.1–0.2，抒情片用 0.5 */
 const XFADE = Number(arg("--xfade", "0.5"));
@@ -391,7 +395,7 @@ let bgmManifestInfo: Record<string, unknown> | null = null;
  * 提升到模块作用域：母版配乐与变体配乐必须共用同一口径（否则变体缺配乐 → G-DLV1 三轴判据误红）。
  */
 const BGM_DECLARED_PROGRAM_MIX = flag("--bgm-declared-program-mix");
-/** 后期速度坡道只由显式参数或镜头意图启用，默认保持原速度 */
+/** Explicit speed-ramp compatibility flag; frozen project intent can also require it. */
 const MATERIAL_SPEED_RAMP = flag("--material-speed-ramp") && !flag("--no-material-speed-ramp");
 /**
  * 后期数字运镜（变焦 + 换景别切，默认**关**）。
@@ -995,7 +999,8 @@ function hasRenderedSource(shotId: string): boolean {
 }
 function recordRenderedSource(shotId: string, file: string, receipt: RenderedShotAcceptance,
   options: { stage?: "shot" | "material-gen"; invoked?: boolean; cached?: boolean; ms?: number; attempt?: number;
-    submission?: VideoSubmissionResult["receipt"]; submissionPlan?: VideoSubmissionRequest; referenceAnchorAudit?: ReferenceAnchorReport } = {}): void {
+    submission?: VideoSubmissionResult["receipt"]; submissionPlan?: VideoSubmissionRequest; referenceAnchorAudit?: ReferenceAnchorReport;
+    motionPost?: Record<string, unknown> } = {}): void {
   const stage = options.stage ?? "shot";
   rememberInputs(stage, [...receipt.sourceInputs.map((input) => input.path), file], shotId);
   const row = record({ stage, shotId, invoked: options.invoked ?? false, ok: true,
@@ -1003,6 +1008,7 @@ function recordRenderedSource(shotId: string, file: string, receipt: RenderedSho
     artifact: file, evidence: { taskId: receipt.taskId, providerStatus: "succeeded", renderedShotAcceptance: receipt,
       qualityReviewed: false, qualityScore: null, policy: RENDERED_SHOT_ACCEPTANCE_POLICY,
       ...(options.referenceAnchorAudit ? { referenceAnchorAudit: options.referenceAnchorAudit } : {}),
+      ...(options.motionPost ? { motionPost: options.motionPost } : {}),
       ...(options.submission && options.submissionPlan ? { videoSubmission: { ...options.submission, mode: options.submissionPlan.mode, promptSha256: options.submissionPlan.promptSha256, inputs: options.submissionPlan.inputs } } : {}) }, verdict: null,
     note: "供应商成功产物默认接受，直接进入正式后期；未做身份/造型/动作/台词品质裁决" });
   if (!row.ok) throw new Error(`RENDERED_SOURCE_RECEIPT_FAILED: ${shotId}: ${row.lineage?.errors.join(";")}`);
@@ -1019,10 +1025,11 @@ if (!DRY_RUN) for (const shot of sourceDocument.shots!) {
   if (receipt) {
     // Recover the already-issued raw bytes before any paid preparation. Never overwrite the original.
     if (file !== canonical) {
-      finishMaterialClip(shot as ShotCard, file, canonical);
+      const materialRecovery = Boolean(String((shot as Record<string, unknown>).photo ?? "").trim());
+      const motionPost = finishRenderedClip(shot as ShotCard, file, canonical, { allowCameraMove: materialRecovery });
       const recovered = acceptRenderedShot({ ...renderedScope(shotId), file: canonical,
         taskId: receipt.taskId, providerStatus: "succeeded", sourceInputs: [...receipt.sourceInputs, receipt.artifact] });
-      recordRenderedSource(shotId, canonical, { ...recovered, source: "historical-provider-success", historicalAt: receipt.historicalAt });
+      recordRenderedSource(shotId, canonical, { ...recovered, source: "historical-provider-success", historicalAt: receipt.historicalAt }, { motionPost });
     } else recordRenderedSource(shotId, file, receipt);
   }
   else if (!POST_ONLY_ASSEMBLY && ["videos", "material-gen", "compose"].some((stage) => STAGES.has(stage))) {
@@ -1047,11 +1054,14 @@ if (!DRY_RUN && !WORKER_RUNTIME && ["videos", "material-gen"].some((stage) => ST
     const rawReceipt = acceptRenderedShot({ ...renderedScope(String(shot.shotId)), file: recovery.target,
       taskId: submitted.taskId, providerStatus: "succeeded", sourceInputs: [...recovery.inputArtifacts, ...submissionReceiptArtifacts(submitted)] });
     const canonical = join(CLIP_DIR, `${shot.shotId}.mp4`);
-    if (recovery.target !== canonical) finishMaterialClip(shot, recovery.target, canonical);
+    const materialRecovery = Boolean(String((shot as Record<string, unknown>).photo ?? "").trim());
+    const motionPost = recovery.target !== canonical
+      ? finishRenderedClip(shot, recovery.target, canonical, { allowCameraMove: materialRecovery })
+      : undefined;
     const receipt = recovery.target === canonical ? rawReceipt : acceptRenderedShot({ ...renderedScope(String(shot.shotId)), file: canonical,
       taskId: submitted.taskId, providerStatus: "succeeded", sourceInputs: [...rawReceipt.sourceInputs, rawReceipt.artifact] });
     recordRenderedSource(String(shot.shotId), canonical, receipt, { stage: recovery.stage === "material-gen" ? "material-gen" : "shot",
-      invoked: true, cached: true, submission: submitted.receipt, submissionPlan: recovery.request });
+      invoked: true, cached: true, submission: submitted.receipt, submissionPlan: recovery.request, motionPost });
   }
 }
 
@@ -1474,6 +1484,46 @@ const policyBrief: Record<string, unknown> | null = BRIEF_FILE ? (() => {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`--brief 必须是 JSON 对象：${file}`);
   return value as Record<string, unknown>;
 })() : null;
+const sourceMetadata = sourceDocument.metadata && typeof sourceDocument.metadata === "object" && !Array.isArray(sourceDocument.metadata)
+  ? sourceDocument.metadata as Record<string, unknown>
+  : {};
+const PRODUCTION_INTENT: ProductionIntentContract = deriveProductionIntentContract({
+  rawIntent: sourceMetadata.customerOriginalIntent,
+  brief: policyBrief,
+  shotlist,
+  creativeContext: {
+    videoType: sourceDocument.videoType,
+    logline: sourceDocument.logline,
+    route: sourceDocument.route,
+  },
+});
+const storedIntentContract = sourceMetadata._workloomProductionIntentContract ?? sourceDocument._workloomProductionIntentContract;
+if (storedIntentContract !== undefined
+  && (typeof storedIntentContract !== "object" || storedIntentContract === null
+    || (storedIntentContract as Record<string, unknown>).schemaVersion !== PRODUCTION_INTENT.schemaVersion
+    || (storedIntentContract as Record<string, unknown>).contractSha256 !== PRODUCTION_INTENT.contractSha256)) {
+  throw new Error("PRODUCTION_INTENT_CONTRACT_CHANGED: 已冻结需求意图与当前原始来源不一致，禁止继续生成");
+}
+const FRAME_INTERP_MODE = FRAME_INTERP_ARG === "auto"
+  ? (PRODUCTION_INTENT.motion.profile === "high-energy-action" ? "motion" : "fps")
+  : normalizeFrameCadenceMode(FRAME_INTERP_ARG);
+const PRODUCTION_INTENT_FILE = join(WORK_DIR, `intent-continuity-${PROJECT}.json`);
+writeFileSync(PRODUCTION_INTENT_FILE, `${JSON.stringify(PRODUCTION_INTENT, null, 2)}\n`, "utf8");
+record({
+  stage: "intent-contract", shotId: null, invoked: true, ok: true, cached: false, degraded: false,
+  attempt: 1, ms: 0, artifact: PRODUCTION_INTENT_FILE,
+  evidence: {
+    schemaVersion: PRODUCTION_INTENT.schemaVersion,
+    contractSha256: PRODUCTION_INTENT.contractSha256,
+    sourceRootSha256: PRODUCTION_INTENT.sourceRootSha256,
+    directives: PRODUCTION_INTENT.directives,
+    motion: PRODUCTION_INTENT.motion,
+    frameInterpolation: FRAME_INTERP_MODE,
+    storedContractVerified: storedIntentContract !== undefined,
+  },
+  verdict: null,
+  note: "冻结客户原始需求意图；后续模型提示、逐镜提交和后期策略必须引用同一摘要",
+});
 const scenePolicies = loadScenePolicies(join(REPO_ROOT, "bundles/ai-video/library/scene-policies"));
 const scenePolicySelection = selectScenePolicy(shotlist, policyBrief, scenePolicies);
 const scenePolicy = scenePolicySelection.policy;
@@ -1844,6 +1894,8 @@ function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: st
   }
   const fpsMatch = text.match(/(\d{2})\s*fps/i);
   if (fpsMatch && Number(fpsMatch[1]) !== input.fps) issues.push(`提示词写 ${fpsMatch[1]}fps，管线按 ${input.fps}fps 出片`);
+  const intentAudit = auditProductionIntentPrompt(PRODUCTION_INTENT, text, input.shot, { compact: true });
+  issues.push(...intentAudit.issues);
   const fingerprint = createHash("sha256").update(text).digest("hex").slice(0, 12);
   const identicalRetry = input.prevFingerprint !== null && input.prevFingerprint === fingerprint;
   if (identicalRetry) issues.push("本次重试的提示词与上一次完全相同（指纹 " + fingerprint + "）——禁止同注押两次");
@@ -1854,10 +1906,12 @@ function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: st
       { id: "no-text-redline", pass: !issues.some((i) => i.includes("可读文字") || i.includes("可辨字迹")), hard: true, detail: issues.filter((i) => i.includes("可读文字") || i.includes("可辨字迹")).join("；") || "无文字类红线" },
       { id: "no-timing-conflict", pass: !issues.some((i) => i.includes("落幅必漂")), hard: true, detail: issues.find((i) => i.includes("落幅必漂")) ?? "无时点/运镜冲突" },
       { id: "no-identical-retry", pass: !identicalRetry, hard: true, detail: identicalRetry ? "同提示词重试被拒" : `提示词指纹 ${fingerprint}（第 ${input.attempt} 次提交）` },
-      { id: "fps-consistent", pass: !issues.some((i) => i.includes("fps")), hard: true, detail: issues.find((i) => i.includes("fps")) ?? "帧率一致" }
+      { id: "fps-consistent", pass: !issues.some((i) => i.includes("fps")), hard: true, detail: issues.find((i) => i.includes("fps")) ?? "帧率一致" },
+      { id: "intent-continuity", pass: intentAudit.ok, hard: true,
+        detail: intentAudit.ok ? `合同 ${PRODUCTION_INTENT.contractSha256.slice(0, 12)} 与客户意图仍完整` : intentAudit.issues.join("；") }
     ],
     shotIds: [input.shotId],
-    evidence: { stage: input.stage, attempt: input.attempt, promptChars: text.length, fingerprint, issues },
+    evidence: { stage: input.stage, attempt: input.attempt, promptChars: text.length, fingerprint, issues, intentContinuity: intentAudit },
     reason: issues.length === 0 ? `提交前体检通过（${input.stage}/${input.shotId}，指纹 ${fingerprint}）` : `提交前体检未通过：${issues.join("；")}`
   });
   if (!gate.approved) {
@@ -2916,6 +2970,7 @@ function srtTime(seconds: number): string {
 /* ================= 主流程 ================= */
 
 log(`项目 ${PROJECT}｜镜头 ${shots.length} 个｜目标 ${totalSeconds}s｜${ASPECT} 源 ${SOURCE_RESOLUTION} → 交付 ${OUTPUT_RESOLUTION} (${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height})@${FPS}fps`);
+log(`需求意图：${PRODUCTION_INTENT.directives.length} 条硬约束 · 运动 ${PRODUCTION_INTENT.motion.profile} · 合同 ${PRODUCTION_INTENT.contractSha256.slice(0, 12)} · 帧率转换 ${FRAME_INTERP_MODE}`);
 log(`媒体工具：ffmpeg=${FFMPEG}｜ffprobe=${FFPROBE}`);
 log(`后期缓存：${POST_DIR}｜交付目录：${OUT_DIR}`);
 log(`角色档案：${lead ? `${lead.name}（${lead.id}）角度 ${Object.keys(lead.files).join("/")}` : "未找到（人物一致性将降级为文字描述）"}`);
@@ -3358,8 +3413,15 @@ if (STAGES.has("spec")) {
      */
     const dialogueFixed = normalizeDialogueWindow(timelineFixed.prompt, duration);
     const finalPrompt = appendCinematicContract(dialogueFixed.prompt, buildCinematicContract(shot as unknown as Record<string, unknown>))
+      + `\n${productionIntentPrompt(PRODUCTION_INTENT, {
+        stage: "shot-prompt",
+        shot: shot as unknown as Record<string, unknown>,
+        maxChars: 1000,
+        compact: true,
+      })}`
       + (leadVisibleInShot(shot) ? `\n${portraitReferenceClauseFor(shot)}` : "")
       + (REVISION_CONTEXT ? `\n【本次返修验收】保持原镜头主体与意图，仅修复下列已归因问题：${REVISION_CONTEXT}` : "");
+    const intentAudit = auditProductionIntentPrompt(PRODUCTION_INTENT, finalPrompt, shot as unknown as Record<string, unknown>, { compact: true });
     const finalBulletTimeAudit = validateBulletTimePrompt(finalPrompt, shot as unknown as Record<string, unknown>, { capabilities: BULLET_TIME_CAPABILITIES });
     specReports.push({
       shotId: shot.shotId, charCount: finalPrompt.length, promptSource: report.promptSource,
@@ -3367,6 +3429,7 @@ if (STAGES.has("spec")) {
       missingSpecFields: report.missingSpecFields, missingP0Fields: report.missingP0Fields,
       redlines: report.redlines, degraded: report.degraded,
       sceneSubstituted: report.sceneSubstituted, sceneSubstitution: report.sceneSubstitution,
+      intentContinuity: intentAudit,
       languageNormalized: {
         replacements: normalized.replacements, dedupedRefs: normalized.dedupedRefs,
         remainingLatin: normalized.remainingLatin, timelineRestored: timelineFixed.restored,
@@ -3407,6 +3470,14 @@ if (STAGES.has("spec")) {
           ? `子弹时间最终提示词通过 ${finalBulletTimeAudit.checks.length} 项确定性检查（contract ${finalBulletTimeAudit.contractHash}）`
           : finalBulletTimeAudit.issues.join("；")
         : "普通镜头：bulletTime 不适用"
+    });
+    checks.push({
+      id: `intent-continuity:${shot.shotId}`,
+      pass: intentAudit.ok,
+      hard: promptCarrierHard,
+      detail: intentAudit.ok
+        ? `客户需求意图完整进入最终提示词（${intentAudit.requiredDirectiveIds.length} 条，合同 ${intentAudit.contractSha256.slice(0, 12)}）`
+        : intentAudit.issues.join("；"),
     });
     /**
      * post-only 字段闸（只拦"组装卡该有却没有"的字段）：
@@ -3539,13 +3610,15 @@ if (STAGES.has("spec")) {
       /** post-only 组装：以 25 字段 P0 规范为准（不产出提示词）；生成片：沿用"交付闸 + 字数 + 片型约束"口径 */
       ok: POST_ONLY_ASSEMBLY
         ? postOnlyFieldIssues.length === 0
-        : report.delivery.pass && (!finalBulletTimeAudit.applicable || finalBulletTimeAudit.pass) && report.charCount >= 1200 && policyPromptPresent,
+        : report.delivery.pass && intentAudit.ok && (!finalBulletTimeAudit.applicable || finalBulletTimeAudit.pass)
+          && report.charCount >= 1200 && policyPromptPresent,
       cached: false, degraded: report.degraded, attempt: 1, ms: Date.now() - started,
       artifact: promptFile,
       evidence: {
         charCount: report.charCount, promptSource: report.promptSource, missing: report.missingSpecFields,
         missingP0: report.missingP0Fields, postOnlyFieldGate: POST_ONLY_ASSEMBLY,
         sceneSubstituted: report.sceneSubstituted, sceneSubstitution: report.sceneSubstitution,
+        intentContinuity: intentAudit,
         ...(finalBulletTimeAudit.applicable ? { bulletTime: finalBulletTimeAudit } : {})
       },
       verdict: null
@@ -3719,13 +3792,16 @@ if (STAGES.has("spec")) {
 function recordFinalPromptGate(shot: ShotCard, verdict: ProducerVerdict): void {
   const file = join(PROMPT_DIR, `${shot.shotId}.txt`), prompt = readFileSync(file, "utf8");
   const bulletTime = validateBulletTimePrompt(prompt, shot as unknown as Record<string, unknown>, { capabilities: BULLET_TIME_CAPABILITIES });
+  const intent = auditProductionIntentPrompt(PRODUCTION_INTENT, prompt, shot as unknown as Record<string, unknown>, { compact: true });
   recordGate({ stepKey: "g6-prompt-confirm", sourceStage: "prompt-review", shotIds: [String(shot.shotId)],
     checks: [
       { id: "final-prompt-review", pass: verdict.approved && !verdict.degraded, hard: true, detail: verdict.reason },
       { id: "final-prompt-constraints", pass: prompt.trim().length >= 1200 && prompt.trim().length <= 3000 && prompt.includes(ASPECT) && !/f\/\d/.test(prompt), hard: true, detail: "当前最终提示词长度（1200–3000）、画幅及正文参数规则" },
+      { id: "intent-continuity", pass: intent.ok, hard: true,
+        detail: intent.ok ? `${intent.requiredDirectiveIds.length} 条客户意图与合同摘要仍被最终字节绑定` : intent.issues.join("；") },
       { id: "bullet-time-final", pass: !bulletTime.applicable || bulletTime.pass, hard: bulletTime.applicable, detail: bulletTime.applicable ? (bulletTime.pass ? `bulletTime contract ${bulletTime.contractHash} 最终门通过` : bulletTime.issues.join("；")) : "普通镜头：不适用" },
     ], softApproved: verdict.approved, via: verdict.via, score: verdict.score, degraded: verdict.degraded,
-    inputPaths: [file], exactInputPaths: true, evidence: { mode: "final-prompt", promptSha256: sha256FileSync(file), reviewContractHash: verdict.contractHash ?? null, bulletTime } });
+    inputPaths: [file], exactInputPaths: true, evidence: { mode: "final-prompt", promptSha256: sha256FileSync(file), reviewContractHash: verdict.contractHash ?? null, intent, bulletTime } });
 }
 function plausibilityArchiveFor(shot: ShotCard): NonNullable<ReturnType<typeof selectProductArchive>["archive"]> | null {
   const selector = String((shot as Record<string, unknown>).product ?? "").trim();
@@ -3979,6 +4055,7 @@ function buildCurrentMaterialPrompt(shot: ShotCard): string {
     resolution: SOURCE_RESOLUTION,
     durationSec: duration,
     title: shotlist.title,
+    projectIntent: PRODUCTION_INTENT,
     referenceMode: productReference ? "product" : "place",
     ...(productReference ? {
       injection: "【参考件环境排除】商品参考件中的纯白背景、影棚柔光、展台、起车架、支撑滚轮、拍摄水印和任何后期遮挡均不属于商品本身，成片必须全部移除；只提取商品结构、比例、配色和已有涂装标识，并把商品放回镜头卡描述的真实赛道、真实光照和真实承重关系中。",
@@ -4317,16 +4394,27 @@ function applyCameraMovePunchCut(input: string, output: string, options: {
   return { segments: plan, total: Number(Number(probe(output).duration ?? 0).toFixed(3)) };
 }
 
-/** Explicit material post effects are applied once to original raw bytes, including after task/download recovery. */
-function finishMaterialClip(shot: ShotCard, rawClip: string, clip: string): void {
+/** Intent-derived post effects are applied once to original raw bytes, including after task/download recovery. */
+function finishRenderedClip(
+  shot: ShotCard,
+  rawClip: string,
+  clip: string,
+  options: { allowCameraMove?: boolean } = {},
+): Record<string, unknown> {
   const duration = Number(shot.duration ?? 5);
   const card = shot as Record<string, unknown>;
-  const useRamp = MATERIAL_SPEED_RAMP || (motionPolicyForShot(card).intent === "speed-ramp" && !flag("--no-material-speed-ramp"));
+  const motionPolicy = motionPolicyForShot(card, PRODUCTION_INTENT);
+  const hasSpeech = Boolean(dialogueText(shot).trim());
+  const useRamp = !hasSpeech
+    && !flag("--no-material-speed-ramp")
+    && !flag("--no-project-motion-post")
+    && (MATERIAL_SPEED_RAMP || motionPolicy.intent === "speed-ramp");
   const ramped = `${clip}.ramped-${randomUUID()}.mp4`;
-  if (useRamp) applySpeedRamp(rawClip, ramped, { durationSec: duration });
+  const ramp = useRamp ? applySpeedRamp(rawClip, ramped, { durationSec: duration }) : null;
   const input = useRamp ? ramped : rawClip;
-  const candidate = MATERIAL_POST_CAMERA_MOVE ? `${clip}.camera-${randomUUID()}.mp4` : input;
-  if (MATERIAL_POST_CAMERA_MOVE) applyCameraMovePunchCut(input, candidate, { durationSec: duration, fps: FPS });
+  const cameraMove = Boolean(options.allowCameraMove && MATERIAL_POST_CAMERA_MOVE);
+  const candidate = cameraMove ? `${clip}.camera-${randomUUID()}.mp4` : input;
+  if (cameraMove) applyCameraMovePunchCut(input, candidate, { durationSec: duration, fps: FPS });
   const expected = fingerprintArtifact(candidate);
   if (existsSync(clip)) {
     if (sha256FileSync(clip) !== expected.sha256) throw new Error(`MATERIAL_POST_EXISTING_CONFLICT: preserve ${clip} and ${candidate}`);
@@ -4336,6 +4424,27 @@ function finishMaterialClip(shot: ShotCard, rawClip: string, clip: string): void
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST" || sha256FileSync(clip) !== expected.sha256) throw error; }
     const directoryFd = openSync(dirname(clip), fsConstants.O_RDONLY); try { fsyncSync(directoryFd); } finally { closeSync(directoryFd); }
   }
+  const evidence = {
+    schemaVersion: "workloom.intent-motion-post/v1",
+    projectIntentSha256: PRODUCTION_INTENT.contractSha256,
+    policy: motionPolicy,
+    speedRampApplied: useRamp,
+    speedRampSkippedReason: useRamp
+      ? null
+      : hasSpeech
+        ? "shot-has-dialogue; preserve speech cadence"
+        : motionPolicy.intent === "speed-ramp"
+          ? "explicitly-disabled"
+          : "intent-does-not-require-ramp",
+    ramp,
+    cameraMoveApplied: cameraMove,
+    outputSha256: expected.sha256,
+  };
+  log(`  ${useRamp ? "✓" : "·"} 意图运动后期：${shot.shotId} ${String(motionPolicy.intent)}`
+    + `（${motionPolicy.reason ?? motionPolicy.source ?? "default"}）`
+    + `${useRamp ? `；速度坡段 ${ramp!.segments.map((segment) => `${segment.from}-${segment.to}s@${segment.speed}x`).join(" / ")}` : ""}`
+    + `${hasSpeech && motionPolicy.intent === "speed-ramp" ? "；对白镜保留原语速" : ""}`);
+  return evidence;
 }
 
 if (STAGES.has("material-gen")) {
@@ -4379,6 +4488,7 @@ if (STAGES.has("material-gen")) {
       const submissionPlan = videoPlan({ prompt, refs: [...portrait.images, ...product.images],
         seconds: renderSecondsFor(duration), generateAudio: ENV.SEEDANCE_GENERATE_AUDIO !== "0", seed: 20260926 });
       const referenceAudit = auditShotReferenceAnchors(shot, prompt, submissionPlan, portrait, product);
+      const intentAudit = auditProductionIntentPrompt(PRODUCTION_INTENT, prompt, shot as unknown as Record<string, unknown>, { compact: true });
       const inputPaths = [photo, prepared, promptFile, ...portrait.paths, ...product.paths];
       rememberInputs("material-gen", inputPaths, shot.shotId);
       const materialSha = sha256FileSync(photo);
@@ -4413,6 +4523,14 @@ if (STAGES.has("material-gen")) {
           { id: "duration-limit", pass: Number.isInteger(duration) && duration === submissionPlan.body.duration, hard: true, detail: `模型能力校验通过，实际请求 ${duration}s（无夹断或变速）` },
           { id: "plausibility-pre-submit", pass: plausibility?.verdict === "pass", hard: true, detail: `当前商品准备件及最终提示词常识审核：${plausibility?.verdict ?? "unverified"}` },
           {
+            id: "intent-continuity",
+            pass: intentAudit.ok,
+            hard: true,
+            detail: intentAudit.ok
+              ? `客户需求意图完整进入素材镜提示词（${intentAudit.requiredDirectiveIds.length} 条，合同 ${intentAudit.contractSha256.slice(0, 12)}）`
+              : intentAudit.issues.join("；"),
+          },
+          {
             id: "reference-anchors",
             pass: referenceAudit.ok,
             hard: true,
@@ -4425,6 +4543,7 @@ if (STAGES.has("material-gen")) {
         evidence: {
           videoInputMode: submissionPlan.mode, plateUsage: "not-submitted", promptSha256: submissionPlan.promptSha256, wireRequestSha256: submissionPlan.wireRequestSha256, inputPlanSha256: submissionPlan.inputPlanSha256, inputs: submissionPlan.inputs,
           referenceAnchorAudit: referenceAudit,
+          intentContinuity: intentAudit,
           mode: "submit", policy: MATERIAL_POLICY_VERSION, material: photo, materialSha256: materialSha,
           promptFile, promptChars: prompt.trim().length, model: VIDEO_MODEL, seconds: duration
         }
@@ -4441,13 +4560,14 @@ if (STAGES.has("material-gen")) {
       if (RESUME && existsSync(rawClip)) {
         const old = findRenderedShotAcceptance({ ...renderedScope(String(shot.shotId)), file: rawClip, records: readStageHistory() });
         if (!old) throw new Error("MATERIAL_RENDER_RECEIPT_REQUIRED: 现有原片缺当前来源的成功任务凭证；不自动重渲");
-        finishMaterialClip(shot, rawClip, clip);
+        const motionPost = finishRenderedClip(shot, rawClip, clip, { allowCameraMove: true });
         const receipt = acceptRenderedShot({ ...renderedScope(String(shot.shotId)), file: clip, taskId: old.taskId,
           providerStatus: "succeeded", sourceInputs: [...old.sourceInputs, old.artifact] });
         recordRenderedSource(String(shot.shotId), clip, receipt, {
           stage: "material-gen",
           cached: true,
           referenceAnchorAudit: referenceAudit,
+          motionPost,
         });
         continue;
       }
@@ -4469,7 +4589,7 @@ if (STAGES.has("material-gen")) {
       recordRenderedSource(String(shot.shotId), rawClip, rawReceipt, { stage: "material-gen", invoked: true,
         cached: false, attempt: 1, ms: Date.now() - shotStarted, submission: submitted.receipt, submissionPlan,
         referenceAnchorAudit: referenceAudit });
-      finishMaterialClip(shot, rawClip, clip);
+      const motionPost = finishRenderedClip(shot, rawClip, clip, { allowCameraMove: true });
       const receipt = acceptRenderedShot({ ...renderedScope(String(shot.shotId)), file: clip,
         taskId: submitted.taskId, providerStatus: "succeeded",
         sourceInputs: [...rawReceipt.sourceInputs, rawReceipt.artifact] });
@@ -4479,6 +4599,7 @@ if (STAGES.has("material-gen")) {
         submission: submitted.receipt,
         submissionPlan,
         referenceAnchorAudit: referenceAudit,
+        motionPost,
       });
     } catch (error) {
       record({ stage: "material-gen", shotId: shot.shotId, invoked: true, ok: false, cached: false, degraded: false,
@@ -4517,6 +4638,13 @@ if (STAGES.has("videos")) {
     const file = join(PROMPT_DIR, `${s.shotId}.txt`);
     return existsSync(file) && readFileSync(file, "utf8").trim().length >= 1200;
   });
+  const intentReadiness = pendingShots().map((shot) => {
+    const file = join(PROMPT_DIR, `${shot.shotId}.txt`);
+    const prompt = existsSync(file) ? readFileSync(file, "utf8") : "";
+    const audit = auditProductionIntentPrompt(PRODUCTION_INTENT, prompt, shot as unknown as Record<string, unknown>, { compact: true });
+    return { shotId: String(shot.shotId), ok: audit.ok, issues: audit.issues, requiredDirectiveIds: audit.requiredDirectiveIds };
+  });
+  const intentReady = intentReadiness.every((item) => item.ok);
   /** 授权真人素材镜就绪判据：引用格式合法 + 提示词齐备（≥1200 字）；**不要求关键帧**（这类镜头本就不产） */
   const assetShotDetail = assetShots().filter((s) => !hasRenderedSource(String(s.shotId))).map((s) => {
     const file = join(PROMPT_DIR, `${s.shotId}.txt`);
@@ -4609,6 +4737,14 @@ if (STAGES.has("videos")) {
     shotIds: shots.map((s) => s.shotId),
     checks: [
       { id: "prompt-files", pass: promptReady, hard: true, detail: promptReady ? `${promptShots().length} 个文生镜头（生成镜 + 授权真人素材镜）提示词齐备且 ≥1200 字（另有 ${materialShots().length} 个素材镜走 material-gen 的动效提示词）` : "有生成镜/授权真人素材镜缺提示词或字数不足 1200" },
+      {
+        id: "intent-continuity",
+        pass: intentReady,
+        hard: true,
+        detail: intentReady
+          ? `${intentReadiness.length} 个待生成镜头均绑定同一客户意图合同 ${PRODUCTION_INTENT.contractSha256.slice(0, 12)}`
+          : intentReadiness.filter((item) => !item.ok).map((item) => `${item.shotId}:${item.issues.join("；")}`).join(" | "),
+      },
       { id: "video-input-readiness", pass: videoInputReadiness.every((item) => item.referenceAnchorsOk && item.videoInputMode === item.expectedVideoInputMode && (!item.bulletTimePlan.applicable || item.bulletTimePlan.valid) && (item.videoInputMode !== "reference-image" || item.plateUsage === "not-applicable" || item.portraitInputs.length >= item.expectedPortraitInputs)), hard: true, detail: videoInputReadiness.every((item) => item.referenceAnchorsOk && item.videoInputMode === item.expectedVideoInputMode && (!item.bulletTimePlan.applicable || item.bulletTimePlan.valid) && (item.videoInputMode !== "reference-image" || item.plateUsage === "not-applicable" || item.portraitInputs.length >= item.expectedPortraitInputs)) ? "逐镜实际视频输入模式、人物/服装/商品锚点与plate用途均符合合同" : `实际输入或锚点不完整：${videoInputReadiness.filter((item) => !item.referenceAnchorsOk || item.videoInputMode !== item.expectedVideoInputMode || (item.bulletTimePlan.applicable && !item.bulletTimePlan.valid)).map((item) => `${item.shotId}[${item.referenceAnchorIssues.map((issue) => issue.code).join(",") || item.videoInputMode}]`).join("、")}` },
       { id: "plate-files", pass: plateReady, hard: true, detail: plateReady ? `${generatedShots().length} 个生成镜关键帧齐备（>50KB）` : "有生成镜关键帧缺失或过小" },
       {
@@ -4677,7 +4813,7 @@ if (STAGES.has("videos")) {
     inputPaths: videoInputReadiness.flatMap((item) => item.paths),
     evidence: {
       videoInputReadiness: videoInputReadiness.map(({ paths: _paths, ...item }) => item),
-      promptReady, plateReady, promptApproved, plateApproved, materialReady, micromotionReady, micromotionEvidence,
+      promptReady, intentReady, intentReadiness, plateReady, promptApproved, plateApproved, materialReady, micromotionReady, micromotionEvidence,
       envRealism: { hard: envSummary.hard, soft: envSummary.soft, byRule: envSummary.byRule, bible: sceneBible?.spaceId ?? null, report: ENV_REPORT_FILE },
       scenePolicy: scenePolicyReport ? { id: scenePolicy!.id, version: scenePolicy!.version, sourceSha256: scenePolicy!.sourceSha256,
         ratios: scenePolicyReport.ratios, exceptionsApplied: scenePolicyReport.exceptionsApplied, report: SCENE_POLICY_REPORT_FILE } : null,
@@ -4820,6 +4956,7 @@ if (STAGES.has("videos")) {
           product,
           shotIsAsset && assetId ? { characterId: assetId, characterVersion: 1, requiredAngles: [] } : undefined,
         );
+        const intentAudit = auditProductionIntentPrompt(PRODUCTION_INTENT, attemptPrompt, shot as unknown as Record<string, unknown>, { compact: true });
         const bulletTimeFinal = validateBulletTimePrompt(promptText, shot as unknown as Record<string, unknown>, { capabilities: BULLET_TIME_CAPABILITIES });
         const submissionPlan = videoPlan({ prompt: attemptPrompt,
           firstFrame: firstFrame ? videoImage(hosted ?? plate, "first-frame") : undefined,
@@ -4853,6 +4990,14 @@ if (STAGES.has("videos")) {
                 ? `人物/服装/商品锚点与最终请求一致（${referenceAudit.contractSha256.slice(0, 12)}）；人物 ${referenceAudit.personInputs.length}，商品 ${referenceAudit.productInputs.length}`
                 : referenceAudit.issues.map((issue) => `${issue.code}:${issue.detail}`).join("；"),
             },
+            {
+              id: "intent-continuity",
+              pass: intentAudit.ok,
+              hard: true,
+              detail: intentAudit.ok
+                ? `客户需求意图完整进入提交提示词（${intentAudit.requiredDirectiveIds.length} 条，合同 ${intentAudit.contractSha256.slice(0, 12)}）`
+                : intentAudit.issues.join("；"),
+            },
             { id: "bullet-time-final", pass: !bulletTimeFinal.applicable || bulletTimeFinal.pass, hard: bulletTimeFinal.applicable, detail: bulletTimeFinal.applicable ? (bulletTimeFinal.pass ? `bulletTime ${bulletTimeFinal.contractHash} 最终提示词通过` : bulletTimeFinal.issues.join("；")) : "普通镜头：不适用" },
             {
               id: "plate-size", pass: shotIsAsset || !existsSync(plate) || statSync(plate).size > 50_000, hard: false,
@@ -4863,6 +5008,7 @@ if (STAGES.has("videos")) {
           evidence: {
             videoInputMode: submissionPlan.mode, plateUsage: portrait.images.length ? "preproduction-only" : shotIsAsset ? "not-applicable" : "first-frame", promptSha256: submissionPlan.promptSha256, wireRequestSha256: submissionPlan.wireRequestSha256, inputPlanSha256: submissionPlan.inputPlanSha256, inputs: submissionPlan.inputs, bulletTime: { plan: bulletTimePlan, final: bulletTimeFinal },
             referenceAnchorAudit: referenceAudit,
+            intentContinuity: intentAudit,
             model: VIDEO_MODEL, seconds: duration, attempt,
             promptFingerprint: createHash("sha256").update(attemptPrompt).digest("hex").slice(0, 12),
             promptChars: promptText.trim().length
@@ -4879,8 +5025,9 @@ if (STAGES.has("videos")) {
         }
         preflightSubmitGuard({ shotId: String(shot.shotId), stage: "videos", prompt: attemptPrompt, fps: FPS, attempt, prevFingerprint: lastPromptFingerprint, shot: shot as unknown as Record<string, unknown> });
         lastPromptFingerprint = promptFingerprint;
+        const providerClip = join(CLIP_DIR, `${shot.shotId}.raw.mp4`);
         const submitted = await arkVideo({
-          stage: "videos", shotId: shot.shotId, target: clip,
+          stage: "videos", shotId: shot.shotId, target: providerClip,
           prompt: attemptPrompt,
           firstFrame,
           refs: [], submissionPlan, inputArtifacts: lineageInputSnapshots.get(`shot:${shot.shotId}`)!.artifacts,
@@ -4889,13 +5036,20 @@ if (STAGES.has("videos")) {
           generateAudio: ENV.SEEDANCE_GENERATE_AUDIO !== "0",
           seed: 20260924 + attempt
         });
-        await downloadSubmittedVideo(submitted, clip);
-        const receipt = acceptRenderedShot({ ...renderedScope(String(shot.shotId)), file: clip,
+        await downloadSubmittedVideo(submitted, providerClip);
+        const rawReceipt = acceptRenderedShot({ ...renderedScope(String(shot.shotId)), file: providerClip,
           taskId: submitted.taskId, providerStatus: "succeeded",
           sourceInputs: [...lineageInputSnapshots.get(`shot:${shot.shotId}`)!.artifacts, ...submissionReceiptArtifacts(submitted)] });
-        recordRenderedSource(String(shot.shotId), clip, receipt, { invoked: true, cached: false,
+        recordRenderedSource(String(shot.shotId), providerClip, rawReceipt, { invoked: true, cached: false,
           attempt, ms: Date.now() - started, submission: submitted.receipt, submissionPlan,
           referenceAnchorAudit: referenceAudit });
+        const motionPost = finishRenderedClip(shot, providerClip, clip);
+        const receipt = acceptRenderedShot({ ...renderedScope(String(shot.shotId)), file: clip,
+          taskId: submitted.taskId, providerStatus: "succeeded",
+          sourceInputs: [...rawReceipt.sourceInputs, rawReceipt.artifact] });
+        recordRenderedSource(String(shot.shotId), clip, receipt, { invoked: true, cached: false,
+          attempt, ms: Date.now() - started, submission: submitted.receipt, submissionPlan,
+          referenceAnchorAudit: referenceAudit, motionPost });
         approved = true;
       } catch (err) {
         record({
@@ -5029,10 +5183,95 @@ async function reviewRenderedReferenceAnchors(shot: ShotCard, file: string): Pro
   }
 }
 
+/**
+ * A customer speed/intensity intent can survive every prompt and still be
+ * contradicted by the rendered motion. Measure the current bytes after the
+ * intent-derived post step, record the evidence and fail closed when an
+ * explicitly high-energy action shot has collapsed back to cruise-like motion.
+ *
+ * Frame difference is a screening signal, not a physical-speed measurement and
+ * not an artistic-quality score.
+ */
+function measureRenderedMotion(file: string): { meanEnergy: number; maxEnergy: number; rampRatio: number; frames: number } {
+  const target = dimensionsFor(ASPECT, "720p");
+  const width = 160;
+  const height = Math.max(2, Math.round(target.height / target.width * width / 2) * 2);
+  return measureVideoMotion({ file, width, height, targetFps: 12, ffmpeg: FFMPEG });
+}
+
+function reviewRenderedMotionIntent(shot: ShotCard, file: string): void {
+  if (!PRODUCTION_INTENT.motion.requiresAcceleration) return;
+  const decision = motionIntentForShot(shot as unknown as Record<string, unknown>, PRODUCTION_INTENT.motion);
+  if (decision.intent !== "speed-ramp") return;
+  const policy = motionPolicyForShot(shot as unknown as Record<string, unknown>, PRODUCTION_INTENT);
+  const started = Date.now();
+  let richness: ReturnType<typeof measureRenderedMotion> | null = null;
+  try {
+    richness = measureRenderedMotion(file);
+    const verdict = assessMotionRichness(richness, policy);
+    record({
+      stage: "intent-motion-render", shotId: String(shot.shotId), invoked: true,
+      ok: verdict.rich, cached: false, degraded: verdict.status === "unverified", attempt: 1,
+      ms: Date.now() - started, artifact: file,
+      evidence: {
+        projectIntentSha256: PRODUCTION_INTENT.contractSha256,
+        decision,
+        policy,
+        richness,
+        verdict,
+        limitation: "frame-difference screening only; does not prove real vehicle speed or artistic quality",
+      },
+      verdict: null,
+      note: verdict.detail,
+    });
+    const gate = recordGate({
+      stepKey: "g-intent-continuity",
+      sourceStage: "shot",
+      shotIds: [String(shot.shotId)],
+      checks: [{
+        id: "rendered-motion-intent",
+        pass: verdict.rich,
+        hard: true,
+        detail: `${verdict.detail}；合同 ${PRODUCTION_INTENT.contractSha256.slice(0, 12)}`,
+      }],
+      inputPaths: [file, join(PROMPT_DIR, `${shot.shotId}.txt`)].filter(existsSync),
+      exactInputPaths: true,
+      evidence: {
+        mode: "render",
+        projectIntentSha256: PRODUCTION_INTENT.contractSha256,
+        decision,
+        richness,
+        limitation: "frame-difference screening; physical realism remains unverified",
+      },
+      reason: verdict.detail,
+    });
+    if (!gate.approved) {
+      throw new Error(`PRODUCTION_INTENT_MOTION_REJECTED: ${shot.shotId}; ${verdict.detail}`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("PRODUCTION_INTENT_MOTION_REJECTED")) throw error;
+    record({
+      stage: "intent-motion-render", shotId: String(shot.shotId), invoked: true,
+      ok: false, cached: false, degraded: false, attempt: 1, ms: Date.now() - started, artifact: file,
+      evidence: {
+        projectIntentSha256: PRODUCTION_INTENT.contractSha256,
+        decision,
+        policy,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      verdict: null,
+      note: "实际运动意图无法验证，未放行",
+    });
+    throw error;
+  }
+}
+
 if (!DRY_RUN && !WORKER_RUNTIME) {
   for (const shot of shots) {
     const clip = join(CLIP_DIR, `${shot.shotId}.mp4`);
-    if (existsSync(clip)) await reviewRenderedReferenceAnchors(shot, clip);
+    if (!existsSync(clip)) continue;
+    await reviewRenderedReferenceAnchors(shot, clip);
+    reviewRenderedMotionIntent(shot, clip);
   }
 }
 
@@ -5301,7 +5540,7 @@ if (STAGES.has("compose") && !DRY_RUN) {
     }
     const result = runCli(join(REPO_ROOT, "scripts/tools/compose-film.mts"), [
       "--clips", composeClips.join(","), "--out", master, "--width", String(w), "--height", String(h),
-      "--fps", String(FPS), "--fade", String(XFADE), "--color", "none",
+      "--fps", String(FPS), "--frame-interp", FRAME_INTERP_MODE, "--fade", String(XFADE), "--color", "none",
       /**
        * 逐刀转场（2026-09-25）：`--cut-transition` 指定 xfade 名（默认 `hblur` ≈ 甩镜拖影）、
        * `--cut-transition-duration` 指定秒数（默认 0.18）。传空字符串 = 纯硬切。
@@ -5352,6 +5591,7 @@ if (STAGES.has("compose") && !DRY_RUN) {
       evidence: {
         ...info, outputFiles: [`${master.replace(/\.mp4$/i, "")}.av-sync.json`], tool: "scripts/tools/compose-film.mts",
         quality: QUALITY, sourceResolution: SOURCE_RESOLUTION, outputResolution: OUTPUT_RESOLUTION,
+        intentContinuity: { contractSha256: PRODUCTION_INTENT.contractSha256, frameInterpolation: FRAME_INTERP_MODE },
         enhancedClips: ENHANCE_REQUESTED ? composeClips : [],
         /** 顺序判据证据（policy/期望顺序/实际顺序），终审与审计都能按它复核"有没有打乱镜头" */
         order: { policy: ORDER_POLICY, expected: orderCheck.expected, actual: orderCheck.actual, ok: orderCheck.ok },
@@ -6554,6 +6794,13 @@ if (STAGES.has("master") && !STAGES.has("deliver") && !DRY_RUN) {
   const manifestFile = join(OUT_DIR, `${PROJECT}-delivery-manifest.json`);
   const manifest = { schemaVersion: "workloom.generation-delivery/v1", projectId: PROJECT, scope: "master",
     masterOnly: true, deliveryPolicy: "single-master", variants: [], sourceShotlistSha256: sourceFileHash,
+    productionIntent: {
+      schemaVersion: PRODUCTION_INTENT.schemaVersion,
+      contractSha256: PRODUCTION_INTENT.contractSha256,
+      sourceRootSha256: PRODUCTION_INTENT.sourceRootSha256,
+      motion: PRODUCTION_INTENT.motion,
+      frameInterpolation: FRAME_INTERP_MODE,
+    },
     deliverable: { path: publicDeliveryPath(deliverablePath), sha256: await sha256UhdAsset(deliverablePath) },
     assets: await Promise.all(content.map(async file => ({ path: publicDeliveryPath(file), sha256: await sha256UhdAsset(file) }))),
     ...(PERSISTENT_SUBTITLE_TEXT ? { subtitles: { mode: SUBTITLE_MODE, persistentText: persistentSubtitleProof,
@@ -6898,6 +7145,13 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
     samples: [],
     at: stamp()
   }), assets: assetHashes, sourceShotlistSha256: sourceFileHash, generationQuality: deliveryGenerationQuality.manifest,
+  productionIntent: {
+    schemaVersion: PRODUCTION_INTENT.schemaVersion,
+    contractSha256: PRODUCTION_INTENT.contractSha256,
+    sourceRootSha256: PRODUCTION_INTENT.sourceRootSha256,
+    motion: PRODUCTION_INTENT.motion,
+    frameInterpolation: FRAME_INTERP_MODE,
+  },
   ...(PERSISTENT_SUBTITLE_TEXT ? { persistentText: persistentSubtitleProof,
     portableSubtitleSidecars: persistentOnlySubtitles ? "not-applicable-no-dialogue" : "dialogue-only" } : {}),
   ...(completeRecommendations.length ? {

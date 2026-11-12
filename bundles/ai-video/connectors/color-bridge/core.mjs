@@ -20,6 +20,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { assessProcessingQuality, clarityFilter, resolveColorManagement } from "./processing-quality.mjs";
 
@@ -87,7 +88,7 @@ export function isColorTool(name) {
 
 /** ffmpeg/ffprobe 解析顺序：显式环境变量 → 仓内工位工具链 → PATH。 */
 export function resolveBinaries(env = process.env) {
-  const here = path.dirname(new URL(import.meta.url).pathname);
+  const here = path.dirname(fileURLToPath(import.meta.url));
   const bundled = path.resolve(here, "../../../../.workloom-tools/color");
   const pick = (explicit, name) => {
     if (explicit && fs.existsSync(explicit)) return explicit;
@@ -873,10 +874,10 @@ export async function detectDefects({ input, at = [0], maxFrames = 4, bins = res
 /* ---------- 题材×场景调色配方库（调色师的专业知识底座） ---------- */
 
 const RECIPE_FILE = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
+  path.dirname(fileURLToPath(import.meta.url)),
   "../../library/color-recipes/recipes.json",
 );
-const LUT_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../library/luts");
+const LUT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../library/luts");
 
 let recipeCache = null;
 

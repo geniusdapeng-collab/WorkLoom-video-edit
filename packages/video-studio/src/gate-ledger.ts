@@ -34,6 +34,10 @@ export const PIPELINE_GATE_STEP_KEYS = [
   "g-post-only-assembly",
   /** 提交前硬闸（G-PRE1）：花钱之前体检最终提示词，并禁止同提示词重试 */
   "g-pre-submit",
+  /** 需求意图延续门（G-INT1）：冻结客户意图进入最终提示词，并在成片上复核可机检维度 */
+  "g-intent-continuity",
+  /** 渲染后的参考锚点复核（G-REF1）：人物、服装与商品必须与本次实际提交字节一致 */
+  "g-reference-anchor-render",
   /**
    * 实体与物理常识审核门（G-PLB1，T-2026-1011-0001）：
    * ① pre-render（关键帧之前，卡片+提示词+商品档案）② pre-submit（视频提交之前，附关键帧画面）。
@@ -71,7 +75,7 @@ export type PipelineGateStepKey = (typeof PIPELINE_GATE_STEP_KEYS)[number];
 export type PipelineGateId =
   | "G1" | "G2" | "G3" | "G4" | "G5" | "G6" | "G7" | "G8"
   | "G9" | "G10" | "G12" | "G13"
-  | "G-MAT1" | "G-PROD1" | "G-RP1" | "G-RL1" | "G-FP1" | "G-POST1" | "G-PRE1" | "G-DLV1" | "G-DLV4"
+  | "G-MAT1" | "G-PROD1" | "G-RP1" | "G-RL1" | "G-FP1" | "G-POST1" | "G-PRE1" | "G-INT1" | "G-REF1" | "G-DLV1" | "G-DLV4"
   /** 实体与物理常识审核（T-2026-1011-0001）：PLB1=前期（卡片+提示词），PLB2=出片前（附关键帧） */
   | "G-PLB1" | "G-PLB2";
 
@@ -89,6 +93,8 @@ const GATE_BY_STEP_KEY: Record<PipelineGateStepKey, PipelineGateId> = {
   "g-plausibility-pre-submit": "G-PLB2",
   "g-post-only-assembly": "G-POST1",
   "g-pre-submit": "G-PRE1",
+  "g-intent-continuity": "G-INT1",
+  "g-reference-anchor-render": "G-REF1",
   /**
    * 素材生成门（2026-09-25 产品所有者口径）：真实素材只作生成输入、禁止静态直出。
    * step_key 在 narrative-film.yml 里紧随 render-script（素材镜的"提交生成"与 G8 同层，但判据不同）。

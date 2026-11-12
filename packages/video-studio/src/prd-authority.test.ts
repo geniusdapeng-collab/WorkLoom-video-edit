@@ -34,6 +34,27 @@ describe("shared explicit Brief duration", () => {
   });
 });
 
+describe("production intent continuity", () => {
+  it("carries frozen speed, identity, product and sound intent into the PRD authority prompt", () => {
+    const value = fixture();
+    value.authority.metadata.customerOriginalIntent =
+      "制作30秒高燃摩托车赛道片。李英子穿同一套哑光赛车服；商品为820RR-RC赛道版；保留原生引擎声；速度必须明显提升。";
+    const brief = requirementRecord(value.authority.metadata.brief, "brief");
+    brief.tone = "冷酷精密、全程高燃、极速竞技";
+    brief.style = { pacing: "低机位追车、弯道并排、外线连续超越" };
+    brief.product = "820RR-RC赛道版";
+    brief.wardrobe = "w01 哑光黑色全覆护具赛车服";
+    const prompt = prdAuthorityPrompt(value.authority, value.contract);
+    expect(prompt).toContain("需求意图延续合同");
+    expect(prompt).toContain("high-energy-action");
+    expect(prompt).toContain("PI-MOTION-");
+    expect(prompt).toContain("PI-IDENTITY-");
+    expect(prompt).toContain("PI-PRODUCT-");
+    expect(prompt).toContain("PI-AUDIO-");
+    expect(prompt).toContain("后续创意核心、视觉规格、逐镜字段和后期策略都不得以通用模板或默认值覆盖它");
+  });
+});
+
 describe("PRD explicit production requirements", () => {
   it("normalizes the explicit platform without replacing the full client brief", () => {
     const value = fixture(), before = structuredClone(value.metadata);

@@ -30,13 +30,14 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // profile→LUT 的单一事实源：新增/改动 profile 后重跑本脚本即可重新生成等价 LUT。
 import { PROFILES } from "../../connectors/color-bridge/core.mjs";
 
 const SIZE = 33;          // 转换 LUT：精度优先（log→709 曲线陡峭）
 const LOOK_SIZE = 17;     // 创意 look：变换平滑，17³ 足够且体积小（可随时重生成）
-const HERE = path.dirname(new URL(import.meta.url).pathname);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CHECK = process.argv.includes("--check");
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -442,4 +443,4 @@ function main() {
   console.log(`✓ manifest.json（${artifacts.size} 个 LUT 登记）`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] ?? "")) main();
