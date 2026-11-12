@@ -337,7 +337,7 @@ node --import tsx scripts/tools/full-chain-film.mts \
   --resolution "$EDIT_RESOLUTION" --fps "$EDIT_FPS"
 ```
 
-如用户要求烧录与侧车字幕同时交付，使用 `--subtitle-mode both`；指定持续文字时核对 `--subtitle-persistent-text`、`--no-title-card` 和字幕阶段。封面是否进片及实际片头秒数按本次交付合同选择阶段和 `--cover-intro-seconds`。人物档案使用实际已授权库和片单绑定，配乐使用获准素材。各阶段参数见 [AI 视频 runbook](../bundles/ai-video/README.md) 及下文。输出目录保持独立，渲染收据和原片保存在同一作业上下文。无 ACK 的已提交请求保持未知，已取得任务号时查原任务；欠费、额度和授权阻断据实处理。生成过程与发布分开，交付核验不会自动把内容发到社交平台。
+如用户要求烧录与侧车字幕同时交付，使用 `--subtitle-mode both`；指定持续文字时核对 `--subtitle-persistent-text`、`--no-title-card` 和字幕阶段。封面是否进片及实际片头秒数按本次交付合同选择阶段和 `--cover-intro-seconds`。封面设计师实际产出的结构化设计稿可通过 `--cover-plan <file>` 交给 `cover` 阶段；管线会校验五条候选、所选镜头和安全区，并从**未烧字幕的干净母版**取封面底图。人物档案使用实际已授权库和片单绑定，配乐使用获准素材。各阶段参数见 [AI 视频 runbook](../bundles/ai-video/README.md) 及下文。输出目录保持独立，渲染收据和原片保存在同一作业上下文。无 ACK 的已提交请求保持未知，已取得任务号时查原任务；欠费、额度和授权阻断据实处理。生成过程与发布分开，交付核验不会自动把内容发到社交平台。
 
 用同一个 `WORKLOOM_VIDEO_ARTIFACT_ROOT="$EDIT_RUN_ROOT"` 和本次真实项目回读。下例为 HD 新生成，UHD 改用实际归档相对目录，正式后期复用作业按实际路径和 `kind:"post"` 回读。
 

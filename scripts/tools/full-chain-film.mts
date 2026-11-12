@@ -81,7 +81,7 @@ import {
   REFERENCE_INDEPENDENCE_POLICY,
   COVER_FONTS, COVER_LOWER_BAND_SAFE_AREA,
   getCoverSpec, isKnownCoverPlatform, COVER_PLATFORM_IDS,
-  requestedCoverPlan, findAngleFile, MATERIAL_POLICY_STATEMENT, MATERIAL_POLICY_VERSION, assessMaterialReuse,
+  requestedCoverPlan, parseCoverPlan, findAngleFile, MATERIAL_POLICY_STATEMENT, MATERIAL_POLICY_VERSION, assessMaterialReuse,
   assertMaterialGenerationProvenance, prepareShotPrompt, readMaterialSpec, resolveProducerLlm,
   detectProductAnchor, resolveRoutePreflight, RoutePreflightError, type RoutePreflightResult,
   buildSfxArgs, cutTimesFromShots, planCutSfxDetailed, CUT_SFX_POLICY, planHookSfx, HOOK_SFX_POLICY,
@@ -344,6 +344,7 @@ const COVER_PLATFORM_ARG = arg("--cover-platform", "");
 if (COVER_PLATFORM_ARG && !isKnownCoverPlatform(COVER_PLATFORM_ARG)) {
   throw new Error(`--cover-platform 未知平台：${COVER_PLATFORM_ARG}（可选：${COVER_PLATFORM_IDS.join(" / ")}，或中文别名 抖音/快手/小红书/视频号/B站）`);
 }
+const COVER_PLAN_FILE = arg("--cover-plan", "");
 /** 封面知识库（cover-kb）注入开关：默认开启（`--no-cover-kb` 关闭，退化为平台化之前的行为） */
 const COVER_KB_ENABLED = !flag("--no-cover-kb");
 const COVER_KB_DIR = resolve(arg("--cover-kb-dir", join(REPO_ROOT, "bundles/ai-video/library/cover-kb")));
@@ -5176,6 +5177,27 @@ if (STAGES.has("videos")) {
  */
 async function reviewRenderedReferenceAnchors(shot: ShotCard, file: string): Promise<void> {
   if (!existsSync(file)) throw new Error(`REFERENCE_ANCHOR_REVIEW_SOURCE_MISSING: ${shot.shotId}`);
+  if (POST_ONLY_ASSEMBLY) {
+    record({
+      stage: "reference-anchor-render",
+      shotId: String(shot.shotId),
+      invoked: false,
+      ok: true,
+      cached: false,
+      degraded: false,
+      attempt: 0,
+      ms: 0,
+      artifact: file,
+      evidence: {
+        applicable: false,
+        skipReason: "post-only assembly reuses a previously accepted source and has no current-shot reference submission",
+        assemblyReason: POST_ONLY_REASON,
+      },
+      verdict: null,
+      note: "post-only 组装复用已验收源片；本片未重新提交参考图，G-REF1 不适用",
+    });
+    return;
+  }
   const shotIsAsset = isAssetShot(shot);
   const portrait = shotIsAsset ? { images: [], paths: [] } : portraitVideoInputs(shot);
   const product = productReferenceInputs(shot);
@@ -5307,6 +5329,7 @@ function reviewRenderedMotionIntent(shot: ShotCard, file: string): void {
   if (!PRODUCTION_INTENT.motion.requiresAcceleration) return;
   const decision = motionIntentForShot(shot as unknown as Record<string, unknown>, PRODUCTION_INTENT.motion);
   if (decision.intent !== "speed-ramp") return;
+  const postOnlyAccepted = POST_ONLY_ASSEMBLY && ACCEPT_REJECTED.includes("G-INT1");
   const policy = motionPolicyForShot(shot as unknown as Record<string, unknown>, PRODUCTION_INTENT);
   const started = Date.now();
   let richness: ReturnType<typeof measureRenderedMotion> | null = null;
@@ -5315,7 +5338,7 @@ function reviewRenderedMotionIntent(shot: ShotCard, file: string): void {
     const verdict = assessMotionRichness(richness, policy);
     record({
       stage: "intent-motion-render", shotId: String(shot.shotId), invoked: true,
-      ok: verdict.rich, cached: false, degraded: verdict.status === "unverified", attempt: 1,
+      ok: verdict.rich || postOnlyAccepted, cached: false, degraded: verdict.status === "unverified", attempt: 1,
       ms: Date.now() - started, artifact: file,
       evidence: {
         projectIntentSha256: PRODUCTION_INTENT.contractSha256,
@@ -5332,12 +5355,20 @@ function reviewRenderedMotionIntent(shot: ShotCard, file: string): void {
       stepKey: "g-intent-continuity",
       sourceStage: "shot",
       shotIds: [String(shot.shotId)],
-      checks: [{
-        id: "rendered-motion-intent",
-        pass: verdict.rich,
-        hard: true,
-        detail: `${verdict.detail}；合同 ${PRODUCTION_INTENT.contractSha256.slice(0, 12)}`,
-      }],
+      checks: [
+        {
+          id: "rendered-motion-intent",
+          pass: verdict.rich,
+          hard: !postOnlyAccepted,
+          detail: `${verdict.detail}；合同 ${PRODUCTION_INTENT.contractSha256.slice(0, 12)}`,
+        },
+        ...(postOnlyAccepted && !verdict.rich ? [{
+          id: "post-only-baseline-waiver",
+          pass: true,
+          hard: true,
+          detail: "用户明确要求先以最新已验收源片完成后期；该条仅允许 latest-source baseline，待充值后重新生成替换",
+        }] : []),
+      ],
       inputPaths: [file, join(PROMPT_DIR, `${shot.shotId}.txt`)].filter(existsSync),
       exactInputPaths: true,
       evidence: {
@@ -5345,9 +5376,13 @@ function reviewRenderedMotionIntent(shot: ShotCard, file: string): void {
         projectIntentSha256: PRODUCTION_INTENT.contractSha256,
         decision,
         richness,
+        assemblyMode: POST_ONLY_ASSEMBLY ? "post-only" : "generated",
+        baselineWaiver: postOnlyAccepted && !verdict.rich ? ACCEPT_REJECTED.includes("G-INT1") : false,
         limitation: "frame-difference screening; physical realism remains unverified",
       },
-      reason: verdict.detail,
+      reason: postOnlyAccepted && !verdict.rich
+        ? `${verdict.detail}；latest-source baseline 显式放行，待新生成版本替换`
+        : verdict.detail,
     });
     if (!gate.approved) {
       throw new Error(`PRODUCTION_INTENT_MOTION_REJECTED: ${shot.shotId}; ${verdict.detail}`);
@@ -5689,11 +5724,19 @@ if (STAGES.has("compose") && !DRY_RUN) {
         transitions: EFFECTIVE_CUT_TRANSITION ? { name: EFFECTIVE_CUT_TRANSITION, durationSec: CUT_TRANSITION_DURATION, at: EFFECTIVE_CUT_TRANSITION_AT } : null
       }, env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
     }) : null;
+    const composedTimelineSeconds = Number(info.videoDuration ?? info.duration ?? 0);
+    if (result.ok && verdict?.approved && composedTimelineSeconds > 0) {
+      // Downstream quality gates must bind the composer's realized timeline. Source
+      // probes include the final frame's duration and can differ by one cadence step
+      // per shot after 24→30 fps conversion.
+      expectedMasterSeconds = Number(composedTimelineSeconds.toFixed(6));
+    }
     record({
       stage: "compose", shotId: null, invoked: true, ok: Boolean(result.ok && verdict?.approved), cached: false,
       degraded: Boolean(verdict?.degraded), attempt: 1, ms: Date.now() - started, artifact: master,
       evidence: {
         ...info, outputFiles: [`${master.replace(/\.mp4$/i, "")}.av-sync.json`], tool: "scripts/tools/compose-film.mts",
+        composedTimelineSeconds, expectedMasterSeconds,
         quality: QUALITY, sourceResolution: SOURCE_RESOLUTION, outputResolution: OUTPUT_RESOLUTION,
         intentContinuity: { contractSha256: PRODUCTION_INTENT.contractSha256, frameInterpolation: FRAME_INTERP_MODE },
         enhancedClips: ENHANCE_REQUESTED ? composeClips : [],
@@ -5801,7 +5844,17 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
   if (srtFile) writeFileSync(srtFile, srt, "utf8");
   const srtArgs = srtFile ? ["--srt", srtFile] : [];
   const briefFile = BRIEF_FILE ? abs(BRIEF_FILE) : null;
-  const platform = arg("--platform", "抖音/快手");
+  const requestedPlatform = arg("--platform", "抖音/快手");
+  const platform = ({
+    douyin: "抖音",
+    kuaishou: "快手",
+    xiaohongshu: "小红书",
+    "wechat-channels": "视频号",
+    bilibili: "B站",
+    tiktok: "TikTok",
+    youtube: "YouTube",
+    "instagram-reels": "Instagram",
+  } as Record<string, string>)[requestedPlatform] ?? requestedPlatform;
   const persistentArgs = PERSISTENT_SUBTITLE_TEXT ? ["--persistent-text", PERSISTENT_SUBTITLE_TEXT,
     ...(PERSISTENT_SUBTITLE_ANCHOR ? ["--persistent-anchor", PERSISTENT_SUBTITLE_ANCHOR] : []),
     ...(PERSISTENT_SUBTITLE_STYLE ? ["--persistent-style-json", JSON.stringify(PERSISTENT_SUBTITLE_STYLE)] : [])] : [];
@@ -6259,10 +6312,11 @@ if (STAGES.has("sfx") && !flag("--no-sfx") && sourceDocument.rhythmPlan !== unde
 }
 
 /* ---------- ⑨ 封面（请求设计稿 → 单次本地合成 → 输出回执） ---------- */
-/** 按冻结标题、平台与账号选项合成一次；不调用模型，不比较源片清晰度或人物品质。 */
+/** 消费显式封面设计师稿（--cover-plan）或冻结请求稿，单次本地合成；本阶段不另行发起模型调用。 */
 
 if (STAGES.has("cover") && existsSync(colored)) {
-  rememberInputs("cover", [colored]);
+  const coverSource = master;
+  rememberInputs("cover", [coverSource]);
   const started = Date.now();
   const platform = arg("--platform", "抖音/快手");
   /**
@@ -6417,15 +6471,22 @@ if (STAGES.has("cover") && existsSync(colored)) {
   };
   // Source labels select a requested layout only; they never assess identity, appearance or picture quality.
   const personShot = personShots[0] ?? null;
+  const fallbackHeroShot = shots[0]!;
+  const plan = COVER_PLAN_FILE
+    ? parseCoverPlan(readFileSync(abs(COVER_PLAN_FILE), "utf8"), designInput, {
+      personShotId: personShot?.shotId,
+      personAtSec: 1,
+    })
+    : requestedCoverPlan(designInput, {
+      headline: arg("--cover-hook", coverBrief?.coverHook ?? shotlist.title ?? "封面"),
+      heroShotId: fallbackHeroShot.shotId,
+      ...(COVER_ARCHETYPE === "person-led" && personShot ? { personShotId: personShot.shotId } : {})
+    });
+  const plannedHeroShot = shots.find((shot) => shot.shotId === plan.background.shotId) ?? fallbackHeroShot;
   const bgShot = COVER_HERO === "person" || COVER_HERO === "person-solo"
-    ? personShot ?? shots[0]!
-    : shots[0]!;
-  const plan = requestedCoverPlan(designInput, {
-    headline: arg("--cover-hook", coverBrief?.coverHook ?? shotlist.title ?? "封面"),
-    heroShotId: bgShot.shotId,
-    ...(COVER_ARCHETYPE === "person-led" && personShot ? { personShotId: personShot.shotId } : {})
-  });
-  const designVia = "deterministic-request";
+    ? personShot ?? plannedHeroShot
+    : plannedHeroShot;
+  const designVia = COVER_PLAN_FILE ? "cover-designer" : "deterministic-request";
   const designNote = plan.rationale;
   const bgPick = { atSec: plan.background.atSec };
   /**
@@ -6445,7 +6506,7 @@ if (STAGES.has("cover") && existsSync(colored)) {
       ? Boolean(plan.person.enabled && personShot)
       : Boolean(personShot);
   /** 母版时长：小图取帧必须夹在成片时长内（真机：inset 时刻越界 → 取不到帧 → 后续 ffmpeg 崩） */
-  const masterSeconds = Number(probe(colored).duration ?? 0);
+  const masterSeconds = Number(probe(coverSource).duration ?? 0);
   /** split：右侧竖带（宽 40%、全高）；person：地标小图（右上）；landmark：人物卡（右下） */
   const cardW = COVER_HERO === "split"
     ? Math.round(CW * 0.40)
@@ -6464,12 +6525,12 @@ if (STAGES.has("cover") && existsSync(colored)) {
    *   `landmark` 版（默认）：地标取满幅做底，人物走右下卡片。
    */
   const heroShot = bgShot;
-  const masterSecondsForFrame = Number(probe(colored).duration ?? 0);
+  const masterSecondsForFrame = Number(probe(coverSource).duration ?? 0);
   if (!(masterSecondsForFrame > 0)) throw new Error("COVER_SOURCE_UNREADABLE");
   const heroAt = Math.max(0, Math.min(plan.background.atSec, Math.max(0, masterSecondsForFrame - 0.12)));
   const bgFrameA = join(coverDir, "bg-frame-a.png");
   run(FFMPEG, ["-y", "-ss", Math.min(Math.max(0, masterSecondsForFrame - 0.12), shotAt(heroShot.shotId) + heroAt).toFixed(2),
-    "-i", colored, "-frames:v", "1", bgFrameA]);
+    "-i", coverSource, "-frames:v", "1", bgFrameA]);
   if (!existsSync(bgFrameA)) throw new Error("COVER_FRAME_NOT_PRODUCED");
   /**
    * 标题带压暗用**多层薄带**拼渐变（2026-09-25 真机二次修正）：
@@ -6539,7 +6600,7 @@ if (STAGES.has("cover") && existsSync(colored)) {
     const personFrame = join(coverDir, "person-frame.png");
     /** 取帧时刻夹在母版内（越界会让 ffmpeg 产出空文件，下一步直接崩） */
     const insetTime = Math.max(0.05, Math.min(Math.max(0.1, masterSeconds - 0.12), shotAt(insetShot.shotId) + insetAt));
-    run(FFMPEG, ["-y", "-ss", insetTime.toFixed(2), "-i", colored, "-frames:v", "1", personFrame]);
+    run(FFMPEG, ["-y", "-ss", insetTime.toFixed(2), "-i", coverSource, "-frames:v", "1", personFrame]);
     /**
      * 人物层：**无边框 + 四边柔化**的软嵌入（2026-09-25 三次复核后的定稿）。
      * 演进过程（都是真机监制打回的意见）：定妆照抠像 → 会掉脸留光晕；白细边矩形卡 → "贴纸感/白底抠图"；
@@ -6681,8 +6742,11 @@ if (STAGES.has("cover") && existsSync(colored)) {
   const coverApproved = checks.every((check) => check.pass) && verdict.approved;
   record({ stage: "cover", shotId: null, invoked: true, ok: coverApproved, cached: false,
     degraded: false, attempt: 1, ms: Date.now() - started, artifact: coverApproved ? coverPng : null,
-    evidence: { designVia, plan, designRaw: designNote, qualityReviewed: false, qualityScore: null,
-      background: { shotId: heroShot.shotId, atSec: heroAt, source: colored, sourceSha256: sha256FileSync(colored) },
+    evidence: { designVia, plan, designRaw: designNote, designFile: COVER_PLAN_FILE ? abs(COVER_PLAN_FILE) : null,
+      copyCandidates: (plan as unknown as Record<string, unknown>).copyCandidates ?? null,
+      copySelfCheck: (plan as unknown as Record<string, unknown>).copySelfCheck ?? null,
+      qualityReviewed: false, qualityScore: null,
+      background: { shotId: heroShot.shotId, atSec: heroAt, source: coverSource, sourceSha256: sha256FileSync(coverSource) },
       outputSha256: coverApproved ? sha256FileSync(coverPng) : null,
       headline: { text: plan.headline, fontId: plan.typography.fontId, sizePx: headSize, subSizePx: subSizeDraw },
       coverPlatform: { id: coverSpec.id, label: COVER_PLATFORM_ARG || platform, ratio: coverSpec.ratio,
