@@ -20,6 +20,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   MeasureError, binaryVersion, detectRenderCapabilities, escapeFilterPath, extractFrame,
@@ -176,12 +177,12 @@ export function assertPathAllowed(target, roots = allowedRoots(), label = "path"
 /* ============================ 字体档案与工位字体目录 ============================ */
 
 export const CATALOG_FILE = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
+  path.dirname(fileURLToPath(import.meta.url)),
   "../../library/font-catalog/font_db.json",
 );
 
 export const RECIPE_FILE = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
+  path.dirname(fileURLToPath(import.meta.url)),
   "../../library/typography-recipes/recipes.json",
 );
 
@@ -219,7 +220,7 @@ export function loadRecipes(file = RECIPE_FILE) {
 export function fontsRoot(env = process.env) {
   const raw = (env.WORKLOOM_SUBTITLE_FONTS_DIR ?? "").trim();
   if (raw) return path.resolve(raw);
-  const bundled = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../library/fonts");
+  const bundled = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../library/fonts");
   if (fs.existsSync(bundled)) return bundled;
   return path.join(os.homedir(), ".workloom-subtitle", "fonts");
 }

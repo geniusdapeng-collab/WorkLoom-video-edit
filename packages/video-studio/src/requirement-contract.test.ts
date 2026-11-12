@@ -7,6 +7,7 @@ import {
   normalizeDiscoveryTiming, requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
   validateRequirementSchema, verifiedRequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
+import { deriveProductionIntentContract } from "./intent-continuity.js";
 import { SCENE_SUM_ARITHMETIC_TOLERANCE_SECONDS, TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
 import { assertRequirementContractBridge, installRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
 import { installSharedBridge, installVendorDiscoveryFixBridge, listSharedBridges } from "./vendor-compat.js";
@@ -181,6 +182,20 @@ describe("actual vendor scene prompt correction", () => {
     const prefix = native.prompt.slice(0, native.prompt.lastIndexOf(marker));
     expect(corrected.startsWith(prefix)).toBe(true);
     expect(corrected.endsWith("重点不突出等于没有重点。")).toBe(true);
+  });
+
+  it("carries frozen high-energy customer intent into the actual SceneArchitect prompt", async () => {
+    const native = await nativeSceneFixture(30), schema = structuredSceneSchema(native.nativeSchema);
+    const intent = deriveProductionIntentContract({
+      rawIntent: "拍30秒摩托车高燃竞速片。李英子穿同一套哑光赛车服；商品是820RR-RC赛道版。",
+      brief: { tone: "全程高燃、极速竞技", pacing: "低机位追车、连续超车", requirements: "速度必须明显提升，不能像巡航。" },
+    });
+    const corrected = structuredScenePrompt(native.prompt, native.input, schema, undefined, intent);
+    expect(corrected).toContain(intent.contractSha256);
+    expect(corrected).toContain("PI-MOTION-");
+    expect(corrected).toContain("PI-IDENTITY-");
+    expect(corrected).toContain("客户要求高燃动作时");
+    expect(corrected).toContain("加速、追近、并排、超越或冲线");
   });
 
   it("rejects generated suffix drift and unserializable schema without touching customer content", async () => {

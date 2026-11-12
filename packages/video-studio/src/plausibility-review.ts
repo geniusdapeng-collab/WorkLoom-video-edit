@@ -69,6 +69,8 @@ export interface PlausibilityProductFacts {
   category?: string;
   sourceKind?: string;
   reviewStatus?: string;
+  referencePolicy?: string;
+  ownerDecision?: string;
   dimensions?: Record<string, unknown>;
   photoAngles?: string[];
   parameters?: Array<{ name: string; value: string }>;
@@ -143,6 +145,7 @@ export function buildPlausibilityContext(input: PlausibilityContextInput): Recor
     products: (input.products ?? []).map((product) => ({
       id: product.id, displayName: product.displayName ?? null, brand: product.brand ?? null,
       category: product.category ?? null, sourceKind: product.sourceKind ?? null, reviewStatus: product.reviewStatus ?? null,
+      referencePolicy: product.referencePolicy ?? null, ownerDecision: product.ownerDecision ?? null,
       dimensions: product.dimensions ?? null, photoAngles: product.photoAngles ?? [], appearance: product.appearance ?? null,
       features: product.features ?? [], parameters: product.parameters ?? [],
     })),
@@ -282,9 +285,10 @@ export async function reviewPlausibility(
       text: [
         "你是影视监制中的【实体与物理常识审核 agent】。用你自己的世界知识判断，不要假设观众或审查方已提供任何品类规则表。",
         "对每个镜头逐条回答下列问题；不能确定的写进 warning 并说明缺什么证据，不要编造。",
+        "若商品档案的 reviewStatus=owner-confirmed 且 referencePolicy=exact-copy，则参考图中已有的品牌名、号码、赞助标识、配色与结构是产品所有者的明确事实口径：不得判为需要删除/模糊/改写；只审查生成画面是否按参考原样复刻。",
         ...PLAUSIBILITY_RUBRIC.map((line, index) => `${index + 1}. ${line}`),
         input.stage === "pre-submit"
-          ? "本轮附有关键帧画面（逐镜）：比例、身份、装备、品牌保真与真实感必须结合画面判断；只凭文字看不到的缺陷要在本轮报出。"
+          ? "本轮是付费视频提交前的参考件审核，不是成片审片：附带的商品准备件、人物/服装定妆参考和上一版审阅帧不是本轮首帧。参考件中的静止支撑、影棚背景、露脸造型或不同头盔状态，若最终提示词已明确替换为本镜要求的真实赛道、封闭全盔或骑行动态，不应单独判 blocker；只拦直接矛盾、物理不可能或无法由最终提示词纠正的缺陷。比例、身份锚点、最终装备状态和品牌保真仍需结合全部送审事实判断。"
           : "本轮只有卡片与提示词：请判断逻辑/常识/口径层面是否成立（无人驾驶、缺装备、比例无锚、台词与语言、叙事逻辑等）。",
         "送审事实（JSON，完整）：",
         JSON.stringify(context),

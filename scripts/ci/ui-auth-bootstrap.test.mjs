@@ -316,6 +316,32 @@ test('GitHub public archive requires no token and binds the original release byt
   assert.equal(result.proof.releaseId, String(PIN.releaseId));
   assert.equal(result.proof.assetId, String(PIN.assetId));
 });
+test('GitHub rate-limited release API falls back only to the pinned canonical asset', async () => {
+  for (const releaseStatus of [403, 429]) {
+    for (const assetStatus of [200, 302]) {
+      const mock = githubFetch({ releaseStatus, assetStatus });
+      const result = await downloadPinnedArchive({ state, ...mock });
+      assert.deepEqual(result.bytes, archive);
+      assert.equal(result.proof.sha256, PIN.sha256);
+      assert.equal(result.proof.releaseApiVerified, false);
+      assert.equal(result.proof.releaseApiStatus, releaseStatus);
+      assert.equal(result.proof.canonicalDownload, true);
+      assert.equal(result.proof.platform, 'github');
+      assert.equal(result.proof.authenticatedApi, false);
+      assert.equal(result.proof.credentialsForwardedToCdn, false);
+      assert.equal(result.proof.assetOrigin, assetStatus === 200 ? 'https://github.com' : 'https://release-assets.githubusercontent.com');
+      const expectedCalls = [PIN.releaseUrl, PIN.canonicalUrl];
+      if (assetStatus === 302) expectedCalls.push('https://release-assets.githubusercontent.com/github-production-release-asset/fixture/asset?signature=synthetic');
+      assert.deepEqual(mock.calls.map(call => call.url), expectedCalls);
+      for (const call of mock.calls) {
+        assert.equal(call.options.headers.Authorization, undefined);
+        assert.equal(call.options.headers.Cookie, undefined);
+        assert.equal(call.options.credentials, 'omit');
+      }
+      assert.doesNotMatch(JSON.stringify(result.proof), /signature=/);
+    }
+  }
+});
 for (const [label, mutate] of [
   ['missing platform', x => { delete x.artifact.platform; }],
   ['wrong platform', x => { x.artifact.platform = 'cnb'; }],
@@ -366,6 +392,7 @@ test('GitHub HTTP, bounded bodies, hash corruption and repeated redirects remain
   const corrupt = Buffer.from(archive); corrupt[100] ^= 1;
   for (const [options, code] of [
     [{ releaseStatus: 401 }, 'UI_RELEASE_HTTP_401'],
+    [{ releaseStatus: 404 }, 'UI_RELEASE_HTTP_404'],
     [{ releaseValue: '{bad' }, 'UI_RELEASE_JSON'],
     [{ releaseValue: 'null' }, 'UI_RELEASE_IDENTITY'],
     [{ releaseValue: ' '.repeat(512 * 1024 + 1) }, 'UI_RELEASE_BODY_SIZE'],

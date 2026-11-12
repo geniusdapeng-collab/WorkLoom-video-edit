@@ -4,6 +4,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,7 +14,7 @@ import {
 } from "./generate-luts.mjs";
 import { PROFILES } from "../../connectors/color-bridge/core.mjs";
 
-const dir = path.dirname(new URL(import.meta.url).pathname);
+const dir = path.dirname(fileURLToPath(import.meta.url));
 const SIZE = 33;
 
 function parseCube(file: string) {

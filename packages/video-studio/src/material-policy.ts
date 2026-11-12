@@ -1,5 +1,12 @@
 import type { QualityStatus } from "./quality-evidence.js";
 import { sanitizeAudioField } from "./shot-spec.js";
+import {
+  motionIntentForShot,
+  productionIntentPrompt,
+  type MotionIntentContract,
+  type ProductionIntentContract,
+  type ShotMotionIntentDecision,
+} from "./intent-continuity.js";
 
 /**
  * material-policy —— 真实素材（实拍照片/视频）的**用途硬约束**（2026-09-25 产品所有者规定）。
@@ -32,6 +39,22 @@ export const MATERIAL_POLICY_VERSION = "material-usage/v1";
  *   · 参考图没拍到的画面边缘要合理补全，不得出现参考图边界/黑边/复刻构图。
  */
 export const MATERIAL_SCENE_POLICY_VERSION = "material-scene/v2";
+export const MATERIAL_PROVIDER_PROJECTION_MARKER = "【供应商提示词投影】";
+/**
+ * Internal quality budget, not a provider hard limit. Ark currently advises
+ * Chinese prompts stay within about 500 characters; the complete structured
+ * contract remains in run artifacts so this bounded provider projection can
+ * reduce instruction dilution without corrupting the source contract.
+ */
+export const MATERIAL_PROVIDER_CORE_PROMPT_MAX_CHARS = 2600;
+/**
+ * Material prompts already carry identity, product, motion and environment
+ * instructions. A complete high-energy project can legitimately freeze more
+ * than one hundred customer directives, so the old 1,000-character ceiling
+ * rejected the full contract before any provider call. Keep a bounded ceiling
+ * while leaving enough room for every applicable directive ID.
+ */
+export const MATERIAL_INTENT_PROMPT_MAX_CHARS = 5000;
 
 /**
  * 台词注入策略版本（material-dialogue/v1，T-2026-1001-0006 真机事故）。
@@ -159,6 +182,8 @@ export interface MaterialMotionPromptOptions {
    * 现在按 `motionStrength` 追加**量化运动要求**（`assertive` 用于重跑升级）。
    */
   motionStrength?: "standard" | "assertive";
+  /** Frozen customer intent that must survive every model and post step. */
+  projectIntent?: ProductionIntentContract;
 }
 
 /**
@@ -190,7 +215,15 @@ export function buildMaterialMotionPrompt(shot: Record<string, unknown>, options
     "【必须生成真实运动】画面要有符合原场景的物理变化；仅对场景内存在的元素，例如云层与天空缓慢流动、水面波纹、树叶随风轻摆，按原意自然表现；不得凭空增加水域、人群、车流、灯笼或光源；"
       + "运动幅度以「明显可辨但不变形」为准，禁止用整幅画面平移、缩放、旋转等贴图式运动伪造真实运镜。",
     motionIntent ? `【镜头运动】${motionIntent}` : "【镜头运动】缓速推进后稳住，保持主体构图稳定。",
-    motionDirection(shot, options.motionStrength === "assertive"),
+    motionDirection(shot, options.motionStrength === "assertive", options.projectIntent),
+    options.projectIntent
+      ? productionIntentPrompt(options.projectIntent, {
+          stage: "material-motion-prompt",
+          shot,
+          maxChars: MATERIAL_INTENT_PROMPT_MAX_CHARS,
+          compact: true,
+        })
+      : "",
     `【禁止静态直出】画面不得全程静止、不得整幅不变、不得出现"照片被平移/放大"的贴图感；`
       + `若模型无法生成运动，宁可输出极缓的自然运动（云、水、光的变化）也不得复刻首帧静止画面。`,
     /**
@@ -205,10 +238,10 @@ export function buildMaterialMotionPrompt(shot: Record<string, unknown>, options
     lighting ? `【光线】${lighting}` : "",
     colorPalette ? `【色调】${colorPalette}` : "",
     props ? `【画面元素】${props}` : "",
-    `【约束】${aspect} 画幅 ${resolution}；无水印、无字幕、无标题字、无 LOGO、无边框、无遮挡角标；`
-      + "画面内不出现任何新增文字；不出现第二处地标复制、不出现建筑镜像穿模与纹理重复。",
-    negative ? `【负面】${negative}；静态画面、照片平移、贴图动效、建筑臆造、文字变化、水印字幕。`
-      : "【负面】静态画面、照片平移、贴图动效、建筑臆造、文字变化、水印字幕。",
+    `【约束】${aspect} 画幅 ${resolution}；生成画面内无水印、无新增标题字、无 LOGO、无边框、无遮挡角标；`
+      + "合同明确要求的持续提示和片尾商品名由正式后期烧录，不由生成模型绘制；画面内不出现任何新增文字；不出现第二处地标复制、不出现建筑镜像穿模与纹理重复。",
+    negative ? `【负面】${negative}；静态画面、照片平移、贴图动效、建筑臆造、生成帧内新增文字或水印。`
+      : "【负面】静态画面、照片平移、贴图动效、建筑臆造、生成帧内新增文字或水印。",
     options.injection ? String(options.injection).trim() : "",
     options.title ? `【作品】${options.title}` : ""
   ].filter((line) => line.length > 0);
@@ -375,6 +408,10 @@ export interface MaterialScenePromptOptions extends MaterialMotionPromptOptions 
    * 场景由镜头卡文字构建，避免机动车等商品被误写成地标或相机模板。
    */
   referenceMode?: "place" | "product";
+  /** Product owner explicitly confirmed that every visible mark must be copied unchanged. */
+  productExactCopy?: boolean;
+  /** Internal core budget before caller-specific suffix clauses are appended. */
+  providerMaxChars?: number;
 }
 
 /** 素材镜的一句台词（与文生镜共用同一份卡片字段，避免两套口径漂移） */
@@ -486,6 +523,91 @@ export function buildMaterialDialogueBlock(
   ].filter((line) => line.length > 0).join("\n");
 }
 
+function compactPromptText(value: unknown, maxChars: number): string {
+  const source = String(value ?? "").replace(/\s+/gu, " ").trim();
+  if (!source || source.length <= maxChars) return source;
+  const sentences = source.split(/(?<=[。；！？])/u).filter(Boolean);
+  let out = "";
+  for (const sentence of sentences) {
+    if ((out + sentence).length > maxChars) break;
+    out += sentence;
+  }
+  return out || `${source.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+}
+
+function structuredField(shot: Record<string, unknown>, key: string): string {
+  const fields = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
+    ? shot.fields as Record<string, unknown>
+    : {};
+  return String(fields[key] ?? shot[key] ?? "").trim();
+}
+
+/**
+ * Structured cards keep the complete 25-field contract and full customer
+ * intent outside the provider projection. The provider receives only the
+ * executable clauses plus hashes that identify the untouched source.
+ */
+function buildStructuredProviderProjection(
+  shot: Record<string, unknown>,
+  options: MaterialScenePromptOptions,
+): string {
+  const duration = Number(options.durationSec ?? shot.duration ?? 5);
+  const productReference = options.referenceMode === "product";
+  const sourceContract = String(shot.sourceContractSha256 ?? "").trim();
+  if (!/^[a-f0-9]{64}$/.test(sourceContract)) {
+    throw new MaterialPolicyError("结构化素材镜缺少 sourceContractSha256，不能建立供应商提示词投影", "material_provider_source_unbound");
+  }
+  const exactCopy = productReference && (options.productExactCopy
+    ?? /exact-copy|原样复刻|原图百分百复刻/i.test(String(shot.props ?? "")));
+  const motionIntent = options.motionStrength === "assertive"
+    ? `${structuredField(shot, "camera_movement")}；保留原动作、运镜和节奏，不因重试擅自加大运动`
+    : structuredField(shot, "camera_movement");
+  const motionPolicy = motionPolicyForShot(shot, options.projectIntent);
+  const intent = options.projectIntent
+    ? productionIntentPrompt(options.projectIntent, {
+        stage: "material-provider-prompt",
+        shot,
+        maxChars: 900,
+        compact: true,
+        directiveDigest: true,
+      })
+    : "";
+  const productClause = productReference
+    ? exactCopy
+      ? "商品参考为唯一外观权威：参考图已有的品牌名、号码、赞助标识、尾段及油箱字符、配色分区与结构必须按原位置、原比例保留，不得删除、模糊或改写；只禁止新增参考图未见的标识或结构。"
+      : "商品参考锁定型号、结构、比例与配色；只保留参考图已见标识，不新增或改写未核实标识。"
+    : "参考素材只锁真实场景要素，不新增未见于素材的物体、文字或结构。";
+  const lines = [
+    `${MATERIAL_PROVIDER_PROJECTION_MARKER}${options.aspect ?? "9:16"}｜${options.resolution ?? "1080p"}｜${duration}s｜字段合同 ${sourceContract}`,
+    `【任务与依据】以商品/人物参考为身份与外观依据、以环境素材为实景依据，构建一段 ${duration} 秒视频场景；参考图不是首帧。`,
+    `【人物与服装】${compactPromptText(structuredField(shot, "character"), 70)}；${compactPromptText(structuredField(shot, "costume"), 100)}；${compactPromptText(structuredField(shot, "character_constraint"), 120)}；${compactPromptText(structuredField(shot, "consistency"), 80)}`,
+    `【场景与光线】${compactPromptText([structuredField(shot, "scene"), structuredField(shot, "lighting")].filter(Boolean).join("；"), 180)}`,
+    `【动作与速度】${compactPromptText(structuredField(shot, "action"), 180)}。主角头盔顶点、双肩、双手握把与前臂持续可见。${motionPolicy.intent === "speed-ramp" ? "持续加速、快速追近并形成速度坡道，禁止恒速巡航或平稳跟拍替代速度变化。" : "保持镜头卡声明的真实运动力度与方向。"}`,
+    `【运镜】${compactPromptText(motionIntent, 180)}；空间位移必须有真实三维视差，轮胎和车辆保持真实承重与接地。`,
+    `【构图与时间轴】${compactPromptText([structuredField(shot, "composition"), structuredField(shot, "timeline")].filter(Boolean).join("；"), 220)}`,
+    `【商品与参考锚点】${productClause}`,
+    `【环境与声音】${compactPromptText([structuredField(shot, "audio"), structuredField(shot, "color_palette")].filter(Boolean).join("；"), 100)}`,
+    "【视频构建纪律】不得复刻参考图的构图；禁止把参考照片平移、缩放、旋转当作镜头运动（贴图式运动），也禁止画面全程静止。参考件白底、棚光、展台、支架与拍摄水印均不入画。",
+    `【交付约束】${options.aspect ?? "9:16"} 画幅 ${options.resolution ?? "1080p"}；生成画面内无水印、无新增文字或边框；合同要求的持续提示与片尾商品名只由正式后期烧录。`,
+    `【负面】${compactPromptText(structuredField(shot, "negative"), 100)}；无人驾驶、换人、服装回落、商品删标、复刻参考图的棚拍构图/白底/摆姿、静止画面、生成帧新增文字；商品外观和既有标识不在此禁令内。`,
+    intent,
+    options.title ? `【作品】${compactPromptText(options.title, 80)}` : "",
+  ].filter(Boolean);
+  const prompt = lines.join("\n");
+  const maxChars = options.providerMaxChars ?? MATERIAL_PROVIDER_CORE_PROMPT_MAX_CHARS;
+  if (!Number.isSafeInteger(maxChars) || maxChars < 1200) {
+    throw new MaterialPolicyError("供应商提示词预算非法", "material_provider_budget_invalid");
+  }
+  if (prompt.length > maxChars) {
+    throw new MaterialPolicyError(
+      `供应商提示词投影 ${prompt.length} 字超过内部质量预算 ${maxChars}`,
+      "material_provider_budget_exceeded",
+    );
+  }
+  assertNoDegenerateTokens(prompt);
+  return prompt;
+}
+
 /**
  * **场景构建提示词**（material-scene/v2，当前素材镜的唯一合法出片路径）。
  *
@@ -497,6 +619,9 @@ export function buildMaterialDialogueBlock(
  */
 export function buildMaterialScenePrompt(shot: Record<string, unknown>, options: MaterialScenePromptOptions = {}): string {
   const spec = readMaterialSpec(shot);
+  const structured = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
+    && Object.keys(shot.fields as Record<string, unknown>).length > 0;
+  if (structured) return buildStructuredProviderProjection(shot, options);
   const aspect = options.aspect ?? "9:16";
   const resolution = options.resolution ?? "1080p";
   const duration = Number(options.durationSec ?? shot.duration ?? 5);
@@ -504,7 +629,10 @@ export function buildMaterialScenePrompt(shot: Record<string, unknown>, options:
   const sceneDescription = String(shot.sceneDescription ?? "").trim();
   const lighting = String(shot.lighting ?? "").trim();
   const colorPalette = String(shot.color_palette ?? "").trim();
-  const propsLine = String(shot.props ?? "").trim();
+  const fields = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields)
+    ? shot.fields as Record<string, unknown>
+    : {};
+  const propsLine = String(fields.props ?? shot.props ?? "").trim();
   const negative = String(shot.negative ?? "").trim();
   const motionIntent = spec.motion ?? String(shot.camera_movement ?? "").trim();
   /**
@@ -519,14 +647,22 @@ export function buildMaterialScenePrompt(shot: Record<string, unknown>, options:
   )).join("、");
   const lines = [
     productReference
-      ? `【任务】以提供的真实商品与人物素材为**身份和外观依据**，在镜头卡描述的真实环境中构建一段 ${duration} 秒的实拍感视频场景。`
+      ? `【任务】以提供的真实商品与人物素材为**身份和外观依据**，并作为构建视频场景的实景依据，在镜头卡描述的真实环境中构建一段 ${duration} 秒的实拍感视频场景。`
         + `注意：参考图只用于确认商品结构与人物身份，**不是首帧、不是要你复刻参考图构图或把参考图动起来**。`
       : `【任务】以提供的实拍参考素材为**实景依据**，构建一段 ${duration} 秒的真实拍摄感视频场景。`
         + `注意：参考图只用于确认实景要素，**不是首帧、不是要你把它动起来**——你要拍的是这个真实场景里的一段视频。`,
     `【${productReference ? "参考一致性" : "实景依据·保持一致"}】${mustKeep}。参考素材与场景说明：${scene || (productReference ? "按镜头卡构建真实场景" : "实拍地标")}${sceneDescription ? `；${sceneDescription}` : ""}`,
     "【必须由你构建的部分】机位与取景遵循镜头卡，不得用参考照片平移缩放冒充视频；有镜头位移时应有真实三维视差，固定机位则保持取景稳定。环境与主体仅按场景中实际存在的元素自然变化，不新增云、水、人群或道具。补全画面应遵守真实空间，不能出现参考图的边界或黑边。",
     motionIntent ? `【镜头运动（本镜意图）】${motionIntent}` : "【镜头运动（本镜意图）】缓速推进后稳住。",
-    motionDirection(shot, options.motionStrength === "assertive"),
+    motionDirection(shot, options.motionStrength === "assertive", options.projectIntent),
+    options.projectIntent
+      ? productionIntentPrompt(options.projectIntent, {
+          stage: "material-scene-prompt",
+          shot,
+          maxChars: MATERIAL_INTENT_PROMPT_MAX_CHARS,
+          compact: true,
+        })
+      : "",
     /**
      * 与出片闸门 G-MAT1 逐字对齐（真机 2026-09-29）：闸门要求提示词里出现
      * 「实景依据 / 构建一段 / 不得复刻参考图的构图 / 贴图式运动 / 画面全程静止」五处字面，
@@ -539,11 +675,11 @@ export function buildMaterialScenePrompt(shot: Record<string, unknown>, options:
     colorPalette ? `【色调】${colorPalette}` : "",
     propsLine ? `【画面元素】${propsLine}` : "",
     dialogueBlock,
-    `【约束】${aspect} 画幅 ${resolution}；无水印、无字幕、无标题字、无边框；`
+    `【约束】${aspect} 画幅 ${resolution}；生成画面内无水印、无新增标题字、无边框；合同明确要求的持续提示与片尾商品名由正式后期烧录，不属于生成帧文字；`
       + (productReference ? "不新增第三方标识或贴花文字，真实商品已有标识必须保留且不得改写" : "无 LOGO；画面内不出现任何新增文字")
       + (dialogueBlock ? "；台词只以人声呈现（字幕由后期添加）" : "") + "。",
-    negative ? `【负面】${negative}；照片复刻、贴图平移、参考图边界、静止画面、${productReference ? "商品结构臆造、替换车型" : "建筑臆造"}、文字变化、水印字幕。`
-      : `【负面】照片复刻、贴图平移、参考图边界、静止画面、${productReference ? "商品结构臆造、替换车型" : "建筑臆造"}、文字变化、水印字幕。`,
+    negative ? `【负面】${negative}；照片复刻、贴图平移、参考图边界、静止画面、${productReference ? "商品结构臆造、替换车型" : "建筑臆造"}、生成帧内新增文字或水印；合同后期文字层不得由生成模型绘制。`
+      : `【负面】照片复刻、贴图平移、参考图边界、静止画面、${productReference ? "商品结构臆造、替换车型" : "建筑臆造"}、生成帧内新增文字或水印；合同后期文字层不得由生成模型绘制。`,
     options.injection ? String(options.injection).trim() : "",
     options.title ? `【作品】${options.title}` : ""
   ].filter((line) => line.length > 0);
@@ -631,6 +767,9 @@ export interface MotionPolicy {
   minMeanEnergy: number;
   minRampRatio: number;
   intent?: "locked" | "steady" | "dynamic" | "speed-ramp";
+  source?: ShotMotionIntentDecision["source"];
+  reason?: string;
+  projectIntentSha256?: string;
 }
 
 export const MATERIAL_MOTION_POLICY: MotionPolicy = {
@@ -671,20 +810,44 @@ export function assessMotionRichness(
   };
 }
 
+const EMPTY_PROJECT_MOTION: MotionIntentContract = {
+  profile: "unspecified",
+  highEnergy: false,
+  actionDriven: false,
+  requiresAcceleration: false,
+  evidence: [],
+};
+
 /** Numeric profiles are screening thresholds, not proof of camera motion or physical realism. */
-export function motionPolicyForShot(shot: Record<string, unknown>): MotionPolicy {
-  const text = String(shot.motion ?? shot.camera_movement ?? "").toLowerCase();
-  const explicit = shot.motionProfile;
-  if (explicit === "locked" || /固定|锁定|静态机位|locked|static|tripod/.test(text)) return { intent: "locked", minMeanEnergy: 0.01, minRampRatio: 0 };
-  if (explicit === "speed-ramp" || /(?<!不)(?<!无)速度坡道|speed[ -]?ramp/.test(text) && !/不要.*速度坡道|无速度坡道|no speed[ -]?ramp/.test(text)) return { intent: "speed-ramp", ...MATERIAL_MOTION_POLICY };
-  if (explicit === "dynamic" || /高速|快速|甩镜|whip|fast|rapid/.test(text)) return { intent: "dynamic", minMeanEnergy: 4, minRampRatio: 0 };
-  return { intent: "steady", minMeanEnergy: 0.2, minRampRatio: 0 };
+export function motionPolicyForShot(
+  shot: Record<string, unknown>,
+  projectIntent?: ProductionIntentContract,
+): MotionPolicy {
+  const decision = motionIntentForShot(shot, projectIntent?.motion ?? EMPTY_PROJECT_MOTION);
+  const common = {
+    source: decision.source,
+    reason: decision.reason,
+    ...(projectIntent ? { projectIntentSha256: projectIntent.contractSha256 } : {}),
+  };
+  if (decision.intent === "locked") return { intent: "locked", minMeanEnergy: 0.01, minRampRatio: 0, ...common };
+  if (decision.intent === "speed-ramp") {
+    return projectIntent?.motion.profile === "high-energy-action"
+      ? { intent: "speed-ramp", minMeanEnergy: 6, minRampRatio: 1.25, ...common }
+      : { intent: "speed-ramp", ...MATERIAL_MOTION_POLICY, ...common };
+  }
+  if (decision.intent === "dynamic") return { intent: "dynamic", minMeanEnergy: 4, minRampRatio: 0, ...common };
+  return { intent: "steady", minMeanEnergy: 0.2, minRampRatio: 0, ...common };
 }
-function motionDirection(shot: Record<string, unknown>, retry: boolean): string {
-  const policy = motionPolicyForShot(shot);
-  return "【运动强度要求】保持本镜意图；" + (policy.intent === "locked"
+function motionDirection(
+  shot: Record<string, unknown>,
+  retry: boolean,
+  projectIntent?: ProductionIntentContract,
+): string {
+  const policy = motionPolicyForShot(shot, projectIntent);
+  return "【运动强度要求】" + (policy.intent === "locked"
     ? "固定机位允许成立，主体与环境按剧本自然变化，不额外加入推拉或速度坡道。"
-    : policy.intent === "speed-ramp" ? "按已声明的速度坡道组织节奏，空间视差与加减速必须物理自洽。"
-    : "按已声明的速度与方向完成真实三维运镜，有视差，不强加速度坡道或甩镜。")
+    : policy.intent === "speed-ramp"
+      ? `按已声明的速度坡道组织节奏，空间视差与加减速必须物理自洽（${policy.reason}）。`
+      : "按已声明的速度与方向完成真实三维运镜，有视差，不强加速度坡道或甩镜。")
     + (retry ? "【上一版复核】修正已发现的问题，保留原动作、运镜和节奏，不因重试擅自加大运动。" : "");
 }

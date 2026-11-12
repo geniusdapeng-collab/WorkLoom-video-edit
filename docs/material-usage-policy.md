@@ -8,7 +8,7 @@
 > ② 提示词换成 `buildMaterialScenePrompt`（要求自选机位/焦段、真实三维视差、环境运动、补全画面边缘）；
 > ③ 新增硬闸 `scene-constructed`：把成片首帧/中段与参考素材做最佳匹配与直比，只要还能高精度对回参考图
 > （首帧 ≥32dB / 直比 ≥40dB / 中段 ≥34dB）即判"参考图被推动"，一票否决（阈值在 `REFERENCE_INDEPENDENCE_POLICY`）。
-> 后期数字运镜（变焦 + 换景别切）已**默认关闭**（`--material-post-camera-move` 才开），只保留速度坡道这一剪辑手法。
+> 后期数字运镜（变焦 + 换景别切）已**默认关闭**（`--material-post-camera-move` 才开）。速度坡道不再只是素材镜手工开关：冻结的客户运动意图为高燃动作时可自动启用；具体合同与阶段边界见 `docs/production-intent-continuity.md`。
 > **本轮新增（2026-10-01，`material-scene/v2`）**：素材镜的**台词也必须由渲染直接产出**——
 > 此前素材镜提示词里根本没有台词段，模型只出环境声，台词被"后期 TTS 补录"遮住（详见第五节）。
 

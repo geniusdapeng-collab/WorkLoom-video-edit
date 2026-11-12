@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
@@ -67,21 +67,30 @@ test('persistent fullchain requires its subtitle consumer before creating work o
   assert.equal(existsSync(work), false); assert.equal(existsSync(out), false); assert.equal(sha(shots), original);
 });
 
-function fixture(t, { dialogue = [{ speaker: '原片人物', text: '保留原片全部台词' }], hasPriorHistory = true, resolution = '720p', duration = 1.4, colour = 'black' } = {}) {
+function fixture(t, {
+  dialogue = [{ speaker: '原片人物', text: '保留原片全部台词' }], hasPriorHistory = true,
+  resolution = '720p', duration = 1.4, colour = 'black', clipCount = 1, sourceFps = 25,
+} = {}) {
   const root = mkdtempSync(join(tmpdir(), 'persistent 正式全链-')); t.after(() => rmSync(root, { recursive: true, force: true }));
   const project = 'PERSISTENT-OFFLINE', work = join(root, 'work'), out = join(root, 'out');
   const logs = join(work, 'logs', project), clips = join(work, 'clips', project);
   for (const dir of [logs, clips]) mkdirSync(dir, { recursive: true });
-  const clip = join(clips, 'S1.mp4'), prompt = join(root, 'issued-prompt.txt'), shots = join(root, 'shots.json'), keys = join(root, 'empty.env');
+  const clipFiles = Array.from({ length: clipCount }, (_, index) => join(clips, `S${index + 1}.mp4`));
+  const clip = clipFiles[0];
+  const prompt = join(root, 'issued-prompt.txt'), shots = join(root, 'shots.json'), keys = join(root, 'empty.env');
   const dimensions = resolution === '1080p' ? '1080x1920' : '360x640';
-  const media = spawnSync(FFMPEG, ['-hide_banner', '-v', 'error', '-n', '-f', 'lavfi', '-i', `color=c=${colour}:s=${dimensions}:r=25:d=${duration}`,
-    '-f', 'lavfi', '-i', `sine=frequency=417:sample_rate=48000:duration=${duration}`, '-map', '0:v', '-map', '1:a',
-    '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', clip], { encoding: 'utf8', timeout: 30000 });
-  assert.equal(media.status, 0, media.stderr);
+  for (const [index, file] of clipFiles.entries()) {
+    const media = spawnSync(FFMPEG, ['-hide_banner', '-v', 'error', '-n', '-f', 'lavfi',
+      '-i', `color=c=${colour}:s=${dimensions}:r=${sourceFps}:d=${duration}`,
+      '-f', 'lavfi', '-i', `sine=frequency=${417 + index}:sample_rate=48000:duration=${duration}`, '-map', '0:v', '-map', '1:a',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', file],
+    { encoding: 'utf8', timeout: 30000 });
+    assert.equal(media.status, 0, media.stderr);
+  }
   writeFileSync(prompt, 'Already issued provider prompt; immutable in all postprocessing tests.'); writeFileSync(keys, '');
-  writeFileSync(shots, JSON.stringify({ title: '完整作品', durationSeconds: duration, aspect: '9:16', resolution,
-    eraProfile: { storyDate: '2026-10-07' }, shots: [{ shotId: 'S1', duration,
-      dialogue, motion: '既有动作', scene: '既有场景' }] }));
+  writeFileSync(shots, JSON.stringify({ title: '完整作品', durationSeconds: Number((duration * clipCount).toFixed(6)), aspect: '9:16', resolution,
+    eraProfile: { storyDate: '2026-10-07' }, shots: clipFiles.map((_, index) => ({ shotId: `S${index + 1}`, duration,
+      dialogue, motion: '既有动作', scene: '既有场景' })) }));
   const network = join(root, 'network.log'), preloader = join(root, 'deny-network.cjs'); writeFileSync(network, '');
   writeFileSync(preloader, `const fs=require('node:fs');const deny=k=>{fs.appendFileSync(${JSON.stringify(network)},k+'\\n');throw new Error('OFFLINE_NETWORK_FORBIDDEN:'+k)};globalThis.fetch=()=>deny('fetch');for(const n of ['node:http','node:https']){const m=require(n);m.request=()=>deny(n+'.request');m.get=()=>deny(n+'.get')};
     if(process.env.WORKLOOM_TEST_TAMPER_PERSISTENT_PROOF==='1'){const write=fs.writeFileSync;fs.writeFileSync=function(file,data,...options){if(String(file).includes('processor-')&&String(file).endsWith('.json')){const doc=JSON.parse(String(data));const proof=doc.manifest?.persistentText??doc.persistentText;if(proof){proof.assText='not the requested text';data=JSON.stringify(doc)}}return write.call(this,file,data,...options)}}`);
@@ -101,13 +110,21 @@ function fixture(t, { dialogue = [{ speaker: '原片人物', text: '保留原片
       JSON.stringify({ shots, logs, project, prompt, clip })], { cwd: ROOT, encoding: 'utf8', timeout: 30000 });
     assert.equal(setup.status, 0, setup.stderr);
   } else writeFileSync(history, '');
-  return { root, work, out, logs, project, clip, prompt, shots, keys, network, env, history, resolution,
-    originals: [clip, prompt, shots].map(file => ({ file, sha256: sha(file) })), oldHistory: readFileSync(history) };
+  return { root, work, out, logs, project, clip, clipFiles, prompt, shots, keys, network, env, history, resolution,
+    originals: [...clipFiles, prompt, shots].map(file => ({ file, sha256: sha(file) })), oldHistory: readFileSync(history) };
 }
-function run(f, text, env = {}, { stages = "compose,subtitle,master", postOnly = false, anchor, style } = {}) {
+function run(f, text, env = {}, {
+  stages = "compose,subtitle,master", postOnly = false, acceptMotionBaseline = false, brief, platform,
+  coverPlan, coverHero, anchor, style,
+} = {}) {
   return invoke(['--shots', f.shots, '--project', f.project, '--work-dir', f.work, '--out', f.out, '--keys-file', f.keys,
     '--resolution', f.resolution, '--route-kind', 'narrative', '--stages', stages, '--xfade', '0', '--cut-transition', '',
     '--subtitle-mode', 'both', '--no-open-with-cover', '--no-title-card', '--no-danmaku', '--no-bgm',
+    ...(platform === undefined ? [] : ['--platform', platform]),
+    ...(coverPlan === undefined ? [] : ['--cover-plan', coverPlan]),
+    ...(coverHero === undefined ? [] : ['--cover-hero', coverHero]),
+    ...(brief === undefined ? [] : ['--brief', brief]),
+    ...(acceptMotionBaseline ? ['--accept-rejected', 'G-INT1'] : []),
     ...(postOnly ? ['--assembly-mode', 'post-only', '--assembly-reason', '已有原片完成本地后期'] : []),
     ...(text === null ? [] : ['--subtitle-persistent-text', text]),
     ...(anchor === undefined ? [] : ['--subtitle-persistent-anchor', anchor]),
@@ -210,10 +227,102 @@ test('Film post-only burns and publishes exact persistent text with no dialogue,
   }
 });
 
+test('post-only motion baseline requires explicit G-INT1 acceptance and records the waiver', { timeout: 180000 }, t => {
+  const f = fixture(t, { dialogue: [], hasPriorHistory: false });
+  const source = readJson(f.shots);
+  source.metadata = {
+    ...source.metadata,
+    customerOriginalIntent: '李英子骑行 820RR-RC 全程高燃，极速追近、持续加速并完成超越。',
+  };
+  source.shots[0].action = '赛车持续加速追近前车，并完成外线超越。';
+  source.shots[0].motion = '高速冲刺与速度坡道';
+  writeFileSync(f.shots, JSON.stringify(source));
+  const brief = join(f.root, 'action-brief.json');
+  writeFileSync(brief, JSON.stringify({
+    tone: '冷酷精密，全程高燃',
+    style: { primary: '极速竞技、低机位追车、弯道并排、外线连续超越' },
+    requirements: '赛车速度明显提升，不能像恒速巡航。',
+  }));
+  f.originals = [f.clip, f.prompt, f.shots].map(file => ({ file, sha256: sha(file) }));
+
+  const denied = run(f, '赛道专用 不可上路', {}, { postOnly: true, brief });
+  assert.notEqual(denied.status, 0, denied.stdout + denied.stderr);
+  assert.match(denied.stdout + denied.stderr, /PRODUCTION_INTENT_MOTION_REJECTED/);
+  assert.equal(existsSync(join(f.out, 'current.json')), false);
+  originals(f);
+
+  const accepted = run(f, '赛道专用 不可上路', {}, { postOnly: true, acceptMotionBaseline: true, brief });
+  assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
+  originals(f);
+  const rows = readFileSync(f.history, 'utf8').trim().split('\n').map(JSON.parse);
+  const gate = rows.filter(row => row.stepKey === 'g-intent-continuity'
+    && row.shotIds?.includes('S1') && row.evidence?.baselineWaiver === true).at(-1);
+  assert.ok(gate, 'accepted G-INT1 baseline gate is missing');
+  assert.equal(gate.evidence.assemblyMode, 'post-only');
+  assert.equal(gate.ok, true);
+  assert.equal(gate.checks.find(check => check.id === 'rendered-motion-intent').hard, false);
+  assert.equal(gate.checks.find(check => check.id === 'post-only-baseline-waiver').pass, true);
+  assert.ok(rows.some(row => row.stepKey === 'g-post-only-assembly' && row.degraded
+    && row.evidence?.blocked?.includes('S1')));
+});
+
+test('full-chain post quality binds the realized timeline after 24-to-30 fps cadence quantization', { timeout: 180000 }, t => {
+  const f = fixture(t, { dialogue: [], hasPriorHistory: false, clipCount: 6, duration: 1.0416666667, sourceFps: 24 });
+  const result = run(f, null, {}, { postOnly: true, stages: 'compose,master' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  originals(f);
+  const rows = readFileSync(f.history, 'utf8').trim().split('\n').map(JSON.parse);
+  const compose = rows.filter(row => row.stage === 'compose').at(-1);
+  assert.equal(compose.ok, true);
+  assert.ok(Number.isFinite(compose.evidence.composedTimelineSeconds));
+  assert.equal(compose.evidence.expectedMasterSeconds, compose.evidence.composedTimelineSeconds);
+  const probe = spawnSync(FFPROBE, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=duration', '-of', 'csv=p=0', compose.artifact],
+    { encoding: 'utf8', timeout: 30000 });
+  assert.equal(probe.status, 0, probe.stderr);
+  assert.ok(Math.abs(Number(probe.stdout.trim()) - compose.evidence.composedTimelineSeconds) < .001);
+  assert.ok(rows.some(row => row.stage === 'master' && row.ok));
+});
+
+test('full-chain cover consumes the designer plan and draws from the clean master, not burned subtitles', { timeout: 120000 }, t => {
+  const f = fixture(t, { dialogue: [], hasPriorHistory: false, resolution: '1080p' });
+  const master = join(f.work, 'post', f.project, 'master-raw.mp4');
+  assert.ok(existsSync(f.clip), `fixture clip missing; files: ${walk(f.root).join(', ')}`);
+  mkdirSync(dirname(master), { recursive: true });
+  copyFileSync(f.clip, master);
+  const coverPlan = join(f.root, 'cover-plan.json');
+  writeFileSync(coverPlan, JSON.stringify({
+    headline: '赛道极速',
+    subline: '封闭赛道专用',
+    badge: '820RR-RC',
+    layout: 'person-right',
+    background: { shotId: 'S1', atSec: .2, treatment: 'scrim' },
+    person: { enabled: false, widthRatio: .42 },
+    typography: {
+      fontId: 'source-han-heavy', headlineSizeRatio: .08, sublineSizeRatio: .035,
+      color: '#FFFFFF', accentColor: '#FF3B30', align: 'left',
+    },
+    rationale: '测试设计师稿绑定干净母版与指定镜头',
+    source: 'llm',
+    copyCandidates: Array.from({ length: 5 }, (_, index) => ({ id: `H-${index + 1}`, formula: '测试', fact: '测试', score: 8 })),
+    copySelfCheck: { forbiddenWordCheck: 'passed' },
+  }));
+  const result = run(f, null, {}, { stages: 'cover', postOnly: true, platform: 'douyin', coverPlan, coverHero: 'subject' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const rows = readFileSync(f.history, 'utf8').trim().split('\n').map(JSON.parse);
+  const cover = rows.filter(row => row.stage === 'cover').at(-1);
+  assert.equal(cover.evidence.designVia, 'cover-designer');
+  assert.equal(cover.evidence.plan.background.shotId, 'S1');
+  assert.equal(cover.evidence.background.shotId, 'S1');
+  assert.equal(cover.evidence.background.source, master);
+  assert.equal(cover.evidence.background.sourceSha256, sha(master));
+  assert.equal(cover.evidence.copyCandidates.length, 5);
+  assert.ok(existsSync(cover.artifact));
+});
+
 test('Film post-only burns and exports one bottom-centered persistent plan at the approved 1080p style bounds', { timeout: 180000 }, t => {
   const f = fixture(t, { dialogue: [], hasPriorHistory: false, resolution: '1080p' });
   const text = 'AI剧情演绎｜封闭赛道';
-  const result = run(f, text, {}, { postOnly: true, anchor: 'bottom-center' });
+  const result = run(f, text, {}, { postOnly: true, platform: 'douyin', anchor: 'bottom-center' });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   originals(f);
   const manifest = readJson(readJson(join(f.out, 'current.json')).manifest);

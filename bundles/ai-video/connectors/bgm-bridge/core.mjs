@@ -20,6 +20,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   MeasureError, binaryVersion, classifySegments, decodePcm, detectCuts, detectVoiceBandSegments,
@@ -111,7 +112,7 @@ export function assertPathAllowed(target, roots = allowedRoots(), label = "path"
 /* ============================ 配方库 ============================ */
 
 const RECIPE_FILE = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
+  path.dirname(fileURLToPath(import.meta.url)),
   "../../library/bgm-recipes/recipes.json",
 );
 
@@ -232,7 +233,7 @@ export function findRecipes(query = {}) {
 export function libraryDir(env = process.env) {
   const override = (env.WORKLOOM_BGM_LIBRARY_DIR ?? "").trim();
   if (override) return path.resolve(override);
-  return path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../library/bgm-library");
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../library/bgm-library");
 }
 
 /**
@@ -244,7 +245,7 @@ export function libraryDir(env = process.env) {
  * 三个目录都用同一份 `tracks.json` 契约；同 id 时前面的优先（客户可以覆盖仓库版本）。
  */
 export function libraryRoots(env = process.env) {
-  const here = path.dirname(new URL(import.meta.url).pathname);
+  const here = path.dirname(fileURLToPath(import.meta.url));
   const custom = (env.WORKLOOM_BGM_LIBRARY_DIR ?? "").trim();
   const workbenchHome = (env.WORKLOOM_BGM_HOME ?? "").trim() || path.join(os.homedir(), ".workloom-bgm");
   /**

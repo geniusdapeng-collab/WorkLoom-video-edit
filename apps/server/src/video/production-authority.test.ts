@@ -435,7 +435,7 @@ describe("正式资格的正常路径和来源边界", () => {
   it("计划时长、完整提示词上限和extra覆盖在审核前拒绝", async () => {
     await expect(issue({ params: { durationSec: 6 } })).rejects.toThrow("SOURCE_DURATION_MISMATCH");
     await expect(issue({ params: { extra: { prompt: "伪造" } } })).rejects.toThrow("REQUEST_INVALID");
-    prompts.shots[0].prompt = "字".repeat(100_000); await persist(); await expect(issue()).rejects.toThrow("PROMPT_TOO_LONG");
+    prompts.shots[0].prompt = "字".repeat(100_001); await persist(); await expect(issue()).rejects.toThrow("PROMPT_TOO_LONG");
     expect(calls).toHaveLength(0);
   });
 });

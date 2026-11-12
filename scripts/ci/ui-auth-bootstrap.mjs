@@ -130,8 +130,14 @@ export function validateAssetRedirect(location, platform = 'cnb') {
 
 async function downloadPublicGithubArchive(fetchImplementation) {
   // The public GitHub mirror never receives the optional legacy CNB credential.
-  const headers = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10' };
+  const headers = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', 'User-Agent': 'workloom-video-edit-ui-bootstrap' };
   const releaseResponse = await safeFetch(fetchImplementation, PIN.releaseUrl, { method: 'GET', headers, credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(30000) }, 'UI_RELEASE_REQUEST');
+  if (releaseResponse.status === 403 || releaseResponse.status === 429) {
+    // GitHub's anonymous API is rate-limited by runner egress IP. The canonical
+    // release URL is fixed in PIN, and the downloaded bytes still must match the
+    // pinned size, SHA-256, SRI, tar layout, package identity and version.
+    return downloadPinnedGithubAsset(fetchImplementation, { releaseApiStatus: releaseResponse.status });
+  }
   requireFact(releaseResponse.status === 200, 'UI_RELEASE_HTTP_' + releaseResponse.status);
   let release;
   try { release = JSON.parse((await boundedBody(releaseResponse, 512 * 1024, 'UI_RELEASE_BODY_SIZE')).toString('utf8')); }
@@ -143,9 +149,25 @@ async function downloadPublicGithubArchive(fetchImplementation) {
   const asset = assets[0];
   requireFact(asset.id === PIN.assetId && asset.state === 'uploaded' && asset.size === PIN.bytes && asset.digest === 'sha256:' + PIN.sha256, 'UI_RELEASE_ASSET_HASH');
   requireFact(asset.browser_download_url === PIN.canonicalUrl && asset.url === PIN.apiUrl, 'UI_RELEASE_ASSET_URL');
+  return downloadPinnedGithubAsset(fetchImplementation, {
+    releaseApiStatus: releaseResponse.status,
+    requestUrl: PIN.apiUrl,
+    releaseId: release.id,
+    assetId: asset.id,
+    releaseApiVerified: true,
+  });
+}
+
+async function downloadPinnedGithubAsset(fetchImplementation, {
+  releaseApiStatus,
+  requestUrl = PIN.canonicalUrl,
+  releaseId = PIN.releaseId,
+  assetId = PIN.assetId,
+  releaseApiVerified = false,
+}) {
   const options = { method: 'GET', headers: { Accept: 'application/octet-stream', 'X-GitHub-Api-Version': '2026-03-10' }, credentials: 'omit', redirect: 'manual', signal: AbortSignal.timeout(60000) };
-  let response = await safeFetch(fetchImplementation, PIN.apiUrl, options, 'UI_ASSET_REQUEST');
-  let assetOrigin = 'https://api.github.com';
+  let response = await safeFetch(fetchImplementation, requestUrl, options, 'UI_ASSET_REQUEST');
+  let assetOrigin = new URL(requestUrl).origin;
   if (response.status === 302) {
     const url = validateAssetRedirect(response.headers.get('location'), 'github');
     // The signed CDN URL stays in memory. Neither API credentials nor cookies are forwarded.
@@ -155,7 +177,19 @@ async function downloadPublicGithubArchive(fetchImplementation) {
   requireFact(response.status === 200, 'UI_ASSET_DOWNLOAD_HTTP_' + response.status);
   const bytes = await boundedBody(response, PIN.bytes, 'UI_ASSET_DOWNLOAD_SIZE');
   const proof = verifyArchive(bytes);
-  return { bytes, proof: { ...proof, platform: 'github', authenticatedApi: false, credentialsForwardedToCdn: false, apiOrigin: 'https://api.github.com', assetOrigin, releaseId: String(release.id), assetId: String(asset.id) } };
+  return { bytes, proof: {
+    ...proof,
+    platform: 'github',
+    authenticatedApi: false,
+    credentialsForwardedToCdn: false,
+    apiOrigin: releaseApiVerified ? 'https://api.github.com' : null,
+    assetOrigin,
+    releaseId: String(releaseId),
+    assetId: String(assetId),
+    releaseApiVerified,
+    releaseApiStatus,
+    canonicalDownload: requestUrl === PIN.canonicalUrl,
+  } };
 }
 
 /** Only the explicit legacy CNB branch receives the credential. No child process receives it. */

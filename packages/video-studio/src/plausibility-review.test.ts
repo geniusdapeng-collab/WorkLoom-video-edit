@@ -89,6 +89,19 @@ describe("实体与物理常识审核 agent", () => {
     expect(typed.character?.wardrobes).toHaveLength(2);
     expect(typed.shots[0]).toMatchObject({ wardrobeId: "w2", costume: "本镜启用 w2 赛道装备" });
   });
+  it("商品所有者的 exact-copy 裁定完整进入审核事实", () => {
+    const context = buildPlausibilityContext({
+      ...baseContext,
+      products: [{
+        ...baseContext.products[0]!,
+        reviewStatus: "owner-confirmed",
+        referencePolicy: "exact-copy",
+        ownerDecision: "用户给什么就用什么，商品图原样复刻",
+      }],
+    });
+    expect(JSON.stringify(context)).toContain('"referencePolicy":"exact-copy"');
+    expect(JSON.stringify(context)).toContain("用户给什么就用什么");
+  });
 
   it("解析模型输出：blocker/warning 与提示词补丁；结构非法即抛错（上层 fail-closed）", () => {
     const parsed = parsePlausibilityAnswer(JSON.stringify({

@@ -4,6 +4,7 @@ import {
   TARGET_DURATION_TOLERANCE_SECONDS,
   withinTargetDurationTolerance,
 } from "./duration-contract.js";
+import { deriveProductionIntentContract, productionIntentPrompt, type ProductionIntentContract } from "./intent-continuity.js";
 
 export type RequirementRecord = Record<string, unknown>;
 export const REQUIREMENT_CONTRACT_VERSION = "workloom.requirement-contract/v1";
@@ -700,6 +701,11 @@ export function verifiedRequirementContract(listValue: unknown, metadataValue: u
 
 export function renderRequirementContract(contract: RequirementContract, metadata: RequirementRecord): string {
   const brief = metadata.brief === undefined ? {} : requirementRecord(metadata.brief, "Brief");
+  const intent = deriveProductionIntentContract({
+    rawIntent: metadata.customerOriginalIntent,
+    brief,
+    creativeContext: contract,
+  });
   const characters = contract.cast.characters.map(character => `- ${String(character.name)}（ID ${String(character.id)}；角色 ${String(character.role)}）`);
   const scenes = contract.scenes.map(scene => `### ${scene.id}（${scene.duration}s）\n\n${scene.purpose}\n\n关键元素：${scene.keyElements.join("、")}\n\n来源：${scene.source}`);
   const props = contract.props.map(prop => `- ${prop.name}：${prop.description}（来源 ${prop.source}）`);
@@ -715,7 +721,14 @@ export function renderRequirementContract(contract: RequirementContract, metadat
     + `- 模型受众细分仅为推测，不覆盖客户 Brief，不构成真实市场数据。\n`
     + `- 时长 ${String(brief.duration ?? "未指定")}s / 画幅 ${String(brief.aspectRatio ?? brief.aspect_ratio ?? "未指定")} / 平台 ${String(brief.platform ?? "未指定")}\n`
     + `- 合同摘要：${contract.hash}；场景结构摘要：${contract.sceneStructureHash}\n`
-    + `- 商品事实是否已被本次审核覆盖，仍由真实 G3 结合宿主提供的本次 G1 证据判断；本合同不产生事实通过凭据。\n`;
+    + `- 商品事实是否已被本次审核覆盖，仍由真实 G3 结合宿主提供的本次 G1 证据判断；本合同不产生事实通过凭据。\n`
+    + `\n## 六、需求意图延续合同\n\n`
+    + `合同摘要：${intent.contractSha256}；来源根摘要：${intent.sourceRootSha256}。`
+    + "以下客户原文条款必须在后续 PRD、逐镜提示词、提交门、后期策略与交付清单中持续生效，不能被模型默认值静默覆盖。\n\n"
+    + (intent.directives.length > 0
+      ? intent.directives.map((directive) => `- [${directive.category}｜${directive.id}] ${directive.statement}（来源 ${directive.sourcePath}）`).join("\n")
+      : "- 未从当前客户原文提取到需要额外机检的硬条款；原始 Brief 仍完整有效。")
+    + `\n\n运动意图：${intent.motion.profile}${intent.motion.requiresAcceleration ? "；成片必须复核速度变化，帧差只作筛查，不证明物理真实。" : "。"}\n`;
 }
 
 export function structuredSceneInstructions(cast: RequirementCast, audience: unknown, segments?: FrozenSegmentContract): string {
@@ -777,7 +790,13 @@ export function structuredSceneTiming(schemaValue: unknown, targetDuration: numb
 }
 
 /** Correct only the pinned vendor-generated suffix, never matching customer text. */
-export function structuredScenePrompt(value: unknown, inputValue: unknown, schemaValue: unknown, segments?: FrozenSegmentContract): string {
+export function structuredScenePrompt(
+  value: unknown,
+  inputValue: unknown,
+  schemaValue: unknown,
+  segments?: FrozenSegmentContract,
+  intentContract?: ProductionIntentContract,
+): string {
   if (typeof value !== "string") throw new RequirementContractError("REQUIREMENT_VENDOR_UNAVAILABLE", "原始场景 prompt 不是文本");
   const input = requirementRecord(inputValue, "SceneArchitect 输入");
   const duration = input.duration_sec || 45, target = Number(duration);
@@ -821,7 +840,7 @@ ${example}
     // Genre grammar and the generic suffix can both contradict explicit cuts.
     const header = `你是一位电影导演，正在为AI视频生成系统设计场景结构。每个场景的设计要回答三个问题：观众看到了什么？观众感受到了什么？观众为什么继续看下去？\n\n视频类型: ${input.type}\n核心主题: ${input.theme}\n目标时长: ${duration}秒\n情绪基调: ${input.tone || "未指定"}\n主题描述: ${input.description || "未提供"}\n\n`;
     if (!value.startsWith(header)) throw new RequirementContractError("REQUIREMENT_VENDOR_UNAVAILABLE", "原始场景输入字段边界发生变化");
-    return header + `## 本次冻结分段合同（精确硬切）\n${JSON.stringify(segments)}\n`
+    const prompt = header + `## 本次冻结分段合同（精确硬切）\n${JSON.stringify(segments)}\n`
       + "按区间顺序把首段写入 opening，中间段按时间顺序写入 scenes（index 从 1 连续编号），末段写入 ending。"
       + "高潮、节奏变化、机位变化、留白和收束全部放在现有分段内部，严禁另加节点、重叠或改变时长。逐段写出完整、可拍的画面与动作，不强制台词。"
       + "按实际 schema 输出一个完整 JSON 对象，禁止代码围栏和解释。\n"
@@ -829,6 +848,13 @@ ${example}
       + `本次 JSON 结构示例（占位内容必须替换）：\n${frozenSceneExample(segments)}\n`
       + "仅参考 JSON 的键、嵌套和转义。每个区间的画面、道具、动作、动作主体及情绪都按完整客户要求创作；示例中的占位文本不得出现在结果中。"
       + "字符串内需要双引号或换行时必须合法转义；提交前检查引号、逗号、对象和数组闭合。\n";
+    return prompt + (intentContract
+      ? `\n${productionIntentPrompt(intentContract, { stage: "scene-architect", maxChars: 2600 })}\n`
+        + "逐节点 productionContract.actions 必须落实上述权威意图；不得用通用默认词替代客户明确要求。"
+        + (intentContract.motion.requiresAcceleration
+          ? "本片要求高燃动作时，禁止把关键动作改写成恒速巡航、平稳跟拍、轻微收油或无加速。"
+          : "") + "\n"
+      : "");
   }
   const timing = structuredSceneTiming(schemaValue, target);
   const fallingMinimum = Math.max(3, timing.middle.minimum), fallingMaximum = Math.min(6, timing.middle.maximum);
@@ -844,7 +870,14 @@ ${example}
     + `逐节点内容、数量和时长仍由本次模型创作，输出前核对节点数与时长之和；不得用预制节点或返回后补值替代。`;
   const exampleAt = suffix.indexOf(example);
   return value.slice(0, value.length - suffix.length) + guidance
-    + suffix.slice(countLine.length, exampleAt) + contract + correctedTail;
+    + suffix.slice(countLine.length, exampleAt) + contract + correctedTail
+    + (intentContract
+      ? `\n\n${productionIntentPrompt(intentContract, { stage: "scene-architect", maxChars: 2600 })}\n`
+        + "逐节点 productionContract.actions 必须落实上述权威意图；发现客户意图与通用模板冲突时，以客户意图为准，不得静默改用默认节奏。"
+        + (intentContract.motion.requiresAcceleration
+          ? "客户要求高燃动作时，动作必须写出可辨的加速、追近、并排、超越或冲线过程。"
+          : "")
+      : "");
 }
 
 /** Extend the schema supplied to the existing SceneArchitect run, preserving its other fields. */

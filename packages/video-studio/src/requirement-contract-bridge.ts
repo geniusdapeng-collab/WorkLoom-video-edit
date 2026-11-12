@@ -15,6 +15,7 @@ import {
 } from "./llm-adapter.js";
 import { parseStrictSceneJsonObject, recoverSceneJsonMissingSeparators } from "./scene-json-comma-recovery.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
+import { deriveProductionIntentContract } from "./intent-continuity.js";
 import {
   qualifyRequirementThemeInput, requirementAuthorityFailure, requirementAuthorityPrompt, scopedRequirementEngine,
   type RequirementAuthorityOptions
@@ -804,7 +805,12 @@ export function installRequirementContractBridge(
         runView._buildPrompt = function (this: RequirementRecord, input: unknown) {
           requireActiveScope();
           const original = Reflect.apply(build, this, [input]);
-          return structuredScenePrompt(original, input, effectiveSchema, segments)
+          const intentContract = deriveProductionIntentContract({
+            rawIntent: scope.metadata.customerOriginalIntent,
+            brief: scope.metadata.brief,
+            creativeContext: input,
+          });
+          return structuredScenePrompt(original, input, effectiveSchema, segments, intentContract)
             + structuredSceneInstructions(cast, audience(scope), segments)
             + (segments && scope.sceneResponsesSchema ? strictSceneJsonPresentation : "") + attemptFeedback;
         };

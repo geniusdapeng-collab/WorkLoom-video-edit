@@ -9,6 +9,9 @@
 import { describe, expect, it } from "vitest";
 import {
   MATERIAL_MOTION_POLICY,
+  MATERIAL_INTENT_PROMPT_MAX_CHARS,
+  MATERIAL_PROVIDER_CORE_PROMPT_MAX_CHARS,
+  MATERIAL_PROVIDER_PROJECTION_MARKER,
   MATERIAL_POLICY_STATEMENT,
   MATERIAL_REUSE_POLICY,
   MATERIAL_SCENE_POLICY_STATEMENT,
@@ -24,6 +27,7 @@ import {
   isMaterialShot,
   readMaterialSpec
 } from "./material-policy.js";
+import { auditProductionIntentPrompt, deriveProductionIntentContract } from "./intent-continuity.js";
 
 const baseShot = {
   shotId: "SC-02",
@@ -95,7 +99,8 @@ describe("素材镜生成提示词", () => {
     expect(prompt).toContain("禁止静态直出");
     expect(prompt).toContain("不得整幅不变");
     expect(prompt).toContain("9:16");
-    expect(prompt).toContain("无水印、无字幕");
+    expect(prompt).toContain("生成画面内无水印");
+    expect(prompt).toContain("持续提示");
   });
 
   it("没有退化标记（NaN/undefined/[object Object]）", () => {
@@ -114,11 +119,75 @@ describe("素材镜生成提示词", () => {
   it("商品素材模式不继承地标模板，并保留真实商品标识", () => {
     const productPrompt = buildMaterialScenePrompt(baseShot, { referenceMode: "product" });
     expect(productPrompt).toContain("身份和外观依据");
+    expect(productPrompt).toContain("实景依据");
     expect(productPrompt).toContain("商品结构、比例与涂装分区");
     expect(productPrompt).toContain("真实商品已有标识必须保留");
     expect(productPrompt).not.toContain("匾额与牌匾文字");
     expect(productPrompt).not.toContain("地标/建筑");
     expect(productPrompt).not.toContain("无 LOGO");
+  });
+  it("结构化镜头用可校验短投影覆盖冲突旧别名，并完整保留速度、w2 与 exact-copy", () => {
+    const projectIntent = deriveProductionIntentContract({
+      rawIntent: "李英子穿 w2 赛车服，在封闭赛道全程高燃、持续加速并快速追近。",
+      brief: { tone: "全程高燃、极速竞技", requirements: "商品参考图原样复刻，不删除已有标识" },
+    });
+    const shot = {
+      ...baseShot,
+      shotId: "opening",
+      sourceContractSha256: "a".repeat(64),
+      character: "李英子",
+      wardrobeId: "w2",
+      costume: "w2 全覆保护赛车服，封闭面罩全盔",
+      product: "820RR-RC",
+      productRef: { id: "zxmoto-820rr-rc", reviewStatus: "owner-confirmed" },
+      motionProfile: "speed-ramp",
+      props: "旧别名：ZXMOTO 只能出现在侧整流罩，车尾不得保留已有贴花",
+      fields: {
+        character: "李英子，成年原创虚构人物",
+        costume: "w2 全覆保护赛车服，封闭面罩全盔",
+        consistency: "同一人物、同一 w2 服装、同一车辆，不换人、不换装",
+        scene: "封闭赛道冷灰沥青长直道，阴天午后",
+        lighting: "6500K 阴天漫射主光",
+        action: "李英子压低身体持续加速，快速追近前车群",
+        pacing: "持续加速，速度连续抬升",
+        camera_movement: "低机位左后追车，真实三维视差",
+        composition: "主角车压画面下三分之一，前方车辆快速变大",
+        timeline: "4 秒内持续加速与追近，不切镜",
+        props: "商品参考为唯一外观权威，所有既有标识按原位置原比例保留",
+        color_palette: "冷灰环境，橙蓝涂装不改色",
+        audio: "发动机、换挡、胎噪与风切原生声",
+        negative: "无人驾驶、换人、删标、改色",
+      },
+    };
+    const prompt = buildMaterialScenePrompt(shot, { referenceMode: "product", projectIntent, productExactCopy: true });
+    expect(prompt).toContain(MATERIAL_PROVIDER_PROJECTION_MARKER);
+    expect(prompt.length).toBeLessThanOrEqual(MATERIAL_PROVIDER_CORE_PROMPT_MAX_CHARS);
+    expect(prompt).toContain("w2 全覆保护赛车服");
+    expect(prompt).toContain("持续加速");
+    expect(prompt).toContain("参考图已有的品牌名、号码、赞助标识");
+    expect(prompt).not.toContain("只能出现在侧整流罩");
+    expect(prompt).toContain("directiveSetSha256=");
+    expect(auditProductionIntentPrompt(projectIntent, prompt, shot, { compact: true }).ok).toBe(true);
+  });
+  it("完整高燃项目的全部适用意图ID可进入素材镜，不再被旧1000字符预算误拦", () => {
+    const requirements = Array.from({ length: 140 }, (_, index) =>
+      `硬约束${index + 1}：保持镜头${index + 1}的动作、人物、商品和声音连续`);
+    const projectIntent = deriveProductionIntentContract({
+      rawIntent: "李英子骑同一辆 820RR-RC 在封闭赛道全程高燃、极速追近、并排超越并冲线。",
+      brief: { tone: "全程高燃", requirements, productionRequirements: { nativeAudio: true } },
+    });
+    const prompt = buildMaterialScenePrompt({
+      ...baseShot,
+      character: "李英子",
+      wardrobeId: "w2",
+      costume: "w2 赛车服",
+      product: "820RR-RC",
+      productRef: { id: "zxmoto-820rr-rc" },
+    }, { referenceMode: "product", projectIntent });
+    expect(MATERIAL_INTENT_PROMPT_MAX_CHARS).toBe(5000);
+    expect(prompt).toContain(projectIntent.contractSha256);
+    for (const directive of projectIntent.directives) expect(prompt).toContain(directive.id);
+    expect(prompt.length).toBeGreaterThan(1000);
   });
 
   it("平稳运镜保持意图，不被升级成速度坡道", () => {

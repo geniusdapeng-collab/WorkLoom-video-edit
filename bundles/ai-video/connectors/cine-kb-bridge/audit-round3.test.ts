@@ -5,9 +5,10 @@
  * ③ 规则顺序（蓝调时刻被"电影感夜景"抢位）；④ "镜面倒影"触发词过宽（水下/冰面/产品白背景都命中）。
  */
 import { describe, expect, it } from "vitest";
+import { fileURLToPath } from "node:url";
 import { enrichShotCard, loadKb, recommendAperture } from "./core.mjs";
 
-const kb = loadKb(new URL("../../library/cinematography-kb", import.meta.url).pathname);
+const kb = loadKb(fileURLToPath(new URL("../../library/cinematography-kb", import.meta.url)));
 const light = (card: Record<string, unknown>): string =>
   (enrichShotCard(kb, card).trace.applied.find((a) => a.field === "lighting")?.added ?? "");
 const props = (card: Record<string, unknown>): string =>

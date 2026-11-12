@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, closeSync, constants as fsConstants, copyFileSync, existsSync, fsyncSync, linkSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import ts from "typescript-governance";
@@ -105,6 +105,16 @@ const emptyShot = { shotId: "EMPTY", duration: 10, scene: "无人的办公室空
 const windowShot = { shotId: "PERSON", duration: 10, scene: "人物站在木质窗边的白天室内", action: "看着远处", character: "演员甲", lighting: "右侧窗光" };
 
 describe("全链路镜头增强真实消费", () => {
+  it("商品声明的人物镜在人物与可见性初始化后才校验商品锚点", () => {
+    const run = runChain([{ ...windowShot, character: "李英子" }], {
+      stages: "plates",
+      source: { products: ["zxmoto-820rr-rc"] },
+      args: ["--accept-env-defects"],
+    });
+    expect(run.result.status, run.diagnostic).not.toBe(0);
+    expect(run.diagnostic).toContain("PRODUCT_REFERENCE_REQUIRED");
+    expect(run.diagnostic).not.toContain("Cannot access 'usePortraitRefs' before initialization");
+  }, 40_000);
   it("无人物与商品定妆照的镜头可使用场地参考回退，不访问块外变量", () => {
     const dir = mkdtempSync(join(tmpdir(), "video-render-fallback-")); temporary.push(dir);
     const shotsFile = join(dir, "shots.json");
@@ -548,7 +558,13 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
   writeFileSync(front, Buffer.alloc(60_003, 5)); writeFileSync(closeup, Buffer.alloc(60_005, 6));
   const images = [front, closeup].map((path, index) => ({ url: `data:image/png;base64,${readFileSync(path).toString("base64")}`, purpose: index ? "portrait-closeup" : "portrait-front",
     characterId: "fictional-adult", characterVersion: 2, angle: index ? "closeup" : "front", artifact: { path, sha256: mediaSha256(path), bytes: readFileSync(path).length, mime: "image/png" } }));
-  const shot = { shotId: "S1", duration: 13, character: "原创成年人物", ...(kind === "material" ? { photo } : {}), ...(kind === "asset" ? { assetRef: "asset://authorized-fixture-id" } : {}) };
+  const shot = { shotId: "S1", duration: 13, character: "原创成年人物",
+    ...(kind === "material" ? {
+      photo,
+      props: "旧别名：只允许侧整流罩出现既有标识",
+      fields: { props: "结构化事实：参考图既有标识按原位原比例保留" },
+    } : {}),
+    ...(kind === "asset" ? { assetRef: "asset://authorized-fixture-id" } : {}) };
   writeFileSync(join(plateDir, "S1-plate.png"), Buffer.alloc(60_007, 7));
   writeFileSync(join(promptDir, "S1.txt"), `【约束】9:16 ${"正式原始镜头提示词，保持完整叙事与原生声音。".repeat(75)}`);
   const rows: Card[] = [], gates: Card[] = [], paidBodies: Card[] = [], snapshots = new Map(), accepted: Card[] = [], reviews: Card[] = [];
@@ -604,14 +620,51 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     readStageHistory: () => [], findRenderedShotAcceptance: () => null,
     preflightSubmitGuard: (input: Card) => { if (kind === "material") expect(input.prompt).toContain("真正提交应包含这条最终常识补丁"); },
     retryInstruction: () => { throw new Error("PAID_POST_MUST_NOT_RETRY"); }, motionPolicyForShot: () => ({ intent: "ordinary" }),
+    PRODUCTION_INTENT: { schemaVersion: "workloom.production-intent-contract/v1", contractSha256: fixtureSha("isolated-intent"),
+      sourceRootSha256: fixtureSha("isolated-intent-source"), directives: [], sources: [],
+      motion: { profile: "unspecified", highEnergy: false, actionDriven: false, requiresAcceleration: false, evidence: [] } },
+    auditProductionIntentPrompt: () => ({ ok: true, contractSha256: fixtureSha("isolated-intent"), requiredDirectiveIds: [], issues: [] }),
+    dialogueText: () => "", MATERIAL_SPEED_RAMP: false,
     applySpeedRamp: () => { throw new Error("UNREQUESTED_RETIME"); }, applyCameraMovePunchCut: () => { throw new Error("UNREQUESTED_CAMERA_MOVE"); },
   };
-  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "renderSecondsFor", "productSelectorOf", "plausibilityArchiveFor", "shotFieldText", "wardrobeIdForShot", "productReferenceInputs", "personRequirementForSubmission", "auditShotReferenceAnchors", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
+  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishRenderedClip", "portraitReferenceClauseFor", "renderSecondsFor", "productSelectorOf", "plausibilityArchiveFor", "shotFieldText", "wardrobeIdForShot", "verifiedSyntheticPortraitSource", "declaredSourceCharacterId", "productReferenceInputs", "personRequirementForSubmission", "auditShotReferenceAnchors", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
   const execute = () => evaluateCurrent(`(async()=>{${functions}\n${kind === "material" ? parts.material : parts.videos}\n})()`, context) as Promise<void>;
   return { dir, execute, context, gates, paidBodies, rows, accepted, reviews, get posts() { return posts; }, get gets() { return gets; }, images, front, closeup };
 }
 
 describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供应商，不代表生产通过）", () => {
+  it("显式角色库覆盖随仓默认人物，默认库仍可解析未覆盖角色", () => {
+    const fn = currentCliParts().fn("characterLibraryRoots");
+    const context = { REPO_ROOT: "/repo", LIBRARY: "/project/characters", join, resolve };
+    expect(evaluateCurrent(`${fn}; characterLibraryRoots()`, context)).toEqual([
+      "/repo/bundles/ai-video/library/characters",
+      "/project/characters",
+    ]);
+    expect(evaluateCurrent(`${fn}; characterLibraryRoots()`, {
+      ...context,
+      LIBRARY: "/repo/bundles/ai-video/library/characters",
+    })).toEqual(["/repo/bundles/ai-video/library/characters"]);
+  });
+  it("合成人物的服装定妆版可用字符库内当前字节锚点，不能接受真人来源或库外锚点", () => {
+    const dir = mkdtempSync(join(tmpdir(), "current-portrait-source-")); temporary.push(dir);
+    const front = join(dir, "portraits/v3/front.png"); mkdirSync(dirname(front), { recursive: true }); writeFileSync(front, Buffer.alloc(60_001, 3));
+    const context = { resolve, relative, isAbsolute, sep, existsSync, readPortraitArtifact };
+    const verify = currentCliParts().fn("verifiedSyntheticPortraitSource");
+    const current = (source: string, anchors?: string[]) => ({ id: "fictional-adult", kind: "generated", dir,
+      activeSet: { source, ...(anchors ? { anchors } : {}) }, verification: { status: "passed" } });
+    expect(evaluateCurrent(`${verify}; verifiedSyntheticPortraitSource(current)`, { ...context, current: current("pure-t2i") })).toBe(true);
+    expect(evaluateCurrent(`${verify}; verifiedSyntheticPortraitSource(current)`, { ...context, current: current("img2img", ["portraits/v3/front.png"]) })).toBe(true);
+    expect(evaluateCurrent(`${verify}; verifiedSyntheticPortraitSource(current)`, { ...context, current: current("img2img") })).toBe(false);
+    expect(evaluateCurrent(`${verify}; verifiedSyntheticPortraitSource(current)`, { ...context, current: current("img2img", ["../outside.png"]) })).toBe(false);
+    expect(evaluateCurrent(`${verify}; verifiedSyntheticPortraitSource(current)`, { ...context, current: current("real-authorized", ["portraits/v3/front.png"]) })).toBe(false);
+  });
+  it("单元素characters声明可作为唯一出镜人，多人或缺失仍拒绝", () => {
+    const verify = currentCliParts().fn("declaredSourceCharacterId");
+    expect(evaluateCurrent(`${verify}; declaredSourceCharacterId()`, { sourceDocument: { characters: [{ id: "young-rider-01" }] } })).toBe("young-rider-01");
+    expect(evaluateCurrent(`${verify}; declaredSourceCharacterId()`, { sourceDocument: { character: { id: "explicit-id" }, characters: [{ id: "other" }] } })).toBe("explicit-id");
+    expect(evaluateCurrent(`${verify}; declaredSourceCharacterId()`, { sourceDocument: { characters: [{ id: "a" }, { id: "b" }] } })).toBeUndefined();
+    expect(evaluateCurrent(`${verify}; declaredSourceCharacterId()`, { sourceDocument: {} })).toBeUndefined();
+  });
   it("商品人物镜实际material分支提交两张原图+商品reference，补丁最终prompt与G-MAT1摘要一致", async () => {
     const f = currentSubmissionFixture("material"); await f.execute();
     expect(f.posts).toBe(1); expect(f.gets).toBe(1); const body = f.paidBodies[0]!;
@@ -623,6 +676,7 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
     expect(evidence.videoInputMode).toBe("reference-image"); expect(evidence.wireRequestSha256).toBe(fixtureSha(JSON.stringify(body)));
     expect(evidence.promptSha256).toBe(fixtureSha(String(content[0]!.text)));
     expect((f.reviews[0]!.images as Array<Card>)[0]!.path).toBe(join(f.dir, "plates/S1-material.jpg"));
+    expect(((f.reviews[0]!.shots as Array<Card>)[0]!).props).toBe("结构化事实：参考图既有标识按原位原比例保留");
     expect(f.accepted.length).toBe(2); expect(JSON.stringify(f.accepted)).toContain("ack.json");
   });
   it.each(["block", "unverified"] as const)("material常识%s在付费前停止，0视频POST", async (verdict) => {
@@ -634,7 +688,7 @@ describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供�
     expect((body.content as Array<Card>).slice(1).map((part) => part.role)).toEqual(["reference_image", "reference_image"]);
     const gate = f.gates.find((entry) => entry.stepKey === "g8-render-submit")!; const evidence = gate.evidence as Card;
     expect(evidence.plateUsage).toBe("preproduction-only"); expect(evidence.wireRequestSha256).toBe(fixtureSha(JSON.stringify(body)));
-    expect(f.accepted).toHaveLength(1);
+    expect(f.accepted).toHaveLength(2);
   });
   it("普通镜MAX_ATTEMPTS=3遇供应商终态失败也只POST一次，保留真实task", async () => {
     const f = currentSubmissionFixture("normal", "pass", "failed"); await expect(f.execute()).rejects.toThrow("VIDEO_SHOT_NOT_COMPLETED");
@@ -707,7 +761,7 @@ function portraitOriginalFixture() {
     resolve, join, basename: (path: string) => path.split("/").at(-1),
   };
   const parts = currentCliParts();
-  const execute = () => evaluateCurrent(`${parts.fn("videoImage")}\n${parts.fn("leadVisibleInShot")}\n${parts.fn("shotFieldText")}\n${parts.fn("wardrobeIdForShot")}\n${parts.fn("portraitVideoInputs")}\nportraitVideoInputs({shotId:"S1"})`, context) as { images: Array<{ url: string; artifact: { path: string; sha256: string; bytes: number } }>; paths: string[] };
+  const execute = () => evaluateCurrent(`${parts.fn("videoImage")}\n${parts.fn("leadVisibleInShot")}\n${parts.fn("shotFieldText")}\n${parts.fn("wardrobeIdForShot")}\n${parts.fn("verifiedSyntheticPortraitSource")}\n${parts.fn("declaredSourceCharacterId")}\n${parts.fn("portraitVideoInputs")}\nportraitVideoInputs({shotId:"S1"})`, context) as { images: Array<{ url: string; artifact: { path: string; sha256: string; bytes: number } }>; paths: string[] };
   return { dir, execute, context, artifacts, profile };
 }
 
