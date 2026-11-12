@@ -214,6 +214,9 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
         contentType: response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() ?? null,
         providerErrorCode,
       }));
+      if (providerErrorCode === "AccountOverdueError" || providerErrorCode === "OperationDenied.ServiceOverdue") {
+        throw new BudgetError("BUDGET_ACCOUNT_OVERDUE", 403);
+      }
       throw new BudgetError("BUDGET_UPSTREAM_HTTP_UNVERIFIED", 502);
     }
     const body = await upstreamBody(response);
@@ -228,6 +231,7 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
   function freezeOutcome(store: BudgetJournal, hash: string, error: unknown): never {
     const reason = error instanceof BudgetError ? error.code : "BUDGET_UPSTREAM_TRANSPORT_UNKNOWN";
     store.freeze(hash, reason);
+    if (error instanceof BudgetError && error.code === "BUDGET_ACCOUNT_OVERDUE") throw error;
     throw new BudgetError("BUDGET_OUTCOME_UNKNOWN", 502);
   }
 

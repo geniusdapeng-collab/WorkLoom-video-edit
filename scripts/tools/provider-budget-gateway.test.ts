@@ -380,20 +380,27 @@ describe("task-local provider budget gateway", () => {
     expect(readFileSync(first.journalPath, "utf8")).not.toMatch(/do not|unknown paid receipt/);
   });
 
-  it("logs only the safe provider error code when an upstream JSON rejection is unverified", async () => {
+  it("surfaces a confirmed account-overdue rejection without leaking provider details", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
       const upstream = vi.fn(async () => Response.json({
         error: { code: "AccountOverdueError", message: "private billing detail and URL https://example.test/secret" },
       }, { status: 403 }));
       const { server } = await gate(upstream, { scope: videoScope });
-      expect(code(await call(server, ARK_VIDEO_PATH, video()))).toBe("BUDGET_OUTCOME_UNKNOWN");
+      const rejected = await call(server, ARK_VIDEO_PATH, video());
+      expect(rejected.status).toBe(403);
+      expect(code(rejected)).toBe("BUDGET_ACCOUNT_OVERDUE");
       expect(error).toHaveBeenCalledTimes(1);
       const diagnostic = String(error.mock.calls[0]?.[0] ?? "");
       expect(diagnostic).toContain('"status":403');
       expect(diagnostic).toContain('"providerErrorCode":"AccountOverdueError"');
       expect(diagnostic).not.toContain("private billing detail");
       expect(diagnostic).not.toContain("example.test");
+      expect((await call(server, "/budget/status")).data).toMatchObject({
+        state: "frozen",
+        frozen: "BUDGET_ACCOUNT_OVERDUE",
+        held: true,
+      });
       expect(upstream).toHaveBeenCalledTimes(1);
     } finally {
       error.mockRestore();
