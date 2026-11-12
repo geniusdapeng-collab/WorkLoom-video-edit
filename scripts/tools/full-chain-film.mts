@@ -51,10 +51,16 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import YAML from "yaml";
 import { filmReviewContracts, loadOrCreateFilmAuthorContext, reviewFilmStage, isPostRenderFilmStage, postRenderFilmStageVerdict } from "../../packages/video-studio/src/film-contracts.js";
 import { acceptRenderedShot, findRenderedShotAcceptance, RENDERED_SHOT_ACCEPTANCE_POLICY, type RenderedShotAcceptance } from "../../packages/video-studio/src/rendered-shot-acceptance.js";
-import { buildProducerReviewContract, type ProducerGateOptions } from "../../packages/video-studio/src/producer-gate.js";
+import { buildProducerReviewContract, reviewStage as reviewProducerStage, type ProducerGateOptions } from "../../packages/video-studio/src/producer-gate.js";
+import {
+  auditReferenceAnchors,
+  type PersonReferenceRequirement,
+  type ProductReferenceRequirement,
+  type ReferenceAnchorReport,
+} from "../../packages/video-studio/src/reference-anchor-contract.js";
 import { assessPortraitDecision, selectPortraitDecisionRecord } from "../../packages/video-studio/src/portrait-decision.js";
-import { hasExplicitPortraitAuthorization, verifyPortraitOwnerAuthorization, type PortraitOwnerAuthorization } from "../../packages/video-studio/src/portrait-owner-authorization.js";
-import { loadCharacterEntry, readPortraitArtifact, resolveShotCast } from "../../packages/video-studio/src/character-archive.js";
+import { hasExplicitPortraitAuthorization, verifyPortraitOwnerAuthorization } from "../../packages/video-studio/src/portrait-owner-authorization.js";
+import { loadCharacterEntry, readPortraitArtifact, resolveShotCast, selectPortraitWardrobe } from "../../packages/video-studio/src/character-archive.js";
 import { buildVideoSubmissionRequest, type VideoSubmissionImage, type VideoSubmissionRequest } from "../../packages/video-studio/src/video-submission-request.js";
 import { runVideoSubmission, readVideoSubmissionRecovery, verifyVideoSubmissionArtifacts, type VideoSubmissionArtifact, type VideoSubmissionResult } from "../../packages/video-studio/src/video-submission-task.js";
 import { executeRevision } from "../../packages/video-studio/src/revision-executor.js";
@@ -988,13 +994,15 @@ function hasRenderedSource(shotId: string): boolean {
   return true;
 }
 function recordRenderedSource(shotId: string, file: string, receipt: RenderedShotAcceptance,
-  options: { stage?: "shot" | "material-gen"; invoked?: boolean; cached?: boolean; ms?: number; attempt?: number; submission?: VideoSubmissionResult["receipt"]; submissionPlan?: VideoSubmissionRequest } = {}): void {
+  options: { stage?: "shot" | "material-gen"; invoked?: boolean; cached?: boolean; ms?: number; attempt?: number;
+    submission?: VideoSubmissionResult["receipt"]; submissionPlan?: VideoSubmissionRequest; referenceAnchorAudit?: ReferenceAnchorReport } = {}): void {
   const stage = options.stage ?? "shot";
   rememberInputs(stage, [...receipt.sourceInputs.map((input) => input.path), file], shotId);
   const row = record({ stage, shotId, invoked: options.invoked ?? false, ok: true,
     cached: options.cached ?? true, degraded: false, attempt: options.attempt ?? 0, ms: options.ms ?? 0,
     artifact: file, evidence: { taskId: receipt.taskId, providerStatus: "succeeded", renderedShotAcceptance: receipt,
       qualityReviewed: false, qualityScore: null, policy: RENDERED_SHOT_ACCEPTANCE_POLICY,
+      ...(options.referenceAnchorAudit ? { referenceAnchorAudit: options.referenceAnchorAudit } : {}),
       ...(options.submission && options.submissionPlan ? { videoSubmission: { ...options.submission, mode: options.submissionPlan.mode, promptSha256: options.submissionPlan.promptSha256, inputs: options.submissionPlan.inputs } } : {}) }, verdict: null,
     note: "供应商成功产物默认接受，直接进入正式后期；未做身份/造型/动作/台词品质裁决" });
   if (!row.ok) throw new Error(`RENDERED_SOURCE_RECEIPT_FAILED: ${shotId}: ${row.lineage?.errors.join(";")}`);
@@ -2012,7 +2020,9 @@ const productLibrary = loadProductArchives(PRODUCT_LIBRARY, {
     } catch { return null; }
   }
 });
-const productSelectorOf = (shot: ShotCard): string => String((shot as Record<string, unknown>).product ?? "").trim();
+function productSelectorOf(shot: ShotCard): string {
+  return String((shot as Record<string, unknown>).product ?? "").trim();
+}
 const declaredProducts = Array.isArray((shotlist as Record<string, unknown>).products) ? ((shotlist as Record<string, unknown>).products as unknown[]).map((item) => String(item).trim()).filter(Boolean) : [];
 const declaredCompany = String((shotlist as Record<string, unknown>).company ?? "").trim();
 const declaredBrand = String((shotlist as Record<string, unknown>).brand ?? "").trim();
@@ -2090,6 +2100,20 @@ for (const shot of preRenderShots) {
     priority: match.archive.source.priority, matchedBy: String(match.matchedBy), photoFile: photoAbs, photoSha256: hero.sha256, bound
   });
   log(`真实商品绑定 ${shot.shotId} ← ${match.archive.id}（${match.archive.source.kind}，priority=${match.archive.source.priority}）主图 ${hero.file}`);
+}
+/**
+ * A project that declares products cannot render a person shot without the
+ * product anchor. This prevents "person reference present, product silently
+ * absent" and the inverse drift where the model invents the product.
+ */
+if (needsNewRender && declaredProducts.length > 0) {
+  const missingProductAnchor = pendingShots()
+    .filter((shot) => leadVisibleInShot(shot) && !productSelectorOf(shot))
+    .map((shot) => String(shot.shotId));
+  if (missingProductAnchor.length > 0) {
+    throw new Error(`PRODUCT_REFERENCE_REQUIRED: 本片声明商品 ${declaredProducts.join("、")}，`
+      + `以下人物镜头没有商品档案/参考图绑定：${missingProductAnchor.join("、")}`);
+  }
 }
 if (productBindings.length > 0) {
   const systemGenerated = productBindings.filter((entry) => entry.sourceKind === "system-generated");
@@ -2254,9 +2278,15 @@ if (strictSourceCast && needsNewRender && (!sourceCast || !Array.isArray(sourceC
  *   ④ 仍然没有 → 用库里第一个（并如实记录，不静默）。
  */
 const characterRegistry = loadCharacterRegistry();
-const usePortraitRefs = flag("--use-portrait-refs");
-let portraitReferenceAuthorization: PortraitOwnerAuthorization | null = null;
-let portraitReferenceAuthorizationPaths: string[] = [];
+/**
+ * Reference anchors are mandatory for newly generated person shots. The old
+ * opt-in flag was the production cause of zero portrait images in a request
+ * even though the prompt contained `image://characters/...`.
+ * `--no-portrait-refs` is accepted only so the submission gate can fail with
+ * a precise diagnostic instead of silently producing an unanchored render.
+ */
+const portraitRefsDisabled = flag("--no-portrait-refs");
+const usePortraitRefs = !portraitRefsDisabled;
 const lead = (() => {
   const list = [...characters.values()];
   const explicitId = shotlist.character?.id ?? "";
@@ -2353,12 +2383,6 @@ if (needsNewRender && !DRY_RUN) {
     if (gateRecord && hasExplicitPortraitAuthorization(gateRecord)) {
       const verified = verifyPortraitOwnerAuthorization(gateRecord, { dir: lead.dir, characterId: lead.id, version: lead.version, files: lead.files });
       acceptanceBytesVerified = verified.ok;
-      if (verified.ok && verified.authorization) {
-        portraitReferenceAuthorization = verified.authorization;
-        portraitReferenceAuthorizationPaths = [join(lead.dir, "profile.json"), join(lead.dir, "gates.jsonl"),
-          join(lead.dir, "reviews", basename(String(gateRecord.evidence?.ownerAcceptance))),
-          ...verified.authorization.artifacts.map((artifact) => resolve(lead.dir, artifact.file))];
-      }
       acceptanceDetail = verified.ok ? `所有者既有用途授权、回执完整SHA256、当前全部${verified.authorization!.artifacts.length}角度及新AI front身份锚一致`
         : `既有用途授权核验失败：${verified.issues.join("；")}`;
     } else {
@@ -2612,28 +2636,102 @@ function leadVisibleInShot(shot: ShotCard): boolean {
   if (resolved.selections.some((selection) => selection.pinnedVersion !== undefined && selection.pinnedVersion !== lead.version)) throw new Error(`PORTRAIT_REFERENCE_VERSION_INVALID: ${shot.shotId}; original card pins another portrait version`);
   return true;
 }
-function portraitVideoInputs(shot: ShotCard): { images: VideoSubmissionImage[]; paths: string[] } {
+function shotFieldText(shot: ShotCard, key: string): string {
+  const card = shot as Record<string, unknown>;
+  const own = card[key];
+  if (typeof own === "string" && own.trim()) return own.trim();
+  const fields = card.fields && typeof card.fields === "object" && !Array.isArray(card.fields)
+    ? card.fields as Record<string, unknown>
+    : {};
+  return typeof fields[key] === "string" ? fields[key].trim() : "";
+}
+function wardrobeIdForShot(shot: ShotCard): string | undefined {
+  const explicit = shotFieldText(shot, "wardrobeId");
+  if (explicit) return explicit;
+  const costume = shotFieldText(shot, "costume");
+  if (!costume || !lead) return lead?.activeWardrobeId ?? undefined;
+  const explicitId = costume.match(/\b(w\d+)\b/i)?.[1];
+  const matches = lead.wardrobes.filter((wardrobe) =>
+    wardrobe.id === explicitId
+    || costume.includes(wardrobe.id)
+    || costume.includes(wardrobe.name)
+    || (wardrobe.detail.length >= 8 && costume.includes(wardrobe.detail)));
+  if (matches.length === 1) return matches[0]!.id;
+  if (matches.length > 1) throw new Error(`PORTRAIT_WARDROBE_AMBIGUOUS: ${shot.shotId}; ${matches.map((item) => item.id).join(",")}`);
+  return lead.activeWardrobeId ?? undefined;
+}
+
+function portraitVideoInputs(shot: ShotCard): {
+  images: VideoSubmissionImage[];
+  paths: string[];
+  person?: PersonReferenceRequirement;
+} {
   if (!leadVisibleInShot(shot)) return { images: [], paths: [] };
-  if (!lead || (sourceDocument.character as { id?: string } | undefined)?.id !== lead.id || !portraitReferenceAuthorization) throw new Error(`PORTRAIT_REFERENCE_AUTHORIZATION_REQUIRED: ${shot.shotId}; explicit source character and verified current owner authorization required`);
-  const current = loadCharacterEntry(lead.dir);
+  if (!lead || (sourceDocument.character as { id?: string } | undefined)?.id !== lead.id) {
+    throw new Error(`PORTRAIT_REFERENCE_AUTHORIZATION_REQUIRED: ${shot.shotId}; explicit source character is required`);
+  }
+  if (portraitRefsDisabled) throw new Error(`PORTRAIT_REFERENCE_DISABLED: ${shot.shotId}; person shots cannot disable reference anchors`);
   const requestedVersion = arg("--portrait-version");
-  if (!current || current.id !== lead.id || current.activeSet?.version !== lead.version || current.verification.status !== "passed"
+  if (requestedVersion && !/^[1-9]\d*$/.test(requestedVersion)) throw new Error(`PORTRAIT_REFERENCE_VERSION_INVALID: ${shot.shotId}; --portrait-version must be a positive integer`);
+  const wardrobeId = wardrobeIdForShot(shot);
+  const current = loadCharacterEntry(lead.dir, {
+    ...(requestedVersion ? { pinnedVersion: Number(requestedVersion) } : {}),
+    ...(wardrobeId ? { wardrobeId } : {}),
+  });
+  if (!current || current.id !== lead.id || !current.activeSet || current.verification.status !== "passed"
     || current.kind !== "generated" || current.activeSet.source !== "pure-t2i"
-    || (requestedVersion && (!/^[1-9]\d*$/.test(requestedVersion) || Number(requestedVersion) !== lead.version))) throw new Error(`PORTRAIT_REFERENCE_VERSION_INVALID: ${shot.shotId}; current generated pure-t2i version must match requested version`);
+    || (requestedVersion && Number(requestedVersion) !== current.activeSet.version)) {
+    const wardrobeHint = wardrobeId ? `；服装 ${wardrobeId} 必须有独立、已验收的定妆照版本` : "";
+    throw new Error(`PORTRAIT_REFERENCE_VERSION_INVALID: ${shot.shotId}; ${current?.verification.issues.join("；") || "当前角色版本无效"}${wardrobeHint}`);
+  }
   const version = current.activeSet.version;
+  const sealedWardrobeId = typeof current.activeSet.wardrobe?.id === "string" ? current.activeSet.wardrobe.id : undefined;
+  if (wardrobeId && sealedWardrobeId !== wardrobeId) {
+    throw new Error(`PORTRAIT_WARDROBE_REFERENCE_MISSING: ${shot.shotId}; 服装 ${wardrobeId} 没有已封存定妆照版本`);
+  }
+  /**
+   * Owner authorization is version-specific. Re-read the gate for the exact
+   * pinned wardrobe version instead of reusing the active baseline receipt.
+   */
+  const authorization = (() => {
+    const ledger = join(lead.dir, "gates.jsonl");
+    if (!existsSync(ledger)) return null;
+    const events = readFileSync(ledger, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>);
+    const record = selectPortraitDecisionRecord(events as never, `portrait:${lead.id}:v${version}`);
+    if (!record || !hasExplicitPortraitAuthorization(record)) return null;
+    const verified = verifyPortraitOwnerAuthorization(record, {
+      dir: lead.dir,
+      characterId: lead.id,
+      version,
+      files: current.files,
+    });
+    if (!verified.ok || !verified.authorization) {
+      throw new Error(`PORTRAIT_REFERENCE_AUTHORIZATION_REQUIRED: ${shot.shotId}; ${verified.issues.join("；")}`);
+    }
+    return {
+      authorization: verified.authorization,
+      paths: [
+        join(lead.dir, "profile.json"),
+        join(lead.dir, "gates.jsonl"),
+        join(lead.dir, "reviews", basename(String((record as { evidence?: { ownerAcceptance?: unknown } }).evidence?.ownerAcceptance ?? ""))),
+        ...verified.authorization.artifacts.map((artifact) => resolve(lead.dir, artifact.file)),
+      ],
+    };
+  })();
+  if (!authorization) throw new Error(`PORTRAIT_REFERENCE_AUTHORIZATION_REQUIRED: ${shot.shotId}; exact portrait version and wardrobe require an owner acceptance receipt`);
   const referencePlan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
   if (referencePlan.applicable && !referencePlan.valid) {
     throw new Error(`BULLET_TIME_REFERENCE_PLAN_INVALID: ${shot.shotId}; ${referencePlan.issues.map((issue) => `${issue.code}@${issue.path}`).join("；")}`);
   }
   const angles = referencePlan.applicable ? referencePlan.angles : ["front", "closeup"];
-  const paths = [...portraitReferenceAuthorizationPaths];
+  const paths = [...authorization.paths];
   for (const file of [join(lead.dir, "portrait-sets", `v${version}.json`), join(lead.dir, "provenance", `v${version}.json`)]) {
     if (!existsSync(file)) throw new Error(`PORTRAIT_REFERENCE_PROVENANCE_MISSING: ${file}`);
     paths.push(file);
   }
   const images = angles.map((angle) => {
     const file = current.files[angle];
-    const authorized = portraitReferenceAuthorization!.artifacts.find((item) => item.angle === angle);
+    const authorized = authorization.authorization.artifacts.find((item) => item.angle === angle);
     if (!file || !authorized || resolve(file) !== resolve(lead.dir, authorized.file)) throw new Error(`PORTRAIT_REFERENCE_PATH_INVALID: ${angle}`);
     const artifact = readPortraitArtifact(file, lead.dir);
     if (artifact.sha256 !== authorized.sha256) throw new Error(`PORTRAIT_REFERENCE_BYTES_CHANGED: ${angle}`);
@@ -2649,9 +2747,23 @@ function portraitVideoInputs(shot: ShotCard): { images: VideoSubmissionImage[]; 
       || JSON.stringify(dispatch.request) !== JSON.stringify(provenance.request?.body)
       || provenance.output?.sha256 !== artifact.sha256 || provenance.output.bytes !== artifact.bytes || provenance.output.modified !== false) throw new Error(`PORTRAIT_REFERENCE_ORIGINAL_UNVERIFIED: ${angle}`);
     paths.push(file, provenanceFile, dispatchFile);
-    return videoImage(file, `portrait-${angle}`, { characterId: lead.id, characterVersion: version, angle });
+    return videoImage(file, `portrait-${angle}`, {
+      characterId: lead.id,
+      characterVersion: version,
+      ...(sealedWardrobeId ? { wardrobeId: sealedWardrobeId } : {}),
+      angle,
+    });
   });
-  return { images, paths };
+  return {
+    images,
+    paths,
+    person: {
+      characterId: lead.id,
+      characterVersion: version,
+      ...(sealedWardrobeId ? { wardrobeId: sealedWardrobeId } : {}),
+      requiredAngles: angles,
+    },
+  };
 }
 const portraitReferenceClause = "【人物参考】图1与图2为同一原创虚构成年人物的正面全身和头肩近景，二图共同锚定同一人，不得生成两个人；若有图3，图3仅作商品外观与比例依据。预生产构图稿不作为视频首帧提交。";
 function portraitReferenceClauseFor(shot: ShotCard): string {
@@ -3620,6 +3732,95 @@ function plausibilityArchiveFor(shot: ShotCard): NonNullable<ReturnType<typeof s
   if (!selector) return null;
   return selectProductArchive(productLibrary.archives, selector).archive ?? null;
 }
+
+function productReferenceInputs(shot: ShotCard): {
+  images: VideoSubmissionImage[];
+  paths: string[];
+  requirements: ProductReferenceRequirement[];
+} {
+  const selector = productSelectorOf(shot);
+  if (!selector) {
+    const card = shot as Record<string, unknown>;
+    const explicitPhoto = typeof card.photo === "string" && card.photo.trim() ? abs(card.photo) : "";
+    if (!explicitPhoto || !existsSync(explicitPhoto)) return { images: [], paths: [], requirements: [] };
+    const productRef = card.productRef && typeof card.productRef === "object" && !Array.isArray(card.productRef)
+      ? card.productRef as Record<string, unknown>
+      : {};
+    const productId = String(productRef.id ?? `${shot.shotId}-material-reference`);
+    const image = videoImage(explicitPhoto, "product-reference", { productId, angle: "front" });
+    return {
+      images: [image],
+      paths: [explicitPhoto],
+      requirements: [{
+        productId,
+        requiredImageCount: 1,
+        ...(image.artifact?.sha256 ? { requiredImageSha256: [image.artifact.sha256] } : {}),
+      }],
+    };
+  }
+  const match = selectProductArchive(productLibrary.archives, selector);
+  if (!match.archive || !match.dir) throw new Error(`PRODUCT_REFERENCE_ARCHIVE_MISSING: ${shot.shotId}; ${match.reason}`);
+  const archive = match.archive;
+  const entry = productLibrary.byId.get(archive.id);
+  if (!entry) throw new Error(`PRODUCT_REFERENCE_ARCHIVE_MISSING: ${shot.shotId}; ${archive.id}`);
+  const hero = productHeroPhoto(archive);
+  const photos = [...(archive.photos ?? [])].sort((left, right) =>
+    Number(right.role === "hero") - Number(left.role === "hero")
+    || String(left.angle ?? "").localeCompare(String(right.angle ?? ""))
+    || left.id.localeCompare(right.id));
+  if (!hero || photos.length === 0) throw new Error(`PRODUCT_REFERENCE_PHOTOS_MISSING: ${shot.shotId}; ${archive.id}`);
+  const paths = photos.map((photo) => productPhotoPath(entry, photo));
+  const images = photos.map((photo, index) => videoImage(paths[index]!, "product-reference", {
+    productId: archive.id,
+    ...(photo.angle ? { angle: photo.angle } : {}),
+  }));
+  return {
+    images,
+    paths,
+    requirements: [{
+      productId: archive.id,
+      requiredImageCount: images.length,
+      requiredImageSha256: photos.map((photo) => photo.sha256),
+    }],
+  };
+}
+
+function personRequirementForSubmission(
+  shot: ShotCard,
+  prompt: string,
+  portrait: ReturnType<typeof portraitVideoInputs>,
+): PersonReferenceRequirement | undefined {
+  if (portrait.person) return portrait.person;
+  const identities = [...characters.values()].map((candidate) => ({ ...candidate,
+    aliases: characterRegistry.aliases.find((entry) => entry.id === candidate.id)?.names ?? [] }));
+  const resolved = resolveShotCast(shot, identities);
+  const currentDeclaresLead = resolved.status === "passed"
+    && resolved.characters.some((candidate) => candidate.id === lead?.id);
+  const promptDeclaresCharacter = /image:\/\/characters\//i.test(prompt);
+  if (!currentDeclaresLead && !promptDeclaresCharacter) return undefined;
+  if (!lead || lead.version === null) throw new Error(`PORTRAIT_REFERENCE_REQUIRED_UNRESOLVED: ${shot.shotId}`);
+  return {
+    characterId: lead.id,
+    characterVersion: lead.version,
+    ...(lead.activeWardrobeId ? { wardrobeId: lead.activeWardrobeId } : {}),
+  };
+}
+
+function auditShotReferenceAnchors(
+  shot: ShotCard,
+  prompt: string,
+  submissionPlan: VideoSubmissionRequest,
+  portrait: ReturnType<typeof portraitVideoInputs>,
+  product: ReturnType<typeof productReferenceInputs>,
+  personOverride?: PersonReferenceRequirement,
+): ReferenceAnchorReport {
+  return auditReferenceAnchors({
+    shotId: String(shot.shotId),
+    prompt,
+    person: personOverride ?? personRequirementForSubmission(shot, prompt, portrait),
+    products: product.requirements,
+  }, submissionPlan.inputs);
+}
 function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots: ShotCard[] = pendingShots()): Parameters<typeof reviewPlausibility>[0] {
   const archives = [...new Map(reviewShots
     .map((shot) => plausibilityArchiveFor(shot))
@@ -4172,11 +4373,13 @@ if (STAGES.has("material-gen")) {
        */
       let prompt = buildCurrentMaterialPrompt(shot);
       const portrait = portraitVideoInputs(shot);
+      const product = productReferenceInputs(shot);
       const plausibility = !DRY_RUN ? await runPlausibilityGate("pre-submit", [shot]) : null;
       prompt = readFileSync(promptFile, "utf8");
-      const submissionPlan = videoPlan({ prompt, refs: [...portrait.images, videoImage(prepared, "product-reference")],
+      const submissionPlan = videoPlan({ prompt, refs: [...portrait.images, ...product.images],
         seconds: renderSecondsFor(duration), generateAudio: ENV.SEEDANCE_GENERATE_AUDIO !== "0", seed: 20260926 });
-      const inputPaths = [photo, prepared, promptFile, ...portrait.paths];
+      const referenceAudit = auditShotReferenceAnchors(shot, prompt, submissionPlan, portrait, product);
+      const inputPaths = [photo, prepared, promptFile, ...portrait.paths, ...product.paths];
       rememberInputs("material-gen", inputPaths, shot.shotId);
       const materialSha = sha256FileSync(photo);
       /**
@@ -4209,11 +4412,19 @@ if (STAGES.has("material-gen")) {
           { id: "aspect-constraint", pass: prompt.includes(ASPECT), hard: true, detail: `含画幅约束 ${ASPECT}` },
           { id: "duration-limit", pass: Number.isInteger(duration) && duration === submissionPlan.body.duration, hard: true, detail: `模型能力校验通过，实际请求 ${duration}s（无夹断或变速）` },
           { id: "plausibility-pre-submit", pass: plausibility?.verdict === "pass", hard: true, detail: `当前商品准备件及最终提示词常识审核：${plausibility?.verdict ?? "unverified"}` },
-          { id: "video-inputs", pass: submissionPlan.mode === "reference-image" && (!leadVisibleInShot(shot) || portrait.images.length === 2), hard: true, detail: `reference_image ${submissionPlan.inputs.length} 张；人物原图 ${portrait.images.length} 张；无 first_frame` }
+          {
+            id: "reference-anchors",
+            pass: referenceAudit.ok,
+            hard: true,
+            detail: referenceAudit.ok
+              ? `人物/服装/商品锚点与最终请求一致（${referenceAudit.contractSha256.slice(0, 12)}）；人物 ${referenceAudit.personInputs.length}，商品 ${referenceAudit.productInputs.length}`
+              : referenceAudit.issues.map((issue) => `${issue.code}:${issue.detail}`).join("；"),
+          }
         ],
         inputPaths, exactInputPaths: true,
         evidence: {
           videoInputMode: submissionPlan.mode, plateUsage: "not-submitted", promptSha256: submissionPlan.promptSha256, wireRequestSha256: submissionPlan.wireRequestSha256, inputPlanSha256: submissionPlan.inputPlanSha256, inputs: submissionPlan.inputs,
+          referenceAnchorAudit: referenceAudit,
           mode: "submit", policy: MATERIAL_POLICY_VERSION, material: photo, materialSha256: materialSha,
           promptFile, promptChars: prompt.trim().length, model: VIDEO_MODEL, seconds: duration
         }
@@ -4233,7 +4444,11 @@ if (STAGES.has("material-gen")) {
         finishMaterialClip(shot, rawClip, clip);
         const receipt = acceptRenderedShot({ ...renderedScope(String(shot.shotId)), file: clip, taskId: old.taskId,
           providerStatus: "succeeded", sourceInputs: [...old.sourceInputs, old.artifact] });
-        recordRenderedSource(String(shot.shotId), clip, receipt, { stage: "material-gen", cached: true });
+        recordRenderedSource(String(shot.shotId), clip, receipt, {
+          stage: "material-gen",
+          cached: true,
+          referenceAnchorAudit: referenceAudit,
+        });
         continue;
       }
       if (MATERIAL_POST_ONLY) throw new Error("MATERIAL_RENDER_RECEIPT_REQUIRED: 后期模式缺少可复用的成功原片");
@@ -4252,12 +4467,19 @@ if (STAGES.has("material-gen")) {
         taskId: submitted.taskId, providerStatus: "succeeded",
         sourceInputs: [...lineageInputSnapshots.get(`material-gen:${shot.shotId}`)!.artifacts, ...submissionReceiptArtifacts(submitted)] });
       recordRenderedSource(String(shot.shotId), rawClip, rawReceipt, { stage: "material-gen", invoked: true,
-        cached: false, attempt: 1, ms: Date.now() - shotStarted, submission: submitted.receipt, submissionPlan });
+        cached: false, attempt: 1, ms: Date.now() - shotStarted, submission: submitted.receipt, submissionPlan,
+        referenceAnchorAudit: referenceAudit });
       finishMaterialClip(shot, rawClip, clip);
       const receipt = acceptRenderedShot({ ...renderedScope(String(shot.shotId)), file: clip,
         taskId: submitted.taskId, providerStatus: "succeeded",
         sourceInputs: [...rawReceipt.sourceInputs, rawReceipt.artifact] });
-      recordRenderedSource(String(shot.shotId), clip, receipt, { stage: "material-gen", cached: false, submission: submitted.receipt, submissionPlan });
+      recordRenderedSource(String(shot.shotId), clip, receipt, {
+        stage: "material-gen",
+        cached: false,
+        submission: submitted.receipt,
+        submissionPlan,
+        referenceAnchorAudit: referenceAudit,
+      });
     } catch (error) {
       record({ stage: "material-gen", shotId: shot.shotId, invoked: true, ok: false, cached: false, degraded: false,
         attempt: 1, ms: Date.now() - shotStarted, artifact: null,
@@ -4343,15 +4565,43 @@ if (STAGES.has("videos")) {
     : [];
   const micromotionReady = !STAGES.has("micromotion") || micromotionEvidence.every((entry) => entry.verified);
   const videoInputReadiness = pendingShots().filter((shot) => !isMaterialShot(shot)).map((shot) => {
-    const portrait = isAssetShot(shot) ? { images: [], paths: [] } : portraitVideoInputs(shot);
+    const promptFile = join(PROMPT_DIR, `${shot.shotId}.txt`);
+    const prompt = existsSync(promptFile) ? readFileSync(promptFile, "utf8") : "";
+    const portrait = !prompt || isAssetShot(shot) ? { images: [], paths: [] } : portraitVideoInputs(shot);
+    const product = prompt ? productReferenceInputs(shot) : { images: [], paths: [], requirements: [] };
+    const assetId = prompt && isAssetShot(shot) ? assetIdOf(assetRefOf(shot)) : null;
+    const assetEntry = assetId ? realPersonLibrary.byAssetId.get(assetId) : undefined;
+    const assetBase = assetId ? (assetEntry ? referenceAssetRefs(assetEntry.asset, 3) : [assetRefOf(shot)]) : [];
+    const assetAnchor = assetId && ceoIdentityAnchorFrame && !assetBase.includes(ceoIdentityAnchorFrame) ? [ceoIdentityAnchorFrame] : [];
+    const assetImages = assetId ? [...assetBase, ...assetAnchor].slice(0, 4).map((file, index) =>
+      videoImage(file, "authorized-person-reference", {
+        characterId: assetId,
+        characterVersion: 1,
+        ...(index === 0 ? { angle: "front" } : {}),
+      })) : [];
+    const referenceImages = [...assetImages, ...portrait.images, ...product.images];
+    const referenceAudit = prompt
+      ? auditShotReferenceAnchors(shot, prompt, videoPlan({
+          prompt,
+          refs: referenceImages,
+          seconds: renderSecondsFor(Number(shot.duration ?? 5)),
+          generateAudio: ENV.SEEDANCE_GENERATE_AUDIO !== "0",
+          seed: 20260924,
+        }), portrait, product, assetId ? { characterId: assetId, characterVersion: 1, requiredAngles: [] } : undefined)
+      : null;
     const bulletTimePlan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
-    const videoInputMode = isAssetShot(shot) || portrait.images.length ? "reference-image" : "first-frame";
+    const videoInputMode = referenceImages.length ? "reference-image" : "first-frame";
     return { shotId: String(shot.shotId), videoInputMode,
       expectedVideoInputMode: bulletTimePlan.applicable ? bulletTimePlan.inputMode : videoInputMode,
       plateUsage: isAssetShot(shot) ? "not-applicable" : portrait.images.length ? "preproduction-only" : "first-frame",
       expectedPortraitInputs: bulletTimePlan.applicable ? bulletTimePlan.angles.length : 2,
       bulletTimePlan,
-      portraitInputs: portrait.images.map(({ artifact, characterId, characterVersion, angle, purpose }) => ({ artifact, characterId, characterVersion, angle, purpose })), paths: portrait.paths };
+      referenceAnchorsOk: referenceAudit?.ok ?? false,
+      referenceAnchorIssues: referenceAudit?.issues ?? [],
+      portraitInputs: [...assetImages, ...portrait.images].map(({ artifact, characterId, characterVersion, wardrobeId, productId, angle, purpose }) =>
+        ({ artifact, characterId, characterVersion, wardrobeId, productId, angle, purpose })),
+      productInputs: product.images.map(({ artifact, productId, angle, purpose }) => ({ artifact, productId, angle, purpose })),
+      paths: [...portrait.paths, ...product.paths, ...assetImages.map((image) => image.artifact?.path).filter((path): path is string => Boolean(path))] };
   });
   const g7 = recordGate({
     stepKey: "g7-preproduction",
@@ -4359,7 +4609,7 @@ if (STAGES.has("videos")) {
     shotIds: shots.map((s) => s.shotId),
     checks: [
       { id: "prompt-files", pass: promptReady, hard: true, detail: promptReady ? `${promptShots().length} 个文生镜头（生成镜 + 授权真人素材镜）提示词齐备且 ≥1200 字（另有 ${materialShots().length} 个素材镜走 material-gen 的动效提示词）` : "有生成镜/授权真人素材镜缺提示词或字数不足 1200" },
-      { id: "video-input-readiness", pass: videoInputReadiness.every((item) => item.videoInputMode === item.expectedVideoInputMode && (!item.bulletTimePlan.applicable || item.bulletTimePlan.valid) && (item.videoInputMode !== "reference-image" || item.plateUsage === "not-applicable" || item.portraitInputs.length === item.expectedPortraitInputs)), hard: true, detail: videoInputReadiness.every((item) => item.videoInputMode === item.expectedVideoInputMode && (!item.bulletTimePlan.applicable || item.bulletTimePlan.valid) && (item.videoInputMode !== "reference-image" || item.plateUsage === "not-applicable" || item.portraitInputs.length === item.expectedPortraitInputs)) ? "逐镜实际视频输入模式、人物参考计划与plate用途均符合合同" : "实际视频输入模式与合同不符，或参考计划无效/数量不一致" },
+      { id: "video-input-readiness", pass: videoInputReadiness.every((item) => item.referenceAnchorsOk && item.videoInputMode === item.expectedVideoInputMode && (!item.bulletTimePlan.applicable || item.bulletTimePlan.valid) && (item.videoInputMode !== "reference-image" || item.plateUsage === "not-applicable" || item.portraitInputs.length >= item.expectedPortraitInputs)), hard: true, detail: videoInputReadiness.every((item) => item.referenceAnchorsOk && item.videoInputMode === item.expectedVideoInputMode && (!item.bulletTimePlan.applicable || item.bulletTimePlan.valid) && (item.videoInputMode !== "reference-image" || item.plateUsage === "not-applicable" || item.portraitInputs.length >= item.expectedPortraitInputs)) ? "逐镜实际视频输入模式、人物/服装/商品锚点与plate用途均符合合同" : `实际输入或锚点不完整：${videoInputReadiness.filter((item) => !item.referenceAnchorsOk || item.videoInputMode !== item.expectedVideoInputMode || (item.bulletTimePlan.applicable && !item.bulletTimePlan.valid)).map((item) => `${item.shotId}[${item.referenceAnchorIssues.map((issue) => issue.code).join(",") || item.videoInputMode}]`).join("、")}` },
       { id: "plate-files", pass: plateReady, hard: true, detail: plateReady ? `${generatedShots().length} 个生成镜关键帧齐备（>50KB）` : "有生成镜关键帧缺失或过小" },
       {
         id: "external-asset-shots", pass: assetShotsReady, hard: true,
@@ -4458,14 +4708,6 @@ if (STAGES.has("videos")) {
    * 真人镜参考图：**同组多张素材（最多 3）+ 首镜已放行帧（身份锚）**，总计不超过 4 张。
    * 侧脸/背影等非正面构图靠这套锚定保长相——不靠删构图。
    */
-  const refsForShot = (shot: ShotCard): string[] => {
-    if (!isAssetShot(shot)) return portraitVideoInputs(shot).images.map((image) => image.artifact!.path);
-    const id = assetIdOf(assetRefOf(shot));
-    const entry = realPersonLibrary.byAssetId.get(id);
-    const base = entry ? referenceAssetRefs(entry.asset, 3) : [assetRefOf(shot)];
-    const anchor = ceoIdentityAnchorFrame && !base.includes(ceoIdentityAnchorFrame) ? [ceoIdentityAnchorFrame] : [];
-    return [...base, ...anchor].slice(0, 4);
-  };
   /**
    * 送审基准图口径：评审组件按**本地文件**读图，`asset://` 是平台素材引用、不是文件路径
    * （真机 2026-09-29：把 asset 引用当基准图投递 → `ENOENT: open 'asset://…'`，监制直接不可用）。
@@ -4495,13 +4737,32 @@ if (STAGES.has("videos")) {
       });
       continue;
     }
-    const shotRefs = refsForShot(shot);
     const shotIsAsset = isAssetShot(shot);
+    const portrait = shotIsAsset ? { images: [], paths: [] } : portraitVideoInputs(shot);
+    const product = productReferenceInputs(shot);
+    const assetId = shotIsAsset ? assetIdOf(assetRefOf(shot)) : null;
+    const assetEntry = assetId ? realPersonLibrary.byAssetId.get(assetId) : undefined;
+    const assetBase = assetId
+      ? (assetEntry ? referenceAssetRefs(assetEntry.asset, 3) : [assetRefOf(shot)])
+      : [];
+    const assetAnchor = assetId && ceoIdentityAnchorFrame && !assetBase.includes(ceoIdentityAnchorFrame)
+      ? [ceoIdentityAnchorFrame]
+      : [];
+    const assetImages = assetId ? [...assetBase, ...assetAnchor].slice(0, 4).map((file, index) =>
+      videoImage(file, "authorized-person-reference", {
+        characterId: assetId,
+        characterVersion: 1,
+        ...(index === 0 ? { angle: "front" } : {}),
+      })) : [];
+    const referenceImages = [...assetImages, ...portrait.images, ...product.images];
+    const submittedPortrait = shotIsAsset
+      ? { images: assetImages, paths: assetImages.map((image) => image.artifact?.path).filter((path): path is string => Boolean(path)) }
+      : portrait;
     rememberInputs(
       "shot",
       shotIsAsset
-        ? [join(PROMPT_DIR, `${shot.shotId}.txt`), assetRefOf(shot)]
-        : [join(PROMPT_DIR, `${shot.shotId}.txt`), join(PLATE_DIR, `${shot.shotId}-plate.png`), ...shotRefs],
+        ? [join(PROMPT_DIR, `${shot.shotId}.txt`), ...submittedPortrait.paths, ...product.paths]
+        : [join(PROMPT_DIR, `${shot.shotId}.txt`), join(PLATE_DIR, `${shot.shotId}-plate.png`), ...portrait.paths, ...product.paths],
       shot.shotId
     );
     if (DRY_RUN) {
@@ -4534,9 +4795,8 @@ if (STAGES.has("videos")) {
          * 首帧是一张 AI 生成的人脸，会把平台素材里的真人身份顶掉（Seedance 以首帧为画面基准）；
          * 这类镜头改由 `reference_image = asset://<asset ID>` 承担人物身份，让模型按真实长相生成。
          */
-        const portrait = shotIsAsset ? { images: [], paths: [] } : portraitVideoInputs(shot);
-        const hosted = shotIsAsset || portrait.images.length ? null : loadHostedUrl(shot.shotId);
-        const firstFrame = shotIsAsset || portrait.images.length ? undefined : hosted ?? (existsSync(plate) ? dataUrl(plate) : undefined);
+        const hosted = referenceImages.length ? null : loadHostedUrl(shot.shotId);
+        const firstFrame = referenceImages.length ? undefined : hosted ?? (existsSync(plate) ? dataUrl(plate) : undefined);
         if (!shotIsAsset && !portrait.images.length && !hosted && existsSync(plate)) {
           log(`  ⚠ ${shot.shotId} 无有效托管 URL，退回 base64 首帧（真人题材大概率被隐私校验拒）`);
         }
@@ -4550,12 +4810,22 @@ if (STAGES.has("videos")) {
         const promptText = attemptPrompt;
         const bulletTimePlan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
         const expectedPortraitInputs = bulletTimePlan.applicable ? bulletTimePlan.angles.length : 2;
+        const expectedReferenceImages = assetImages.length + portrait.images.length + product.images.length;
+        const referenceAudit = auditShotReferenceAnchors(
+          shot,
+          attemptPrompt,
+          videoPlan({ prompt: attemptPrompt, refs: referenceImages, seconds: renderSecondsFor(duration),
+            generateAudio: ENV.SEEDANCE_GENERATE_AUDIO !== "0", seed: 20260924 + attempt }),
+          portrait,
+          product,
+          shotIsAsset && assetId ? { characterId: assetId, characterVersion: 1, requiredAngles: [] } : undefined,
+        );
         const bulletTimeFinal = validateBulletTimePrompt(promptText, shot as unknown as Record<string, unknown>, { capabilities: BULLET_TIME_CAPABILITIES });
         const submissionPlan = videoPlan({ prompt: attemptPrompt,
           firstFrame: firstFrame ? videoImage(hosted ?? plate, "first-frame") : undefined,
-          refs: shotIsAsset ? shotRefs.map((file) => videoImage(file, "authorized-person-reference")) : portrait.images,
+          refs: referenceImages,
           seconds: renderSecondsFor(duration), generateAudio: ENV.SEEDANCE_GENERATE_AUDIO !== "0", seed: 20260924 + attempt });
-        const inputPaths = [join(PROMPT_DIR, `${shot.shotId}.txt`), ...(shotIsAsset ? shotRefs.filter((file) => !isAssetRefLocal(file)) : [plate, ...portrait.paths])];
+        const inputPaths = [join(PROMPT_DIR, `${shot.shotId}.txt`), ...(shotIsAsset ? [] : [plate]), ...submittedPortrait.paths, ...product.paths];
         rememberInputs("shot", inputPaths, shot.shotId);
         const g8 = recordGate({
           stepKey: "g8-render-submit",
@@ -4568,11 +4838,20 @@ if (STAGES.has("videos")) {
             { id: "duration-limit", pass: duration > 0 && duration <= 30, hard: true, detail: `单镜时长 ${duration}s（上限 30s）` },
             {
               id: "video-inputs", pass: (!bulletTimePlan.applicable || submissionPlan.mode === bulletTimePlan.inputMode) && (submissionPlan.mode === "reference-image"
-                ? (shotIsAsset ? shotRefs.length > 0 : bulletTimePlan.valid && portrait.images.length === expectedPortraitInputs && !firstFrame)
+                ? (submissionPlan.inputs.length === expectedReferenceImages && !firstFrame
+                  && (shotIsAsset || (bulletTimePlan.valid && portrait.images.length === expectedPortraitInputs)))
                 : submissionPlan.mode === "text" ? true : Boolean(firstFrame)), hard: true,
               detail: submissionPlan.mode === "reference-image"
                 ? `reference_image ${submissionPlan.inputs.length} 张，无 first_frame；${shotIsAsset ? "真实授权外部素材引用未由本地核验" : `当前授权版本原始${bulletTimePlan.applicable ? bulletTimePlan.angles.join(" + ") : "front + closeup"}；plate仅预生产构图稿`}`
                 : hosted ? "实际首帧采用现有 Ark 托管 URL" : existsSync(plate) ? "实际首帧采用本地关键帧原字节" : "首帧缺失"
+            },
+            {
+              id: "reference-anchors",
+              pass: referenceAudit.ok,
+              hard: true,
+              detail: referenceAudit.ok
+                ? `人物/服装/商品锚点与最终请求一致（${referenceAudit.contractSha256.slice(0, 12)}）；人物 ${referenceAudit.personInputs.length}，商品 ${referenceAudit.productInputs.length}`
+                : referenceAudit.issues.map((issue) => `${issue.code}:${issue.detail}`).join("；"),
             },
             { id: "bullet-time-final", pass: !bulletTimeFinal.applicable || bulletTimeFinal.pass, hard: bulletTimeFinal.applicable, detail: bulletTimeFinal.applicable ? (bulletTimeFinal.pass ? `bulletTime ${bulletTimeFinal.contractHash} 最终提示词通过` : bulletTimeFinal.issues.join("；")) : "普通镜头：不适用" },
             {
@@ -4583,6 +4862,7 @@ if (STAGES.has("videos")) {
           inputPaths,
           evidence: {
             videoInputMode: submissionPlan.mode, plateUsage: portrait.images.length ? "preproduction-only" : shotIsAsset ? "not-applicable" : "first-frame", promptSha256: submissionPlan.promptSha256, wireRequestSha256: submissionPlan.wireRequestSha256, inputPlanSha256: submissionPlan.inputPlanSha256, inputs: submissionPlan.inputs, bulletTime: { plan: bulletTimePlan, final: bulletTimeFinal },
+            referenceAnchorAudit: referenceAudit,
             model: VIDEO_MODEL, seconds: duration, attempt,
             promptFingerprint: createHash("sha256").update(attemptPrompt).digest("hex").slice(0, 12),
             promptChars: promptText.trim().length
@@ -4614,7 +4894,8 @@ if (STAGES.has("videos")) {
           taskId: submitted.taskId, providerStatus: "succeeded",
           sourceInputs: [...lineageInputSnapshots.get(`shot:${shot.shotId}`)!.artifacts, ...submissionReceiptArtifacts(submitted)] });
         recordRenderedSource(String(shot.shotId), clip, receipt, { invoked: true, cached: false,
-          attempt, ms: Date.now() - started, submission: submitted.receipt, submissionPlan });
+          attempt, ms: Date.now() - started, submission: submitted.receipt, submissionPlan,
+          referenceAnchorAudit: referenceAudit });
         approved = true;
       } catch (err) {
         record({
@@ -4625,6 +4906,133 @@ if (STAGES.has("videos")) {
       }
     }
     if (!approved) throw new Error(`VIDEO_SHOT_NOT_COMPLETED: ${shot.shotId}; preserve the journal and resume the original task; no automatic paid retry`);
+  }
+}
+
+/**
+ * A provider-success clip is not automatically identity/costume/product
+ * conformant. When actual local reference anchors were submitted, require a
+ * vision review against those same bytes before the clip can enter editing.
+ * This gate is intentionally independent from `--review-policy off`: off
+ * disables artistic review, not reference-anchor integrity.
+ */
+async function reviewRenderedReferenceAnchors(shot: ShotCard, file: string): Promise<void> {
+  if (!existsSync(file)) throw new Error(`REFERENCE_ANCHOR_REVIEW_SOURCE_MISSING: ${shot.shotId}`);
+  const shotIsAsset = isAssetShot(shot);
+  const portrait = shotIsAsset ? { images: [], paths: [] } : portraitVideoInputs(shot);
+  const product = productReferenceInputs(shot);
+  const referencePaths = [
+    ...portrait.images.map((image) => image.artifact?.path).filter((path): path is string => Boolean(path)),
+    ...product.paths,
+  ].filter(existsSync);
+  if (referencePaths.length === 0) return;
+  const latest = [...readStageHistory()].reverse().find((row) =>
+    ["shot", "material-gen"].includes(row.stage) && row.shotId === String(shot.shotId)
+    && row.artifact && resolve(row.artifact) === resolve(file));
+  const anchorAudit = latest?.evidence?.referenceAnchorAudit as ReferenceAnchorReport | undefined;
+  const started = Date.now();
+  const verdict = await reviewProducerStage({
+    stage: "shot",
+    projectId: PROJECT,
+    artifacts: [{ path: file, kind: "video" }],
+    referenceImages: referencePaths,
+    deterministic: [
+      {
+        id: "reference-anchor-input-receipt",
+        pass: anchorAudit?.ok === true,
+        hard: true,
+        detail: anchorAudit?.ok
+          ? `渲染请求已绑定并提交人物/服装/商品锚点；审计 ${anchorAudit.contractSha256.slice(0, 12)}`
+          : "渲染产物缺少当前请求的 reference-anchor audit，不能放行",
+      },
+      {
+        id: "reference-anchor-files",
+        pass: referencePaths.length > 0,
+        hard: true,
+        detail: `本地送审基准 ${referencePaths.length} 张`,
+      },
+    ],
+    rubric: [
+      "先看基准图，再看待评审视频时间帧；基准图顺序依次是人物服装版正脸、人物服装版特写、商品完整角度图。",
+      "可见人脸必须与人物正脸/特写是同一身份；年龄、脸型、五官、发际线明显不同即失败。",
+      "赛车服或其它服装必须与对应服装定妆图同色系、同主色分区、同标识与同护具结构；不能从商品车/包装配色反推到人物服装。",
+      "商品主体必须与商品参考图属于同一型号与同一真实外观；不得替换成相似商品或仅凭文字重画。",
+      "未同时提交所声明的人物与商品锚点、或视频中无法判断主体一致性时，必须拒绝而不是猜测。",
+    ],
+    context: {
+      shotId: String(shot.shotId),
+      policy: "workloom.reference-anchor-render/v1",
+      referenceOrder: referencePaths,
+      person: anchorAudit?.personInputs.map((input) => ({
+        characterId: input.characterId,
+        characterVersion: input.characterVersion,
+        wardrobeId: input.wardrobeId,
+        angle: input.angle,
+        sha256: input.imageSha256,
+      })) ?? [],
+      products: anchorAudit?.productInputs.map((input) => ({
+        productId: input.productId,
+        angle: input.angle,
+        sha256: input.imageSha256,
+      })) ?? [],
+    },
+    minScore: 82,
+    env: ENV,
+    allowFallbackApprove: false,
+    log,
+  });
+  record({
+    stage: "reference-anchor-render",
+    shotId: String(shot.shotId),
+    invoked: true,
+    ok: verdict.approved && !verdict.degraded,
+    cached: false,
+    degraded: verdict.degraded,
+    attempt: 1,
+    ms: Date.now() - started,
+    artifact: file,
+    evidence: {
+      policy: "workloom.reference-anchor-render/v1",
+      referencePaths,
+      anchorAudit,
+      verdict,
+      qualityReviewed: verdict.via === "llm" && !verdict.degraded,
+      qualityScore: verdict.score,
+    },
+    verdict,
+    note: verdict.reason,
+  });
+  const gate = recordGate({
+    stepKey: "g-reference-anchor-render",
+    sourceStage: "shot",
+    shotIds: [String(shot.shotId)],
+    checks: [{
+      id: "rendered-reference-anchors",
+      pass: verdict.approved && !verdict.degraded,
+      hard: true,
+      detail: verdict.reason,
+    }],
+    inputPaths: [...referencePaths, file, join(PROMPT_DIR, `${shot.shotId}.txt`)].filter(existsSync),
+    exactInputPaths: true,
+    evidence: {
+      policy: "workloom.reference-anchor-render/v1",
+      referencePaths,
+      anchorAudit,
+      model: verdict.model ?? null,
+      score: verdict.score,
+      issues: verdict.issues,
+    },
+    reason: verdict.reason,
+  });
+  if (!gate.approved || verdict.degraded) {
+    throw new Error(`REFERENCE_ANCHOR_RENDER_REJECTED: ${shot.shotId}; ${verdict.reason}`);
+  }
+}
+
+if (!DRY_RUN && !WORKER_RUNTIME) {
+  for (const shot of shots) {
+    const clip = join(CLIP_DIR, `${shot.shotId}.mp4`);
+    if (existsSync(clip)) await reviewRenderedReferenceAnchors(shot, clip);
   }
 }
 

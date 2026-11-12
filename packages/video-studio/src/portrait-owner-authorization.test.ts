@@ -73,11 +73,11 @@ describe("既有所有者用途授权：不冒充视觉验收并绑定全部当�
     const f = fixture(); writeFileSync(f.entry.files[angle]!, Buffer.alloc(60_000, 99));
     expect(f.verify().ok).toBe(false);
   });
-  it("缺图、重复声明角度、非激活版本和实际出片替代路径均失败", () => {
+  it("缺图、重复声明角度和实际出片替代路径均失败；非激活冻结版本可被精确版本授权消费", () => {
     const f = fixture(); rmSync(f.entry.files.back!); expect(f.verify().ok).toBe(false);
     writeFileSync(f.entry.files.back!, Buffer.alloc(60_000, 5));
     f.profile.portraitSets[0]!.angles.push("back"); writeFileSync(join(f.dir, "profile.json"), JSON.stringify(f.profile)); expect(f.verify().ok).toBe(false);
-    f.profile.portraitSets[0]!.angles.pop(); f.profile.portraitSets[0]!.active = false; writeFileSync(join(f.dir, "profile.json"), JSON.stringify(f.profile)); expect(f.verify().ok).toBe(false);
+    f.profile.portraitSets[0]!.angles.pop(); f.profile.portraitSets[0]!.active = false; writeFileSync(join(f.dir, "profile.json"), JSON.stringify(f.profile)); expect(f.verify().ok).toBe(true);
     f.profile.portraitSets[0]!.active = true; writeFileSync(join(f.dir, "profile.json"), JSON.stringify(f.profile));
     f.expected.files.back = f.entry.files.front!; expect(f.verify().ok).toBe(false);
   });

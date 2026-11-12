@@ -14,6 +14,8 @@ import { captureLineageInputs, fingerprintArtifact } from "../../packages/video-
 import { acceptRenderedShot } from "../../packages/video-studio/src/rendered-shot-acceptance.js";
 import { applyPromptPatches } from "../../packages/video-studio/src/plausibility-review.js";
 import { loadCharacterEntry, readPortraitArtifact, resolveShotCast } from "../../packages/video-studio/src/character-archive.js";
+import { auditReferenceAnchors } from "../../packages/video-studio/src/reference-anchor-contract.js";
+import { assetIdOf } from "../../packages/video-studio/src/real-person-asset.js";
 import {
   CONSERVATIVE_BULLET_TIME_CAPABILITIES,
   bulletTimeReferenceClause,
@@ -553,6 +555,8 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
   let posts = 0, gets = 0;
   const sourceHash = fixtureSha("formal fixture source");
   const env: Card = { SEEDANCE_GENERATE_AUDIO: "1", LLM_PROVIDER: "isolated-fixture" };
+  const fixtureLead = { id: "fictional-adult", name: "原创成年人物", version: 2, activeWardrobeId: undefined, wardrobes: [] };
+  const fixtureCharacters = new Map([[fixtureLead.id, fixtureLead]]);
   const parts = currentCliParts();
   const context: Record<string, unknown> = {
     Buffer, Date, Promise, Error, Set, Map, Number, String, Object, Array, JSON, Math, createHash, randomUUID: () => `fixture-${Math.random().toString(36).slice(2)}`,
@@ -567,9 +571,12 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     MATERIAL_POST_ONLY: false, MATERIAL_SPEED_RAMP: false, MATERIAL_POST_CAMERA_MOVE: false, MAX_ATTEMPTS: 3, ACCEPT_REJECTED: [],
     FILM_SPEECH_LANGUAGE: "zh-CN", REALISM_CLAUSE: "实拍质感", REALISM_NEGATIVE_TERMS: "不改身份", MATERIAL_POLICY_VERSION: "fixture-policy", PLAUSIBILITY_POLICY_VERSION: "fixture-plausibility",
     shotlist: { title: "正式隔离镜头", durationSeconds: 13 }, totalSeconds: 13, lead: { name: "原创成年人物", appearanceText: "成年虚构人物" },
+    characters: fixtureCharacters, characterRegistry: { aliases: [{ id: fixtureLead.id, names: [fixtureLead.name] }] }, normalizeShotIntent, resolveShotCast,
     usePortraitRefs: true, portraitReferenceClause: "【人物参考】图1图2是同一虚构成年人，图3是商品。", REVISION_CONTEXT: "",
     productLibrary: { archives: [] }, selectProductArchive: () => ({ archive: null }), arg: (_name: string, fallback = "") => fallback, flag: () => false,
+    assetIdOf,
     isMaterialShot: () => kind === "material", isAssetShot: () => kind === "asset", isAssetRefLocal: (path: string) => path.startsWith("asset://"), assetRefOf: () => "asset://authorized-fixture-id",
+    realPersonLibrary: { byAssetId: new Map() }, referenceAssetRefs: () => ["asset://authorized-fixture-id"], ceoIdentityAnchorFrame: null,
     hasRenderedSource: () => false, pendingShots: () => [shot], shots: [shot], abs: (path: string) => path,
     readMaterialSpec: () => ({ photo, usage: "generation-reference", focus: { x: 0.5, y: 0.5 } }),
     run: (_binary: string, args: string[]) => writeFileSync(args.at(-1)!, Buffer.alloc(60_009, 8)), FFMPEG: "isolated-no-process",
@@ -587,6 +594,7 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     recordGate: (input: Card) => { gates.push(input); const checks = input.checks as Array<{ pass: boolean; hard?: boolean }>; return { approved: checks.every((check) => check.hard === false || check.pass), reason: "isolated deterministic gate" }; },
     record: (row: Card) => { rows.push(row); return row; }, log: () => {}, sha256FileSync: mediaSha256,
     buildVideoSubmissionRequest, verifyVideoSubmissionArtifacts,
+    auditReferenceAnchors,
     runVideoSubmission: (scope: Parameters<typeof runVideoSubmission>[0], options: Parameters<typeof runVideoSubmission>[1]) => runVideoSubmission(scope, { ...options, pollIntervalMs: 1, pollTimeoutMs: 20,
       fetch: (async (_url, init) => { if (init?.method === "POST") { posts++; paidBodies.push(JSON.parse(String(init.body))); return new Response(JSON.stringify({ id: "task-current-fixture" })); } gets++; return new Response(JSON.stringify({ status: providerStatus, content: { video_url: "https://invalid.test/current.mp4" }, error: providerStatus === "failed" ? { code: "FixtureProviderFailed" } : undefined })); }) as typeof fetch }),
     sourceHashFor: () => sourceHash,
@@ -598,7 +606,7 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     retryInstruction: () => { throw new Error("PAID_POST_MUST_NOT_RETRY"); }, motionPolicyForShot: () => ({ intent: "ordinary" }),
     applySpeedRamp: () => { throw new Error("UNREQUESTED_RETIME"); }, applyCameraMovePunchCut: () => { throw new Error("UNREQUESTED_CAMERA_MOVE"); },
   };
-  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "renderSecondsFor", "plausibilityArchiveFor", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
+  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "renderSecondsFor", "productSelectorOf", "plausibilityArchiveFor", "shotFieldText", "wardrobeIdForShot", "productReferenceInputs", "personRequirementForSubmission", "auditShotReferenceAnchors", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
   const execute = () => evaluateCurrent(`(async()=>{${functions}\n${kind === "material" ? parts.material : parts.videos}\n})()`, context) as Promise<void>;
   return { dir, execute, context, gates, paidBodies, rows, accepted, reviews, get posts() { return posts; }, get gets() { return gets; }, images, front, closeup };
 }
@@ -671,6 +679,7 @@ function portraitOriginalFixture() {
   const set = { version: 2, dir: "portraits/v2", angles, source: "pure-t2i", active: true, status: "ready" };
   const profile = { schemaVersion: "workloom.character-profile/v1", id: "fictional-adult", name: "李英子", kind: "generated", portraitSets: [set] };
   writeFileSync(join(dir, "profile.json"), JSON.stringify(profile)); writeFileSync(join(dir, "portrait-sets/v2.json"), JSON.stringify(set));
+  writeFileSync(join(dir, "gates.jsonl"), "{}\n");
   writeFileSync(join(dir, "provenance/v2.json"), "{}"); writeFileSync(join(dir, "reviews/fixture-authorized.json"), "{}");
   for (const angle of ["front", "closeup"]) {
     const artifact = artifacts.find((item) => item.angle === angle)!;
@@ -681,19 +690,24 @@ function portraitOriginalFixture() {
     writeFileSync(join(dir, `provenance/v2/${angle}.dispatch.json`), JSON.stringify({ request: body, requestSha256: hash, imageInputPresent: false }));
   }
   const current = loadCharacterEntry(dir)!;
-  const lead = { id: profile.id, name: profile.name, version: 2, dir, files: current.files };
+  const lead = { id: profile.id, name: profile.name, version: 2, dir, files: current.files, activeWardrobeId: undefined, wardrobes: [] };
+  const authorization = { characterId: lead.id, version: 2, artifacts };
   const context = { Buffer, Set, Map, Number, String, Object, Array, JSON, createHash, existsSync, readFileSync, fingerprintArtifact,
     sourceDocument: { character: { id: profile.id }, shots: [{ shotId: "S1", character: profile.name }] },
     lead, characters: new Map([[lead.id, lead]]), characterRegistry: { aliases: [] }, usePortraitRefs: true,
     BULLET_TIME_CAPABILITIES: { ...CONSERVATIVE_BULLET_TIME_CAPABILITIES, maxReferenceImages: 30 },
     bulletTimeReferencePlan, bulletTimeReferenceClause,
     isAssetShot: () => false, isAssetRefLocal: (file: string) => file.startsWith("asset://"), WORKER_RUNTIME: null,
-    portraitReferenceAuthorization: { characterId: lead.id, version: 2, artifacts },
-    portraitReferenceAuthorizationPaths: [join(dir, "profile.json"), join(dir, "reviews/fixture-authorized.json"), ...artifacts.map((item) => join(dir, item.file))],
-    loadCharacterEntry, readPortraitArtifact, resolveShotCast, normalizeShotIntent, arg: () => "2", resolve, join, basename: (path: string) => path.split("/").at(-1),
+    portraitRefsDisabled: false,
+    selectPortraitDecisionRecord: () => ({ evidence: { ownerAcceptance: "fixture-authorized.json" } }),
+    hasExplicitPortraitAuthorization: () => true,
+    verifyPortraitOwnerAuthorization: () => ({ ok: true, issues: [], authorization }),
+    loadCharacterEntry, readPortraitArtifact, resolveShotCast, normalizeShotIntent,
+    arg: (name: string) => name === "--portrait-version" ? "2" : "",
+    resolve, join, basename: (path: string) => path.split("/").at(-1),
   };
   const parts = currentCliParts();
-  const execute = () => evaluateCurrent(`${parts.fn("videoImage")}\n${parts.fn("leadVisibleInShot")}\n${parts.fn("portraitVideoInputs")}\nportraitVideoInputs({shotId:"S1"})`, context) as { images: Array<{ url: string; artifact: { path: string; sha256: string; bytes: number } }>; paths: string[] };
+  const execute = () => evaluateCurrent(`${parts.fn("videoImage")}\n${parts.fn("leadVisibleInShot")}\n${parts.fn("shotFieldText")}\n${parts.fn("wardrobeIdForShot")}\n${parts.fn("portraitVideoInputs")}\nportraitVideoInputs({shotId:"S1"})`, context) as { images: Array<{ url: string; artifact: { path: string; sha256: string; bytes: number } }>; paths: string[] };
   return { dir, execute, context, artifacts, profile };
 }
 

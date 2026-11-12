@@ -15,6 +15,8 @@ export interface VideoSubmissionImage {
   characterId?: string;
   characterVersion?: number;
   angle?: string;
+  wardrobeId?: string;
+  productId?: string;
 }
 
 export interface VideoSubmissionRequestOptions {
@@ -48,6 +50,8 @@ export interface VideoSubmissionInput {
   characterId?: string;
   characterVersion?: number;
   angle?: string;
+  wardrobeId?: string;
+  productId?: string;
 }
 
 export interface VideoSubmissionRequest {
@@ -108,6 +112,12 @@ function imageInput(value: unknown, role: VideoSubmissionInput["role"]): { url: 
   if (value.angle !== undefined && (typeof value.angle !== "string" || !/^[A-Za-z][A-Za-z0-9-]*$/.test(value.angle))) {
     return invalid("ANGLE_INVALID", "image angle must be an explicit angle label");
   }
+  if (value.wardrobeId !== undefined && (!safeEvidenceText(value.wardrobeId) || /[\\/]/.test(value.wardrobeId))) {
+    return invalid("WARDROBE_INVALID", "wardrobe identity must be a nonempty component");
+  }
+  if (value.productId !== undefined && (!safeEvidenceText(value.productId) || /[\\/]/.test(value.productId))) {
+    return invalid("PRODUCT_INVALID", "product identity must be a nonempty component");
+  }
   const artifact = artifactMetadata(value.artifact);
   let sourceType: VideoSubmissionInput["sourceType"];
   let verification: VideoSubmissionInput["verification"];
@@ -146,6 +156,8 @@ function imageInput(value: unknown, role: VideoSubmissionInput["role"]): { url: 
     ...(value.characterId !== undefined ? { characterId: value.characterId as string } : {}),
     ...(value.characterVersion !== undefined ? { characterVersion: value.characterVersion as number } : {}),
     ...(value.angle !== undefined ? { angle: value.angle as string } : {}),
+    ...(value.wardrobeId !== undefined ? { wardrobeId: value.wardrobeId as string } : {}),
+    ...(value.productId !== undefined ? { productId: value.productId as string } : {}),
   };
   return { url: value.url, evidence, duplicateKey: imageSha256 ? `image:${imageSha256}` : `url:${value.url}` };
 }
@@ -165,6 +177,25 @@ export function buildVideoSubmissionRequest(options: VideoSubmissionRequestOptio
   if (!Array.isArray(options.refs)) return invalid("REFERENCES_INVALID", "references must be an explicit array");
   if (Object.hasOwn(options, "lastFrame")) return invalid("LAST_FRAME_UNSUPPORTED", "this builder has no last-frame input contract");
   if (options.firstFrame !== undefined && options.refs.length > 0) return invalid("MIXED_MODES", "first-frame and reference-image inputs are mutually exclusive");
+  /**
+   * Prompt image tokens are a declaration, not a substitute for provider
+   * inputs. This central guard prevents any caller from retaining the old
+   * vacuous `0 portraits` submission when the final prompt says it used one.
+   */
+  if (/image:\/\/characters\//i.test(options.prompt)) {
+    const characterReferences = options.refs.filter((ref) =>
+      typeof ref?.characterId === "string" && ref.characterId.trim().length > 0);
+    if (characterReferences.length === 0) {
+      return invalid("PERSON_REFERENCE_MISSING", "prompt declares image://characters but no typed character reference is submitted");
+    }
+  }
+  if (/image:\/\/(?:products?|materials?)\//i.test(options.prompt)) {
+    const productReferences = options.refs.filter((ref) => ref.productId?.trim()
+      || ref.purpose === "product-reference" || ref.purpose === "prepared-product");
+    if (productReferences.length === 0) {
+      return invalid("PRODUCT_REFERENCE_MISSING", "prompt declares a product/material image but no product reference is submitted");
+    }
+  }
   if (family === "1.0" && options.refs.length > 0) return invalid("REFERENCES_UNSUPPORTED", "legacy 1.0 model does not support reference-image mode");
   const maxRefs = family === "2.0" ? 9 : 30;
   if (options.refs.length > maxRefs) return invalid("REFERENCE_LIMIT", "reference image count exceeds the selected model capability");

@@ -22,6 +22,7 @@ export * from "./portrait-decision.js";
 export * from "./portrait-owner-authorization.js";
 export * from "./likeness-policy.js";
 export * from "./producer-gate.js";
+export * from "./reference-anchor-contract.js";
 export * from "./shot-spec.js";
 export * from "./prompt-contract.js";
 export * from "./prompt-compiler.js";
