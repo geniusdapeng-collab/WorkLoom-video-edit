@@ -237,8 +237,28 @@ export function loadCharacterEntry(dir: string, options: { pinnedVersion?: numbe
   if (options.pinnedVersion !== undefined && (!Number.isInteger(options.pinnedVersion) || options.pinnedVersion < 1)) throw new Error("PORTRAIT_VERSION_INVALID: pin必须为正整数");
   const active = sets.filter((set) => set.active === true);
   if (active.length > 1) throw new Error("PORTRAIT_VERSION_AMBIGUOUS: 同时激活多个版本");
-  const activeSet = (options.pinnedVersion === undefined ? active[0] : sets.find((set) => set.version === options.pinnedVersion)) ?? null;
+  let activeSet = (options.pinnedVersion === undefined ? active[0] : sets.find((set) => set.version === options.pinnedVersion)) ?? null;
+  let wardrobeSelectionIssue: string | null = null;
+  /**
+   * A wardrobe is a visual identity, not a text-only styling hint. When a
+   * caller asks for an outfit, select the immutable portrait version whose
+   * sealed wardrobe hash matches it. Falling back to the active baseline
+   * portrait is the historical bug that produced different suits per shot.
+   */
+  if ((options.wardrobeId || options.wardrobe) && options.pinnedVersion === undefined) {
+    const wardrobe = selectPortraitWardrobe(profile, options);
+    const wardrobeHash = shotIntentHash(wardrobe);
+    const matches = sets.filter((set) => set.wardrobeHash === wardrobeHash);
+    if (matches.length === 1) activeSet = matches[0]!;
+    else {
+      activeSet = null;
+      wardrobeSelectionIssue = matches.length === 0
+        ? `服装 ${String(wardrobe.id ?? wardrobe.name ?? "(未命名)")} 没有对应的已封存定妆照版本`
+        : `服装 ${String(wardrobe.id ?? wardrobe.name ?? "(未命名)")} 对应多个定妆照版本，必须显式 pin`;
+    }
+  }
   let checked: ReturnType<typeof verifyPortraitSet> = activeSet ? verifyPortraitSet(dir, profile, activeSet) : { files: {}, verification: { status: "unverified", scope: "no-selected-version", version: null, assets: {}, issues: [options.pinnedVersion ? `指定版本 v${options.pinnedVersion} 不存在` : "没有显式激活版本"] } };
+  if (wardrobeSelectionIssue) checked = { files: {}, verification: { status: "unverified", scope: "no-selected-version", version: null, assets: {}, issues: [wardrobeSelectionIssue] } };
   if (activeSet && (options.wardrobeId || options.wardrobe)) {
     const wardrobe = selectPortraitWardrobe(profile, options);
     if (activeSet.wardrobeHash !== shotIntentHash(wardrobe)) checked = { files: {}, verification: { ...checked.verification, status: "unverified", issues: [...checked.verification.issues, "指定服装与当前版本不一致，需要生成或选择该服装候选"] } };

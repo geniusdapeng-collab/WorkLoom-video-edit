@@ -10,6 +10,9 @@ export interface PortraitOwnerAuthorization {
   basis: typeof EXPLICIT_PORTRAIT_AUTHORIZATION;
   characterId: string;
   version: number;
+  /** Optional sealed wardrobe identity for outfit-specific portrait versions. */
+  wardrobeId?: string;
+  wardrobeHash?: string;
   approved: true;
   decisionOwner: string;
   decisionOwnerRole: "product-owner";
@@ -42,6 +45,9 @@ export function portraitOwnerAuthorizationIssues(value: unknown): string[] {
   const issues: string[] = [];
   if (value.schemaVersion !== "workloom.portrait-owner-authorization/v1" || value.basis !== EXPLICIT_PORTRAIT_AUTHORIZATION || value.approved !== true) issues.push("授权合同类型、依据或放行值无效");
   if (!text(value.characterId) || /[\\/\u0000-\u001f]/.test(value.characterId) || !Number.isInteger(value.version) || Number(value.version) < 1) issues.push("授权角色或版本无效");
+  if (value.wardrobeId !== undefined && (!text(value.wardrobeId) || /[\\/\u0000-\u001f]/.test(value.wardrobeId))) issues.push("授权服装ID无效");
+  if (value.wardrobeHash !== undefined && !sha(value.wardrobeHash)) issues.push("授权服装摘要无效");
+  if ((value.wardrobeId === undefined) !== (value.wardrobeHash === undefined)) issues.push("授权服装ID与摘要必须同时存在");
   if (!text(value.decisionOwner) || value.decisionOwnerRole !== "product-owner" || !text(value.recordedBy)
     || String(value.decisionOwner).trim().toLowerCase() === String(value.recordedBy).trim().toLowerCase()) issues.push("须分别记录产品所有者决策人和代录执行人");
   if (!text(value.statement) || value.statement.trim().length < 8) issues.push("缺少既有用途授权原话或依据（至少8字）");
@@ -89,6 +95,9 @@ export function buildPortraitOwnerAuthorization(entry: CharacterEntry, input: {
   const authorization: PortraitOwnerAuthorization = {
     schemaVersion: "workloom.portrait-owner-authorization/v1", basis: EXPLICIT_PORTRAIT_AUTHORIZATION,
     characterId: entry.id, version: entry.activeSet.version, approved: true,
+    ...(text(entry.activeSet.wardrobe?.id) && sha(entry.activeSet.wardrobeHash)
+      ? { wardrobeId: String(entry.activeSet.wardrobe.id), wardrobeHash: entry.activeSet.wardrobeHash }
+      : {}),
     decisionOwner: input.decisionOwner.trim(), decisionOwnerRole: "product-owner", recordedBy: input.recordedBy.trim(), statement: input.statement.trim(),
     anchor: { kind: "generated-ai-front", angle: "front", file: front.file, sha256: front.sha256 }, artifacts,
   };
@@ -109,6 +118,7 @@ export function assertPortraitOwnerWritePaths(characterDir: string): void {
 
 const authorizationKey = (value: PortraitOwnerAuthorization): string => JSON.stringify({
   schemaVersion: value.schemaVersion, basis: value.basis, characterId: value.characterId, version: value.version, approved: value.approved,
+  wardrobeId: value.wardrobeId ?? null, wardrobeHash: value.wardrobeHash ?? null,
   decisionOwner: value.decisionOwner, decisionOwnerRole: value.decisionOwnerRole, recordedBy: value.recordedBy, statement: value.statement,
   anchor: { kind: value.anchor.kind, angle: value.anchor.angle, file: value.anchor.file, sha256: value.anchor.sha256 },
   artifacts: value.artifacts.map(({ angle, file, sha256 }) => ({ angle, file, sha256 })).sort((a, b) => a.angle.localeCompare(b.angle)),
@@ -139,8 +149,14 @@ export function verifyPortraitOwnerAuthorization(record: PortraitOwnerGateRecord
     if (receiptIssues.length || authorizationKey(receipt.authorization as PortraitOwnerAuthorization) !== authorizationKey(authorization)) throw new Error(`授权门与回执合同不一致：${receiptIssues.join("；")}`);
     if (!Array.isArray(receipt.artifacts) || JSON.stringify(receipt.artifacts) !== JSON.stringify(authorization.artifacts)
       || !Array.isArray(receipt.anchors) || JSON.stringify(receipt.anchors) !== JSON.stringify([authorization.anchor])) throw new Error("授权回执角度或锚点摘要与合同不一致");
-    const current = loadCharacterEntry(expected.dir);
-    if (!current || current.id !== authorization.characterId || current.activeSet?.version !== authorization.version) throw new Error("授权版本不是当前显式激活版本");
+    const current = loadCharacterEntry(expected.dir, {
+      pinnedVersion: authorization.version,
+      ...(authorization.wardrobeId ? { wardrobeId: authorization.wardrobeId } : {}),
+    });
+    if (!current || current.id !== authorization.characterId || current.activeSet?.version !== authorization.version) {
+      throw new Error("授权版本不能按冻结版本与服装显式读取");
+    }
+    if (authorization.wardrobeId && current.activeSet?.wardrobe?.id !== authorization.wardrobeId) throw new Error("授权服装与冻结版本不一致");
     const currentAuthorization = buildPortraitOwnerAuthorization(current, { decisionOwner: authorization.decisionOwner,
       recordedBy: authorization.recordedBy, statement: authorization.statement, anchorFile: current.files.front ?? "" });
     if (authorizationKey(currentAuthorization) !== authorizationKey(authorization)) throw new Error("当前全部声明角度或新AI front字节与授权不一致");

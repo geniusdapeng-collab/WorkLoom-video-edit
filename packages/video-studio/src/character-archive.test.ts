@@ -14,6 +14,7 @@ import {
   resolveShotCharacters,
   type CharacterProfile
 } from "./character-archive.js";
+import { shotIntentHash } from "./shot-intent.js";
 
 /** 造一个最小档案库：<root>/<id>/{profile.json, portraits/v2/<name>-<angle>.png} */
 function makeLibrary(root: string, id: string, name: string, options: { version?: number } = {}): void {
@@ -231,6 +232,49 @@ describe("激活、pin与文件版本的真实消费", () => {
     const { root, dir } = twoVersions(); const activated = await activatePortraitVersion(root, "presenter", 1);
     expect(activated.activeSet?.version).toBe(1); expect(activated.portraitSets.filter(set => set.active)).toHaveLength(1);
     const missing = loadCharacterEntry(dir, { pinnedVersion: 9 })!; expect(missing.files).toEqual({}); expect(missing.verification.issues.join()).toContain("不存在");
+  });
+  it("selects the sealed wardrobe version instead of silently reusing the active baseline portrait", () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-wardrobe-version-"));
+    const dir = join(root, "actor");
+    const w1 = { id: "w1", name: "baseline", detail: "black jacket" };
+    const w2 = { id: "w2", name: "racing suit", detail: "matte black full race suit" };
+    const profile: CharacterProfile = {
+      schemaVersion: "workloom.character-profile/v1",
+      id: "actor",
+      name: "Actor",
+      kind: "generated",
+      activeWardrobeId: "w1",
+      wardrobe: [w1, w2],
+      portraitSets: [
+        { version: 1, dir: "portraits/v1", angles: ["front", "threeQuarter", "closeup", "side"], source: "pure-t2i", active: true },
+        { version: 2, dir: "portraits/v2", angles: ["front", "threeQuarter", "closeup", "side"], source: "pure-t2i", wardrobe: w2 },
+      ],
+    };
+    for (const set of profile.portraitSets) {
+      mkdirSync(join(dir, set.dir), { recursive: true });
+      for (const angle of set.angles) writeFileSync(join(dir, set.dir, `Actor-${angle}.png`), Buffer.alloc(2048, set.version));
+    }
+    profile.portraitSets[0]!.wardrobe = w1;
+    profile.portraitSets[1]!.wardrobeHash = shotIntentHash(w2);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "profile.json"), JSON.stringify(profile, null, 2));
+
+    const racing = loadCharacterEntry(dir, { wardrobeId: "w2" })!;
+    expect(racing.activeSet?.version).toBe(2);
+    expect(racing.verification.status).toBe("passed");
+    expect(readFileSync(racing.files.front!)[0]).toBe(2);
+    expect(loadCharacterEntry(dir)!.activeSet?.version).toBe(1);
+  });
+  it("refuses a requested wardrobe with no sealed portrait version", () => {
+    const fixture = twoVersions();
+    const profile = JSON.parse(readFileSync(fixture.file, "utf8")) as CharacterProfile;
+    profile.wardrobe = [{ id: "w2", name: "different outfit" }];
+    writeFileSync(fixture.file, JSON.stringify(profile));
+    const missing = loadCharacterEntry(fixture.dir, { wardrobeId: "w2" })!;
+    expect(missing.activeSet).toBeNull();
+    expect(missing.files).toEqual({});
+    expect(missing.verification.status).toBe("unverified");
+    expect(missing.verification.issues.join("；")).toContain("没有对应的已封存定妆照版本");
   });
   it("旧目录有多个角度候选时不按字典序猜版本", () => {
     const dir = mkdtempSync(join(tmpdir(), "wl-ambiguous-"));

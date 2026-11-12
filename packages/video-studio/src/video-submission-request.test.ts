@@ -15,6 +15,17 @@ function inline(angle: string, bytes = Buffer.from(`original-${angle}-bytes`)): 
 const build = (patch: Partial<VideoSubmissionRequestOptions> = {}) => buildVideoSubmissionRequest({ ...defaults, ...patch });
 
 describe("video submission request: exclusive actual input modes", () => {
+  it("rejects prompt image tokens when the matching typed references were omitted at the boundary", () => {
+    expect(() => build({ prompt: "image://characters/actor/portraits/v2/front.png" }))
+      .toThrow("VIDEO_SUBMISSION_PERSON_REFERENCE_MISSING");
+    expect(() => build({ prompt: "image://products/product-a/front.jpg" }))
+      .toThrow("VIDEO_SUBMISSION_PRODUCT_REFERENCE_MISSING");
+    expect(build({
+      prompt: "image://characters/actor/portraits/v2/front.png image://products/product-a/front.jpg",
+      refs: [inline("front"), { ...inline("product"), purpose: "product-reference", productId: "product-a" }],
+    }).mode).toBe("reference-image");
+  });
+
   it("preserves text and legal 2.5 duration; hashes the exact wire body, with no unsupported seed", () => {
     const result = build({ seed: 0, generateAudio: false });
     expect(result.mode).toBe("text");
@@ -188,6 +199,18 @@ describe("video submission request: current raw bytes and safe evidence", () => 
       [{ ...front, purpose: "review-copy" }, closeup], [{ ...front, angle: "side" }, closeup], [inline("front", Buffer.from("changed source")), closeup]];
     for (const refs of variants) expect(build({ refs }).inputPlanSha256).not.toBe(first.inputPlanSha256);
     expect(build({ refs: [front, closeup] })).toEqual(first);
+  });
+
+  it("binds product and wardrobe identity into the safe input plan", () => {
+    const result = build({ refs: [
+      { ...inline("front"), wardrobeId: "w2" },
+      { ...inline("closeup"), wardrobeId: "w2" },
+      { url: "data:image/jpeg;base64,/9j/4g==", purpose: "product-reference", productId: "product-a", angle: "front" },
+    ] });
+    expect(result.inputs[0]).toMatchObject({ wardrobeId: "w2" });
+    expect(result.inputs[2]).toMatchObject({ productId: "product-a" });
+    expect(() => build({ refs: [{ ...inline("front"), wardrobeId: "../w2" }] })).toThrow("VIDEO_SUBMISSION_WARDROBE_INVALID");
+    expect(() => build({ refs: [{ ...inline("front"), productId: "../p" }] })).toThrow("VIDEO_SUBMISSION_PRODUCT_INVALID");
   });
 
   it("does not serialize unrecognized metadata or pretend an asset ID proves local bytes", () => {

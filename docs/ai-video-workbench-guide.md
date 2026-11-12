@@ -1,6 +1,6 @@
 # WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
-> guideVersion: 2026-11-05.3
+> guideVersion: 2026-11-12.1
 > 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加 Codex、Qoder 和其他本机 AI 办公 Agent 的原生 CLI/MCP 引导，保留从失败处接着修、已审材料承接、修复片单核验，以及使用原 Studio 回执接续 Film。实际源码 SHA 以本次运行记录为准。
 > 读者：Codex、Qoder、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
@@ -415,7 +415,13 @@ Edit 提供分流、正式前期、全链 CLI、阶段账本和交付核验入�
 
 ## 5.2 Seedance 2.5 原始人物参考与任务恢复
 
-正式 CLI 可显式使用 `--use-portrait-refs --portrait-version 2`。原始镜头卡须明确角色 ID 及逐镜出镜人物或 `character.appearanceInShots`；画外旁白的 speaker 和全片默认主角不会自动变成画内人物。当前生成角色的激活版本、所有者用途授权、原始 front/closeup 字节与纯文生图 provenance/dispatch 必须一致。普通人物镜只提交这两张原图；人物商品镜提交 front、closeup、商品准备件三张 `reference_image`。预生产构图稿继续留审，人物参考模式不把它提交为首帧，也不填造真人 `asset://` 授权。
+新生成的人物镜默认启用人物参考，不再依赖调用方记得传 `--use-portrait-refs`。原始镜头卡须明确角色 ID 及逐镜出镜人物或 `character.appearanceInShots`；画外旁白的 speaker 和全片默认主角不会自动变成画内人物。当前生成角色的冻结版本、所有者用途授权、原始 front/closeup 字节与纯文生图 provenance/dispatch 必须一致。普通人物镜提交这两张原图；人物商品镜同时提交人物 front/closeup 与**完整商品档案参考集**。预生产构图稿继续留审，人物参考模式不把它提交为首帧，也不填造真人 `asset://` 授权。
+
+**参考锚点不可遗漏（`workloom.reference-anchor-contract/v1`）。** 提示词里的 `image://characters/...` / 商品图文案只是语义声明，不是已提交证据。G-MAT1、G7 与 G8 在付费 POST 前把镜头人物、服装版本、商品档案逐项对到本次 `submissionPlan.inputs`；人物声明但 0 张人物图、人物版本/角度不符、商品声明但缺图、商品参考数量或字节不符，均 fail-closed。`--no-portrait-refs` 只用于验证失败路径，不能让有人物的镜头通过。
+
+**服装也是视觉锚点。** 同一角色切换服装时必须使用该服装已封存的定妆照版本；当镜头 `wardrobeId`/服装文本指向非基线服装时，加载器按封存 `wardrobeHash` 选择对应版本，不能回落到基线版人脸后仅靠“哑光赛车服”等文字重画。没有对应版本、所有者验收或字节证据时，先运行角色工位生成/验收该服装版本，不允许进入视频生成。
+
+生成完成后，只要实际请求包含本地人物/服装/商品基准图，`g-reference-anchor-render` 会用与请求相同的基准字节审看视频首中尾帧，核对人物身份、服装主色与结构、商品型号和外观。这个门不受 `--review-policy off` 影响；`off` 只关闭艺术评分，不能关闭参考锚点完整性。评审不可用或未配置模型时保持未验证并阻止进入正式后期。
 
 2.5 请求完全省略 seed，明确整数镜长支持 4–30 秒，不把 13–30 秒夹成 12 秒，也不靠四舍五入或变速兑现合同。模型能力不确定、时长不支持、参考混用或原字节变化，在 POST 前停止。商品素材镜先用当前商品准备件与最终提示词做常识审核，补丁落盘后再记录请求 SHA；原图超过评审器预算时不会冒称评审器看过原件。
 
