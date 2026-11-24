@@ -1,40 +1,68 @@
-# WorkLoom 视频AI剪辑系统 · 真实素材二次创作（实验车道）
+# WorkLoom Edit · AI 视频制作系统
 
-本仓复制自 **WorkLoom-growth@7509809**，在既有 AI 视频生产链路之前新增一条 **视频AI剪辑管线**：真实拍摄（或既有 AI 素材）→ 多模态理解 → 高光与关键帧挖掘 → 镜头重组与文案 → 帧级剪辑时间轴 → 本地合成 → 交回既有后期（调色/字幕/配音/配乐/封面/多风格交付）。
+**把一个视频想法、一批已有镜头、一段真人口播或一份解说稿做成可交付的成片。** Edit 面向内容创作者、品牌视频团队和制片人员，覆盖 AI 视频生成、已有素材剪辑、口播制作和后期交付。你可以从现有素材所在的阶段开工，在同一个项目里保留制作要求、素材来源、成片和返修记录。
 
-换句话说：**替换掉"视频提示词生成"与"视频渲染"两个环节**，其余后期环节与 AI 视频生成管线共用同一批工位与同一份交付纪律。剪辑包本身是本地算力（免费、可重跑），模型只花在"理解"和"创作"上。
+[选择制作方式](#选择制作方式) · [成片和交付](#成片和交付) · [本地体验](#快速开始) · [Agent 接入](docs/AGENT-CLIENTS.md) · [开发指引](AGENTS.md)
 
-当前生产线包含 11 个本地执行器：通用剪辑 7 个（`pnpm edit:probe / edit:verify / edit:assemble / edit:post / edit:subtitle / edit:cover / edit:danmaku`）+ **口播精剪 4 个**（`pnpm edit:talk-asr / edit:talk-emotion / edit:talk-cut / edit:talk-annotate`），并已支持**按场景组分段调色、配乐 agent 选曲（本地打标大库优先）、封面 agent 链路与烧封片头、弹幕轨、分辨率×朝向字号规则、多风格变体×三形态交付**，详见下文「AI 剪辑生产线」。
+## 选择制作方式
 
-[CNB 仓库](https://cnb.cool/workloom-ai/WorkLoom-video-edit) · [产品身份](product.manifest.json) · [剪辑架构升级](docs/video-edit-architecture.md) · [提示词套件](docs/video-edit-prompt-suite.md) · [代码入口导览](docs/capabilities.auto.md) · [开发指引](AGENTS.md) · [Apache-2.0](LICENSE)
+| 你手上有什么 | Edit 怎样做 | 从哪里开始 |
+| --- | --- | --- |
+| **一个创意、商品资料或故事 Brief** | **生成 AI 视频。** 根据用途进入营销片或叙事片流程，把 Brief 转成脚本、分镜和逐镜制作要求。提交已审核镜头进行生成，再合成、后期和技术质检。 | PC 的[生成工作室](#快速开始)或[Agent 视频工作台](docs/ai-video-workbench-guide.md)。 |
+| **实拍、历史片段或已生成的视频素材** | **剪辑成片。** 按真实解码时间码分析素材和高光，把选段、节奏和字幕编成帧级时间轴。通过时间轴校验后，本地合成，按项目要求做调色、转场、配乐、封面和多版本交付。 | [素材剪辑生产线](#素材剪辑与真人口播精剪) · [剪辑工作手册](bundles/video-edit/README.md)。 |
+| **一段拍好的真人口播** | **口播精剪。** 对齐逐字稿，识别卡壳、死停和重复，保留有表达价值的停顿、笑声和自我纠正。句级留删回到帧级时间轴，字幕从原话生成，成片沿用剪辑后期。 | [口播精剪管线](docs/talking-head-pipeline.md) · [口播流程配置](bundles/video-edit/pipelines/edit-talk.yml)。 |
+| **一份解说稿，需要配音和图文动效** | **制作口播解说片。** 根据稿件制作分镜，配音并对齐字级时间，把文字和图形装进可渲染场景。渲染后核对成片文件与导出规格，再登记入库。 | [口播解说片](docs/talkcraft-explainer.md) · [白板视频工位](docs/whiteboard-engine.md)。 |
 
-> 新管线入口：`bundles/video-edit/`（10+ 岗位 / 1 条管线 / 9 条围栏 / 5 份契约）+ `packages/video-studio/src/edit/`（参考实现）
-> + `pnpm edit:probe|verify|assemble|post|subtitle|cover|danmaku`（本地信号解析、后期交付、封面与弹幕轨）。原获客（GEO）能力与页面**原样保留**，可直接复用其治理机制与工作台。
+例如，产品团队可以从商品资料做一条新品短片。拍摄团队可以把散在多个文件里的实拍镜头重组成有节奏的故事。知识创作者可以把一段长口播剪成紧凑短片，或从一份稿件制作带图文动效的配音解说。
 
-> 本页按当前源码说明“有什么、从哪里进入、还依赖什么”，不把岗位或技能数量当作已交付能力数，也不把模拟结果当作生产效果。旧方案、截图和演示 PPT 可帮助理解背景；发生差异时，以 manifest、当前路由和实际执行代码为准。
+## 成片和交付
 
-## AI 剪辑生产线（当前可执行能力）
+- **AI 生成的普通全链**默认交付一条通过技术检查的母版，保留节目原声，默认制作烧录字幕、封面片头与配乐。换声、配音、多风格和弹幕按本次具体要求选择。已有成功生成的镜头核对来源和文件后可以继续做后期。 [正式生成与续跑](docs/ai-video-workbench-guide.md)
+- **素材剪辑和口播精剪**可使用同一份通过校验的时间轴派生干净母版、字幕版和发布版。完整 1080P 剪辑预设可包含调色、配乐、字幕、封面和弹幕。具体风格、4K 以及交付清单见下方剪辑章节。 [交付与返修](docs/video-delivery-and-revision.md)
+- **脚本口播解说**可交付 MP4 和质检报告，服务端还可将成片写入媒资库。TalkCraft 引擎有单独的许可与安装要求。 [口播解说片部署与验收](docs/talkcraft-explainer.md)
+- **工作台**可以查看脚本、生成作业、交付版本和媒资，具体入口由启用的行业能力和当前权限决定。真实生成需要配置媒体引擎与账号，并满足本次素材授权和预算。 [当前视频页面路由](apps/web/src/extensions/ai-video/routes.tsx)
 
-本仓的主线不是再讲一遍“AI 视频”，而是一条**可重跑的本地剪辑 → 交付生产线**：真实素材进、多平台成片出；模型只花在“素材理解”和“创作”两步，剪辑、后期、封面、弹幕都在本地算力上完成，每步留回执。
+## 制作流程
+
+```mermaid
+flowchart LR
+  Brief["创意、商品资料或故事"] --> Studio["Studio：脚本、分镜与审核"]
+  Studio --> Film["Film：逐镜生成或接续已有镜头"]
+  Footage["实拍或已有视频"] --> Edit["素材分析、选段与帧级时间轴"]
+  Talking["已拍真人口播"] --> Transcript["逐字对齐、句级留删与字幕"]
+  Transcript --> Edit
+  Script["解说稿"] --> Explainer["分镜、配音、字级对齐与图文渲染"]
+  Film --> Post["按制作方式合成与后期"]
+  Edit --> Post
+  Explainer --> QA["技术质检与交付"]
+  Post --> QA
+  QA --> Output["成片、相关附件和交付记录"]
+```
+
+AI 生成可从 PC / Agent 提交 Brief，经 Studio 保存前期结果后进入正式 Film 生产。素材剪辑和真人口播精剪从剪辑 CLI 进入可校验时间轴。口播解说有独立的服务与命令行入口。 [生成路由](apps/server/src/video/router.ts) · [正式 Film 执行器](scripts/tools/full-chain-film.mts) · [剪辑引擎](packages/video-studio/src/edit/) · [解说服务](apps/server/src/video/explainer/)
+
+## 素材剪辑与真人口播精剪
+
+这条生产线接收实拍或已有 AI 镜头。模型可辅助理解素材和组织叙事，剪辑引擎按已校验的帧级时间轴本地执行合成和后期，保留每一步的产物与回执。以下参数和默认交付节奏适用于素材剪辑与真人口播精剪。
 
 | 环节 | 入口 | 产出与纪律 |
 |---|---|---|
 | 素材信号 | `pnpm edit:probe` | 抽帧/规格/切点/转写等信号落 `outputs/edit/analysis/`；模型自报的时间码不作数，以本地解码为准 |
 | 剪辑创作 | 创作宪章 19 步（[creation-doctrine](docs/video-edit-creation-doctrine.md)） | 命题卡 → 七主题 → 模板 → 大纲 → 剧本 → 剪辑脚本 → 字幕版；**字幕即剪辑**（≥2s/字数带/无标点/结尾固定块） |
 | 时间轴校验 | `pnpm edit:verify` | 时长/画幅/安全区/节气口硬校验通过，才允许进入正式后期 |
-| 正式后期 | `pnpm edit:post` | 逐段裁切 → **按场景组分段调色**（家里暖 / 城市冷，片段级一次成型，变体不二次调色）→ **逐切转场**（`--transitions hard/declared/auto`，46+ 种 xfade 目录、真硬切、逐刀回执机检）→ 母版 + 风格变体 ×（干净 / 软字幕 / 烧字）；**有字幕默认产出烧字形态**（`--no-burn-subtitles` 退回纯软字幕轨，2026-10-12 口径）；**默认仍全片硬切** |
-| 封面链路 | `pnpm edit:cover` | 封面设计师链路：平台规格（`cover-platforms.ts` 唯一事实源）+ cover-kb + 账号视觉锤 → 三风格设计稿 → **Compositor 视觉工位出图（带回执）** → 机检（画幅/标题带 PSNR/人物位/安全区）→ **烧封片头默认 0.6s，封面段静音：BGM 只在正片起播一次**（`--burn-intro 0` 可关闭）→ **完整视频提升到 `variants/<id>/*.cover.mp4`**，写入推荐发布件 |
+| 正式后期 | `pnpm edit:post` | 逐段裁切 → **按项目选择分段调色**（如家里暖 / 城市冷，片段级一次成型，共享调色和变体色彩按配方处理）→ **逐切转场**（`--transitions hard/declared/auto`，46+ 种 xfade 目录、真硬切、逐刀回执机检）→ 母版 + 风格变体 ×（干净 / 软字幕 / 烧字）；**有字幕默认产出烧字形态**（`--no-burn-subtitles` 退回纯软字幕轨，2026-10-12 口径）；**默认仍全片硬切** |
+| 封面链路 | `pnpm edit:cover` | 封面设计师链路：平台规格（`cover-platforms.ts` 唯一事实源）+ cover-kb + 账号视觉锤 → 三风格设计稿 → **Compositor 或 FFmpeg 出图（按执行环境选择，保留渲染器回执）** → 机检（画幅/标题带 PSNR/人物位/安全区）→ **烧封片头默认 0.6s，封面段静音：BGM 只在正片起播一次**（`--burn-intro 0` 可关闭）→ **完整视频提升到 `variants/<id>/*.cover.mp4`**，写入推荐发布件 |
 | 弹幕轨 | `pnpm edit:danmaku` | 复用字幕工位的弹幕能力：滚动/顶部/底部混合、2–4 分道、密度体检、回执含产物 sha256；默认**完整保留**传入条目、不隐式删减 |
 | 配乐选曲 | `pnpm edit:post --bgm agent` | 配乐选曲器在**本地打标大库**按变体风格匹配并复检可商用许可，`trackId` 钉进变体配方；**本地大库优先、随仓 50 首兜底**（回执 `bgm-agent-receipt.json`） |
 | 交付包 | `outputs/edit/delivery-<版本>/` | 母版 + 变体×三形态 + 封面 + 烧封 + 弹幕 + 全部回执：`delivery-manifest.json`、`covers/cover-plan.json`、`bgm-agent-receipt.json`、`segment-color-plan.json`、`danmaku/danmaku-receipt.json` |
-| **交付节奏（1080P 先行 + 分批）** | `pnpm edit:delivery-plan` → `pnpm edit:fastlane` → `pnpm edit:post` | 开工先给用户**预计时长与交付清单**（1080P 先行版几分钟；正式版 4K×N 风格约多久；本机配置的影响与升级建议）；再用同一份帧级时间轴快速交付 1080P 先行版（裁切+烧字+配乐），4K/多风格/封面烧封分批补 |
+| **交付节奏（1080P 先行 + 分批）** | `pnpm edit:delivery-plan` → `pnpm edit:fastlane` → `pnpm edit:post` | 先按素材、时长和版本数估算，再用同一份帧级时间轴制作 1080P 交付件。完整模式默认生成三种风格并带封面，弹幕在传入条目后烧录，4K 按确认范围另行制作 |
 | **口播精剪（AI 口播管线）** | `pnpm edit:talk-asr` → `edit:talk-emotion` → `edit:talk-cut` → `edit:talk-annotate` | 口播专属前置链路：**词级 ASR 逐字稿**（语气词/停顿/卡壳/口误自纠全量标记，精度如实标注）+ **情绪与活人感**（句级情绪曲线、三类峰值、笑声/叹气/自纠信号）；逐句留删决策带**人味台账**（语气词保留率 ≥0.20、停顿保留率 ≥0.15，跌破必须人审放行）；同机位跳切用推近遮盖；产出 `talk-cut-list.json` / `talk.timeline.json` / `talk.captions.json` / `talk.srt` / `talk-qc.json`；点睛层出知识点弹幕/贴纸/章节 |
 
 ### 交付节奏：默认 1080P 完整版；4K 交付后先确认（2026-10-17 产品所有者口径·第二版）
 
 用户等待成片的时间本身就是产品体验。**默认第一条交付 = 1080P 完整版全链路**（不是残缺预览）：
-调色 + BGM + 字幕 + 转场 + 首尾快切 + 封面设计/机检/烧封 + 弹幕 + 交付清单。
-**对外只交最终成片**：按系统 3 个风格版本（暖心版 / 标准版 / 欢快版）各交**一条**——字幕、封面、弹幕全部烧录完成；
+变体调色、配乐、字幕、封面设计与烧封、交付清单按完整模式处理。转场与首尾快切依据时间轴，弹幕在提供条目后烧录，共享分段调色用 `--segment-color` 开启。
+**对外只交最终成片**：默认按 3 个风格版本（暖心版 / 标准版 / 欢快版）各交一条，字幕、封面和本次要求的弹幕随成片交付；
 干净母版、软字幕轨、无字幕版、封面 PNG、字幕文件、清单等过程产物留在交付目录内部，用户不主动问就不展示。
 极速预览（轻链路，无调色/封面/弹幕）只作为可选；**素材是 4K 时，1080P 交付后主动问用户是否需要 4K**，不自动开跑。
 
@@ -93,15 +121,15 @@ macOS 的 Quick Look/QuickTime 默认不会自动打开软字幕轨（AVFoundati
 任何播放器/预览器直接可见，`delivery-manifest.json#publish` 与 `covers/cover-report.json#publish` 都会标注；
 ③ 「软字幕轨」形态保留给剪辑与平台字幕轨场景，不作为分享件。
 
-**已交付样例（可复现证据）**：山东归家短片 1920×1080/59.8s，4 变体 × 3 形态 + 封面×4 + 烧封 12 个文件 + 弹幕轨 14 条；`delivery-manifest.json` 11 项检查全过，硬切边界亮度 126–131（叠化对照 26–35），封面走 Compositor 工位带回执。转场回执（2026-10-11 新增）实测：legacy 黑场过渡窗口内 3 个黑帧 / 邻域 0 个，新逐切 xfade 路径 0 个黑帧，机检写进 `transitions/transition-receipt.json`。样例产物默认落在工作区 `outputs/edit/`（不入库）。
+**历史内部交付样例**：山东归家短片 1920×1080/59.8s，4 变体 × 3 形态 + 封面×4 + 烧封 12 个文件 + 弹幕轨 14 条；`delivery-manifest.json` 11 项检查全过，硬切边界亮度 126–131（叠化对照 26–35），封面走 Compositor 工位带回执。转场回执（2026-10-11 新增）实测：legacy 黑场过渡窗口内 3 个黑帧 / 邻域 0 个，新逐切 xfade 路径 0 个黑帧，机检写进 `transitions/transition-receipt.json`。样例产物默认落在工作区 `outputs/edit/`（不入库）。
 
 ## 给首次接手团队的阅读顺序
 
-1. 产品经理先看“使用场景”和“功能状态”，区分产品目标、已经有代码的链路与尚待接通的外部动作。
+1. 制作团队先看「选择制作方式」和「成片和交付」，再按输入选择正式入口。工作台已实现的功能和所需环境在下方列出。
 2. 技术团队先看“系统架构”“行业包组合”和“快速开始”，再沿源码入口追到实际执行器、数据库与回执。
 3. 准备交付时，以真实环境的输入、产物、费用、失败恢复和外部回执验收；本页不提供未经实测的容量、延迟或经营收益承诺。
 
-## 使用场景与产品边界
+## 视频工作台与业务协作
 
 | 使用者 | 具体场景 | 系统中的工作方式 | 当前边界 |
 |---|---|---|---|
@@ -109,9 +137,9 @@ macOS 的 Quick Look/QuickTime 默认不会自动打开软字幕轨（AVFoundati
 | 企业负责人、项目负责人 | 看清任务交给谁、交付什么、哪里待决定 | 工作台、任务线程、协作契约与组合看板组织交接和状态 | 看板和事件存在不等于营收归因已接通；演示订单不能当实际收入 |
 | 增长策略与渠道运营人员 | 同一选题用于社媒内容与 GEO，并积累可复用作业规范 | `geo-growth` 声明岗位、技能、围栏和管线，复用视频与视觉制作能力 | query 采集、能见度监测、线索评分和分发等专用工具仍需逐项接线与验收 |
 
-本仓身份是 `workloom-ai-growth`，角色为 `industry`，默认行业包为 `geo-growth`，属于 WorkLoom 的实验车道。它与 `workloom-growthtest`、`workloom-growthmatrix` 两个隔离副本是不同实例；不把其它仓库的实验能力合并算入本仓。酒店包是组合依赖和垂直业务样例，不代表这里已经接通真实 PMS、OTA、支付或所有酒店经营数据。来源：[product.manifest.json](product.manifest.json)、[主包 manifest](bundles/geo-growth/bundle.json)。
+Edit 的产品标识是 `workloom-ai-video-edit`，角色为 `industry`，默认工作区装配 `geo-growth`。它提供视频制作能力，同时保有工作台所需的共享组织、治理和媒资能力。GEO 与酒店属于工作区的组合资产，实际采集、监测、PMS、OTA 和支付以部署接入为准。 [产品清单](product.manifest.json) · [默认行业包](bundles/geo-growth/bundle.json)
 
-## 功能状态：代码做到哪里
+## 工作台功能与运行依赖
 
 下表的“有实现”指已能定位代码链路；“依赖外部”意味着还需要引擎、账户、数据源或驱动。“声明/SOP”描述预期作业方式，不能据此认定已经自动执行。
 
@@ -131,25 +159,9 @@ macOS 的 Quick Look/QuickTime 默认不会自动打开软字幕轨（AVFoundati
 
 **当前 PC 通用审批、服务前台、成员管理、伙伴授权和个人账号管理入口已移除。** 底层 API 和业务专用关卡可以继续存在，但旧 `/approvals`、`/service` 等截图不再代表当前产品入口。具体路由与权限以 [App.tsx](apps/web/src/App.tsx)、[NavigationAccess.tsx](apps/web/src/shell/NavigationAccess.tsx) 和 [视频行业路由](apps/web/src/extensions/ai-video/routes.tsx) 为准。
 
-## 产品架构
-
-```mermaid
-flowchart TB
-  People[负责人、内容团队、增长运营] --> Workbench[目标、任务、岗位与组合看板]
-  Workbench --> Video[视频生产与交付工位]
-  Workbench --> Growth[GEO 与增长作业规范]
-  Workbench --> Collaboration[协作契约与交接回执]
-  Video --> Assets[脚本、素材、作业、成片与交付记录]
-  Growth -.专用工具逐项接入.-> External[采集、监测、线索、平台分发]
-  Collaboration --> Decisions[责任、状态与待决定事项]
-  Workbench --> Shared[身份、模型、围栏、事件、记忆与评测]
-```
-
-社媒与 GEO 共用工作空间和制作能力，但“获客五环”是产品目标模型。只有采集、制作、分发、承接、订单与归因分别有真实数据和回执，才能宣称某一客户的经营链路已经闭合。
-
 ## 系统架构与关键调用链
 
-这是 TypeScript monorepo 中的模块化单体：三端 Web 和 Electron 壳消费 Hono/tRPC 服务；PostgreSQL 保存业务数据与事件；媒体文件与外部制作/浏览器工位承担文件和长耗时动作。
+编辑端通过 PC 视频工作台、Agent 和 CLI 进入分阶段的制作流程。服务端把项目信息、授权、异步作业和交付事件存入 PostgreSQL。渲染与 FFmpeg 合成在配置的执行环境处理媒体文件，交付视图根据成片与对应回执展示结果。
 
 ```mermaid
 flowchart TB
@@ -159,7 +171,12 @@ flowchart TB
   Desktop[Electron 桌面壳] --> PC
   API --> Access[会话、当前成员权限、工作区上下文]
   Access --> Runtime[Ask / Agent / Quest]
-  Access --> Studio[视频专用生产链]
+  Agent[Agent CLI / MCP] --> Studio[Studio / Film]
+  Access --> Studio
+  Access --> Explainer[脚本口播与白板服务]
+  ExplainerCLI[解说 CLI] --> Explainer
+  Explainer --> Station
+  EditCLI[剪辑 CLI / 口播 CLI] --> Local[本地时间轴校验与后期]
   Bundle[行业 Bundle：岗位、技能、围栏、投影] --> Runtime
   Bundle --> Studio
   Runtime --> Fence[围栏与业务审批]
@@ -172,6 +189,7 @@ flowchart TB
   API --> DB
   Gateway --> DB
   Station --> Media[媒体文件与签名访问]
+  Local --> Files[成片、字幕与交付回执]
 ```
 
 | 研发关心的问题 | 从哪里追代码 | 关键边界 |
@@ -234,9 +252,11 @@ NATS/Redis 的事件总线库可在源码中找到，但当前主业务入口未
 
 ### 1. 克隆、依赖与专用数据库
 
+依赖安装前按[接入指南](docs/AGENT-CLIENTS.md)准备仓库所需的 GitHub UI 制品。
+
 ```bash
-git clone https://cnb.cool/workloom-ai/WorkLoom-growth.git
-cd WorkLoom-growth
+git clone https://github.com/geniusdapeng-collab/WorkLoom-video-edit.git
+cd WorkLoom-video-edit
 pnpm install --frozen-lockfile
 test -f .env || cp .env.example .env
 docker compose up -d postgres
@@ -259,6 +279,8 @@ LLM_PROVIDER=mock pnpm preview:all
 | 员工移动端 | http://localhost:3001 | `apps/webb` 的 React 应用，并非 `docs/demo` 静态原型 |
 | 客户 H5 | http://localhost:3002 | 该预览脚本固定到 `ws-yunqi` 酒店服务夹具，不能当作 GEO 客户前台演示 |
 | 服务端 | http://localhost:8787/health | 进程探活；仍需页面、数据库和具体场景检查 |
+
+进入 PC 后，通过片库打开生成工作室 `/ai-video/assets?tab=studio`，通过交付页 `/ai-video/assets?tab=delivery` 查看成片记录。素材剪辑和真人口播精剪使用本仓 CLI，命令见[素材剪辑与真人口播精剪](#素材剪辑与真人口播精剪)。
 
 `preview:all` 会尝试终止占用 3000/3001/3002/8787/5173/5176 的进程，运行前先确保这些端口没有需要保留的工作。预览的“已就绪”横幅不能替代健康核验；失败时查看 `/tmp/preview-all-*.log`。`LLM_PROVIDER=mock` 只控制通用模型路由，媒体供应商、浏览器发布和其它工位有各自的配置，不能据此宣称所有外部调用都被统一模拟。
 
@@ -290,7 +312,7 @@ pnpm -C apps/webc dev
 
 ### 3. 当前安装脚本限制
 
-`pnpm setup` 仍会遍历所有 `db:seed*`，其中 `db:seed:aipm` 读取本仓未携带的 `bundles/ai-pm`；到该步骤可能因缺包失败。`setup:lite` 只直接执行基础种子，未完整覆盖默认 GEO 工作区初始化。因此本页以显式步骤为推荐入口，不再承诺“一条命令安装全部能力”。本次只更新文档与生成器，未修改这些启动脚本。来源：[bootstrap.sh](scripts/bootstrap.sh)、[setup-lite.mts](scripts/setup-lite.mts)、[preview-all.sh](scripts/preview-all.sh)。
+`pnpm setup` 仍会遍历所有 `db:seed*`，其中 `db:seed:aipm` 读取本仓未携带的 `bundles/ai-pm`；到该步骤可能因缺包失败。`setup:lite` 只直接执行基础种子，未完整覆盖默认 GEO 工作区初始化。因此本页以显式步骤为推荐入口，不再承诺“一条命令安装全部能力”。来源：[bootstrap.sh](scripts/bootstrap.sh)、[setup-lite.mts](scripts/setup-lite.mts)、[preview-all.sh](scripts/preview-all.sh)。
 
 ### 4. 从模拟到真实环境
 
@@ -349,7 +371,7 @@ git diff --check
 
 ## 产品理念与长期目标
 
-下面是 WorkLoom 体系共享的自主经营纲领引用，描述理念与终态目标。它是受控内容，**不作为上表各功能已经生产可用的证明**；本仓实际范围以本页实现状态及源码为准。
+下面是 WorkLoom 体系共享的自主经营纲领引用，描述理念与终态目标。它是受控内容，**不作为上表各功能已经生产可用的证明**；本仓实际范围以本页功能说明及源码为准。
 
 <!-- WORKLOOM-AUTONOMOUS-OPERATIONS:BEGIN -->
 ## 🧭 理论纲领 · AI 自主经营模式
