@@ -1,53 +1,17 @@
-# Edit · WorkLoom 视频 AI 剪辑系统
+# WorkLoom 视频AI剪辑系统 · 真实素材二次创作（实验车道）
 
-**把实拍、口播和已有 AI 素材剪成可分享、可复查的成片。**
+本仓复制自 **WorkLoom-growth@7509809**，在既有 AI 视频生产链路之前新增一条 **视频AI剪辑管线**：真实拍摄（或既有 AI 素材）→ 多模态理解 → 高光与关键帧挖掘 → 镜头重组与文案 → 帧级剪辑时间轴 → 本地合成 → 交回既有后期（调色/字幕/配音/配乐/封面/多风格交付）。
 
-Edit 面向有原始素材的内容团队和剪辑师。它先从素材里找出可用片段，按目标组织文案和镜头，再把方案落实到帧级时间轴。裁切、字幕、调色、配乐和成片合成可在本机执行，交付时可以追溯所用素材、版本和处理记录。
+换句话说：**替换掉"视频提示词生成"与"视频渲染"两个环节**，其余后期环节与 AI 视频生成管线共用同一批工位与同一份交付纪律。剪辑包本身是本地算力（免费、可重跑），模型只花在"理解"和"创作"上。
 
-[适用场景](#适用场景) · [剪辑如何进行](#剪辑如何进行) · [导入与接入](#导入与接入) · [运行参考](#运行参考)
+当前生产线包含 11 个本地执行器：通用剪辑 7 个（`pnpm edit:probe / edit:verify / edit:assemble / edit:post / edit:subtitle / edit:cover / edit:danmaku`）+ **口播精剪 4 个**（`pnpm edit:talk-asr / edit:talk-emotion / edit:talk-cut / edit:talk-annotate`），并已支持**按场景组分段调色、配乐 agent 选曲（本地打标大库优先）、封面 agent 链路与烧封片头、弹幕轨、分辨率×朝向字号规则、多风格变体×三形态交付**，详见下文「AI 剪辑生产线」。
 
-## 适用场景
+[CNB 仓库](https://cnb.cool/workloom-ai/WorkLoom-video-edit) · [产品身份](product.manifest.json) · [剪辑架构升级](docs/video-edit-architecture.md) · [提示词套件](docs/video-edit-prompt-suite.md) · [代码入口导览](docs/capabilities.auto.md) · [开发指引](AGENTS.md) · [Apache-2.0](LICENSE)
 
-| 你手上有什么 | 用 Edit 做什么 | 你会拿到什么 |
-| --- | --- | --- |
-| 一组实拍镜头或已有 AI 素材 | 找高光、编排故事、生成时间轴并合成 | 母版、不同风格的发布版本、交付清单 |
-| 一段完整口播 | 生成词级逐字稿，结合语气、停顿和情绪做逐句取舍 | 精剪成片、时间轴、字幕和质检记录 |
-| 已剪好的内容和明确的平台要求 | 按画幅适配字幕、封面与弹幕，生成可直接观看的版本 | 烧录所需元素的发布文件，以及留存的独立字幕和素材 |
+> 新管线入口：`bundles/video-edit/`（10+ 岗位 / 1 条管线 / 9 条围栏 / 5 份契约）+ `packages/video-studio/src/edit/`（参考实现）
+> + `pnpm edit:probe|verify|assemble|post|subtitle|cover|danmaku`（本地信号解析、后期交付、封面与弹幕轨）。原获客（GEO）能力与页面**原样保留**，可直接复用其治理机制与工作台。
 
-## 剪辑如何进行
-
-~~~mermaid
-flowchart LR
-    A["实拍、口播或现有素材"] --> B["分析素材与转写"]
-    B --> C["确定叙事、取舍和时间轴"]
-    C --> D["检查时长、画幅与剪辑点"]
-    D --> E["本机剪辑与后期"]
-    E --> F["成片、变体与交付记录"]
-~~~
-
-通用剪辑从多段素材中选镜头。口播精剪则从一条长录制里做逐句取舍，逐字稿供字幕与剪辑回溯。两条路径可以共用后期链路。 [通用剪辑说明](docs/video-edit-architecture.md) · [口播精剪说明](docs/talking-head-pipeline.md)
-
-**怎样交付。** 默认先出完整的 1080P 成片，按已约定的风格处理调色、配乐、字幕、封面和弹幕。适合直接分享的文件会把所需字幕和封面烧录进画面。对有 4K 源素材的项目，先交 1080P，再确认是否需要追加 4K。作业回执记录产物、处理方式和可核对的文件信息。 [详细交付约定](#运行参考) · [交付与返修](docs/video-delivery-and-revision.md)
-
-Edit 是 WorkLoom 的剪辑实验车道，复用视频媒体工位、工作区和事件回执。素材理解和创作所需的模型，以及外部渲染、授权素材和发布能力，以实际配置和本次授权为准。 [产品身份](product.manifest.json) · [剪辑行业包](bundles/video-edit/README.md)
-
-## 导入与接入
-
-| 想开始做什么 | 从这里进入 |
-| --- | --- |
-| 了解从素材到成片的操作 | [剪辑架构](docs/video-edit-architecture.md)、[剪辑 runbook](bundles/video-edit/README.md) |
-| 让 Codex、Qoder 或其他工作台调用 Edit | [AI 工作台指南](docs/ai-video-workbench-guide.md)、[CLI 与 MCP 接入](docs/AGENT-CLIENTS.md) |
-| 继续已有作业或核验交付 | [视频交付与返修](docs/video-delivery-and-revision.md) |
-| 查功能、模块和执行器入口 | [能力导览](docs/capabilities.auto.md)、[开发指引](AGENTS.md) |
-
-从源码接入时，请使用本仓的 GitHub 地址。依赖、独立数据库和工作台配置以当前接入指南为准。 [当前仓库](https://github.com/geniusdapeng-collab/WorkLoom-video-edit) · [安装与本机接入](docs/AGENT-CLIENTS.md)
-
-## 运行参考
-
-下方收录原有的生产命令、Agent 作业规则、受控区块和开发说明。源码安装请先看上方本仓 GitHub 接入入口。
-
-<details>
-<summary>展开剪辑执行、角色、系统架构与维护细节</summary>
+> 本页按当前源码说明“有什么、从哪里进入、还依赖什么”，不把岗位或技能数量当作已交付能力数，也不把模拟结果当作生产效果。旧方案、截图和演示 PPT 可帮助理解背景；发生差异时，以 manifest、当前路由和实际执行代码为准。
 
 ## AI 剪辑生产线（当前可执行能力）
 
@@ -400,8 +364,6 @@ git diff --check
 - **自治权是挣来的**：观察 → 请示后执行 → 汇报后执行 → 全权自治，按决策域用回测证据升降档；汇报透明是自治的价格标签。
 - **度量即货币**：自治率、客户干预率、回测命中率三条曲线决定自治权扩张；模拟成功不计入自治率。
 <!-- WORKLOOM-AUTONOMOUS-OPERATIONS:END -->
-
-</details>
 
 ## 许可证
 
